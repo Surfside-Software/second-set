@@ -313,7 +313,21 @@ it. Queue messages use JSON to preserve millisecond expiry times through the SDK
 
 ## Validation
 
-Protocol 3 is deployed from `d7ba4f874` as `moke-review-engine:d7ba4f874`.
+The current worker is `moke-review-engine:4cc8c03`, image
+`im-01M6DBQX7M1HEP05AA68MHBW7R`, with protocol 5, packet prompt v8 and code index
+v2. `moke-review-engine:latest` resolves to the same image. On 2026-11-02 it passed
+strict identity, migration-hash, PDF worker and blocked-network checks in a fresh
+sandbox. One bounded cloud packet review of the authored schematic then ran on
+Muse Spark 1.3, returned automatically and imported, with no sandbox left running.
+Its citations to indexed ICC sections recorded no quote or access note, and the
+statute it read came back verified.
+
+The previous image is `moke-review-engine:v0.2.0`,
+`im-01M6D10NCS3MSF4WYCNCYJGYJS`, with packet prompt v7 and code index v1. A v0.2.0
+desktop fails the identity probe against `latest`, before any transfer, so it must
+select that immutable tag in its private operator configuration.
+
+Protocol 3 was deployed from `d7ba4f874` as `moke-review-engine:d7ba4f874`.
 That immutable tag, `moke-review-engine:latest` and this checkout's private
 operator selection resolve to `im-01M630XTWWQWB3FM0K4NY8NR0D`.
 The published image passed strict identity, migration-hash and native PDF
