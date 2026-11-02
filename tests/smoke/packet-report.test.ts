@@ -509,6 +509,30 @@ test("a citation's retrieved source is the id of a source this review holds, or 
   );
 });
 
+test("a finding names a prior comment only when this review holds it", () => {
+  const fixture = review();
+  const [finding] = fixture.findings;
+
+  if (finding === undefined) throw new Error("Missing finding fixture");
+
+  // Every finding of two real reviews stored this placeholder, with no prior comments at all.
+  const placeholder = "00000000-0000-0000-0000-000000000000";
+
+  const html = renderPacketReport(
+    review({ findings: [{ ...finding, priorCommentId: placeholder }] }),
+    new Map(),
+  );
+
+  expect(html).not.toContain(`Prior comment ${placeholder}`);
+
+  const real = renderPacketReport(
+    review({ findings: [{ ...finding, priorCommentId: identifiers.prior }] }),
+    new Map(),
+  );
+
+  expect(real).toContain(`Prior comment ${identifiers.prior}`);
+});
+
 test("indexed report citations show their standing and check without presenting unread paraphrases", () => {
   const base = review();
   const citation = base.citations[0];

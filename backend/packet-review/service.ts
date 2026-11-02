@@ -381,13 +381,9 @@ const CitationInput = Schema.Struct({
   codeReferenceId: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(500))),
 });
 
-/** What a finding without evidence, citations, calculations or a prior comment stores. */
-const findingLinkDefaults = {
-  evidenceIds: [],
-  citationIds: [],
-  calculationIds: [],
-  priorCommentId: null,
-};
+/** A finding's optional link field, which a model may leave out or send as an empty string. */
+const orBlank = <S extends Schema.Top>(field: S) =>
+  Schema.optionalKey(Schema.Union([field, Schema.Literal("")]));
 
 type Runtime = {
   harness: Harness;
@@ -1865,14 +1861,21 @@ export class PacketReviews extends Context.Service<
                 ]),
                 id: Schema.optionalKey(Id),
                 completed: Schema.optionalKey(Schema.Boolean),
-                // A long conversation can drop these; refusing the finding loses more than they hold.
-                evidenceIds: Schema.optionalKey(PacketFinding.fields.evidenceIds),
-                citationIds: Schema.optionalKey(PacketFinding.fields.citationIds),
-                calculationIds: Schema.optionalKey(PacketFinding.fields.calculationIds),
-                priorCommentId: Schema.optionalKey(PacketFinding.fields.priorCommentId),
+                // Models omit these, or send "" or "null", when they have none. Refusing that cost 66
+                // of about 160 calls on a real set, a paid turn each, and models then invented an
+                // all-zeros prior comment to get past the check. The host keeps only a real one.
+                evidenceIds: orBlank(PacketFinding.fields.evidenceIds),
+                citationIds: orBlank(PacketFinding.fields.citationIds),
+                calculationIds: orBlank(PacketFinding.fields.calculationIds),
+                priorCommentId: Schema.optionalKey(Schema.NullOr(Schema.String)),
               }),
               async (task, given, api) => {
-                const input = { ...findingLinkDefaults, ...given };
+                const input = {
+                  ...given,
+                  evidenceIds: given.evidenceIds || [],
+                  citationIds: given.citationIds || [],
+                  calculationIds: given.calculationIds || [],
+                };
 
                 if (input.absenceCheck && assignments.sheets.has(api.conversationId))
                   throw error(
@@ -1945,10 +1948,15 @@ export class PacketReviews extends Context.Service<
                       return stored(cited) && !stored(own) ? cited : own;
                     });
 
+                    const priorCommentId =
+                      review.priorComments.find((entry) => entry.id === input.priorCommentId)?.id ??
+                      null;
+
                     const recorded = {
                       ...input,
                       ...kept,
                       citationIds,
+                      priorCommentId,
                       id,
                       summary,
                       completed: existing?.completed ?? false,

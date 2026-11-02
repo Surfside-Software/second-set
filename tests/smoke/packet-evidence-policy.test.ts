@@ -567,22 +567,45 @@ test("a finding that drops its evidence and citation lists is still recorded", a
   const directory = await mkdtemp(join(tmpdir(), "moke-finding-defaults-"));
   let step = 0;
 
-  // The fields a real reviewer dropped on its retry, after which it stopped recording findings.
+  const finding = {
+    discipline: "life_safety",
+    severity: "Major",
+    status: "Needs input",
+    classification: "Code",
+    locations: [],
+    observed: "The code analysis uses non-sprinklered limits and requires sprinklers.",
+    correction: "State one sprinkler basis and revise the dependent notes to match it.",
+    evidenceNote: "The notes are legible on the supplied cover sheet.",
+  };
+
+  // A real reviewer dropped these on its retry, then stopped recording findings. Refusing such
+  // values cost 66 of about 160 calls in each of two reviews of a real set.
   const session = await open(directory, async () =>
     step++ === 0
       ? response([
+          { name: "record_finding", arguments: { ...finding, title: "Dropped lists" } },
           {
             name: "record_finding",
             arguments: {
-              title: "Sprinkler basis conflicts within the code analysis",
-              discipline: "life_safety",
-              severity: "Major",
-              status: "Needs input",
-              classification: "Code",
-              locations: [],
-              observed: "The code analysis uses non-sprinklered limits and requires sprinklers.",
-              correction: "State one sprinkler basis and revise the dependent notes to match it.",
-              evidenceNote: "The notes are legible on the supplied cover sheet.",
+              ...finding,
+              title: "Blank lists",
+              evidenceIds: "",
+              citationIds: "",
+              calculationIds: "",
+              priorCommentId: "",
+            },
+          },
+          // What the model sent most often, and what it invented once that was refused.
+          {
+            name: "record_finding",
+            arguments: { ...finding, title: "Text null", priorCommentId: "null" },
+          },
+          {
+            name: "record_finding",
+            arguments: {
+              ...finding,
+              title: "Placeholder comment",
+              priorCommentId: "00000000-0000-0000-0000-000000000000",
             },
           },
         ])
@@ -595,13 +618,20 @@ test("a finding that drops its evidence and citation lists is still recorded", a
     );
 
     const finished = await until(session, started.id, "failed");
-    const [finding] = finished.findings;
 
-    expect(finding?.title).toBe("Sprinkler basis conflicts within the code analysis");
-    expect(finding?.evidenceIds).toEqual([]);
-    expect(finding?.citationIds).toEqual([]);
-    expect(finding?.calculationIds).toEqual([]);
-    expect(finding?.priorCommentId).toBeNull();
+    expect(finished.findings.map((recorded) => recorded.title).toSorted()).toEqual([
+      "Blank lists",
+      "Dropped lists",
+      "Placeholder comment",
+      "Text null",
+    ]);
+
+    for (const recorded of finished.findings) {
+      expect(recorded.evidenceIds).toEqual([]);
+      expect(recorded.citationIds).toEqual([]);
+      expect(recorded.calculationIds).toEqual([]);
+      expect(recorded.priorCommentId).toBeNull();
+    }
   } finally {
     await session.dispose();
     await rm(directory, { recursive: true, force: true });
