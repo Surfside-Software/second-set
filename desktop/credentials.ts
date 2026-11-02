@@ -15,8 +15,8 @@ const StoredCredential = Schema.Struct({
   encrypted: Schema.NonEmptyString,
 });
 
-const secureStorageAvailable = () =>
-  safeStorage.isEncryptionAvailable() &&
+const secureStorageAvailable = async () =>
+  (await safeStorage.isAsyncEncryptionAvailable()) &&
   (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text");
 
 /** Packaged launches use OS-encrypted storage or an explicitly selected session-only file. */
@@ -27,7 +27,7 @@ export async function readInferenceConfigurations(directory: string, packaged: b
   const storedFile = join(directory, "provider-credential.json");
 
   if (existsSync(storedFile)) {
-    if (!secureStorageAvailable())
+    if (!(await secureStorageAvailable()))
       throw new CredentialError({
         message:
           "Secure credential storage is unavailable. Select a session-only credential configuration.",
@@ -38,9 +38,11 @@ export async function readInferenceConfigurations(directory: string, packaged: b
         await readFile(storedFile, "utf8"),
       );
 
-      return parseProviderConfigurations(
-        safeStorage.decryptString(Buffer.from(stored.encrypted, "base64")),
+      const decrypted = await safeStorage.decryptStringAsync(
+        Buffer.from(stored.encrypted, "base64"),
       );
+
+      return parseProviderConfigurations(decrypted.result);
     } catch {
       throw new CredentialError({
         message: "The saved provider credential could not be unlocked.",
@@ -80,23 +82,21 @@ export async function storeInferenceConfiguration(directory: string, source: str
     ...existing.filter((entry) => !incoming.some((item) => item.provider === entry.provider)),
   ];
 
-  if (!secureStorageAvailable())
+  if (!(await secureStorageAvailable()))
     throw new CredentialError({
       message:
         "OS credential encryption is unavailable. Use an explicitly selected session-only configuration.",
     });
 
-  const encrypted = safeStorage
-    .encryptString(
-      JSON.stringify({
-        providers: configs.map((config) => Schema.encodeSync(InferenceConfiguration)(config)),
-      }),
-    )
-    .toString("base64");
+  const encrypted = await safeStorage.encryptStringAsync(
+    JSON.stringify({
+      providers: configs.map((config) => Schema.encodeSync(InferenceConfiguration)(config)),
+    }),
+  );
 
   await writeFile(
     join(directory, "provider-credential.json"),
-    JSON.stringify({ version: 1, encrypted }),
+    JSON.stringify({ version: 1, encrypted: encrypted.toString("base64") }),
     { mode: 0o600, flush: true },
   );
 }

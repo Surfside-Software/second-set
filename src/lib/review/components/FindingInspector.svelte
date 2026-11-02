@@ -121,9 +121,7 @@
   const scheduledRegionValid = $derived(Schema.is(RegionInput)(scheduledRegion));
 
   function defaultRegion(sheet: Sheet | undefined): Region {
-    if (sheet === undefined) return { x: 0, y: 0, width: 100, height: 100 };
-
-    return { x: sheet.box.x, y: sheet.box.y, width: sheet.box.width, height: sheet.box.height };
+    return sheet?.box ?? Region.make({ x: 0, y: 0, width: 100, height: 100 });
   }
 </script>
 
