@@ -84,8 +84,8 @@ export function citationDisplayNote(
     /^(?:the )?(?:engineer|reviewer|user) (?:must|should|needs to) open the link and confirm$/i,
     /^(?:the )?(?:section content|governing text) (?:was )?(?:not retrieved|could not be retrieved)(?: here| automatically)?$/i,
     /^(?:the )?ICC Digital Codes blocks (?:automated )?retrieval$/i,
-    // What to confirm may follow, but a comma or joining word can carry a project fact: keep those.
-    /^(?:the )?engineer to open (?:the )?link to confirm (?!.*\b(?:but|and|however|although|though|while|because|since|no|not)\b)[^,]+$/i,
+    // Only a section and a closed set of words may follow, so a project fact can never match.
+    /^(?:the )?engineer to open (?:the )?link to confirm Sections? [A-Z]{0,2}\d[\w./-]*(?: (?:text|wording|language|requirements?|provisions?|occupant-load|factors|alteration|levels))*$/i,
     /^(?:the )?official text was (?:not available for automated reading|inaccessible)$/i,
     /^open (?:the |this )?link (?:to confirm the wording|and confirm)$/i,
     /^(?:the )?Florida rule page could not be accessed(?: here| automatically)?$/i,

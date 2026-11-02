@@ -559,6 +559,9 @@ test("citation display notes remove only browser access clauses and preserve pro
     "ICC Digital Codes link could not be read here, but sheet M-2 cites the wrong edition.",
     "engineer to open link to confirm Section 803 text, but no vent/connector work in this lighting set.",
     "engineer to open link to confirm Section 803 text and sheet M-2 omits the connector.",
+    "engineer to open link to confirm Section 803 text: sheet M-2 omits the connector.",
+    // An unrecognized subject stays visible: showing boilerplate is harmless, hiding a fact is not.
+    "engineer to open link to confirm HVHZ masonry provision referenced as 2118.",
     "Text on sheet M-2 could not be read at the supplied resolution.",
     "Section 1004 does not apply because the space is unoccupied.",
     "Section 803 not applicable to this project.",
@@ -573,7 +576,6 @@ test("citation display notes remove only browser access clauses and preserve pro
     boilerplate,
     "ICC Digital Codes blocks automated retrieval; engineer to open link to confirm Section 1004 occupant-load factors.",
     "ICC Digital Codes blocks automated retrieval; engineer to open link to confirm Sections 602/603/604 alteration levels.",
-    "ICC Digital Codes blocks automated retrieval; engineer to open link to confirm HVHZ masonry provision referenced as 2118.",
     "ICC Digital Codes link could not be read here",
     "the engineer must open the link and confirm",
     "Section content not retrieved",
