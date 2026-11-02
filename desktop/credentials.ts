@@ -60,6 +60,7 @@ export async function readInferenceConfigurations(directory: string, packaged: b
   }
 
   if (packaged) return [];
+
   const keys = {
     meta: process.env.MODEL_API_KEY,
     baseten: process.env.BASETEN_API_KEY,

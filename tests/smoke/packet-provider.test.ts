@@ -187,7 +187,7 @@ function fixture(
       packetReview,
       maxInputTokens: 1048576,
       maxOutputTokens,
-      ...(options.cacheKey === undefined ? {} : { cacheKey: () => options.cacheKey }),
+      cacheKey: () => options.cacheKey,
       begin: async (phase) => {
         phases.push(phase);
 

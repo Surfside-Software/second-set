@@ -16,7 +16,10 @@ export const reviewProviderRoutes = {
     endpoint: "https://opencode.ai/inference/go/v1",
     model: "muse-spark-1.3-contributor",
   },
-} as const satisfies Record<typeof ReviewProvider.Type, object>;
+} as const satisfies Record<
+  typeof ReviewProvider.Type,
+  { readonly label: string; readonly endpoint: string; readonly model: string }
+>;
 
 /** Chat models supported by the drawing-review runtime; SAM remains a tool. */
 export const ReviewModelId = Schema.Literals([

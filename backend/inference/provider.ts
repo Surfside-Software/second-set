@@ -52,6 +52,13 @@ export interface ProviderConfiguration {
 /** Meta serves Muse Spark 1.3 with a larger output ceiling than Pi's catalog records (checked 2026-10-29). */
 const metaOutputCeilings = new Map([["muse-spark-1.3", 256_000]]);
 
+/** Pi's implementation of each provider a review can run on. */
+const reviewProviders: Record<typeof ReviewProvider.Type, () => Provider> = {
+  meta: metaProvider,
+  baseten: basetenProvider,
+  "opencode-go": opencodeGoProvider,
+};
+
 /** Muse Spark and Wonder reason at the extra-high level Meta's console uses for them. */
 export const packetReasoning = (modelId: string) =>
   reviewModels.find((model) => model.id === modelId)?.reasoning ?? "high";
@@ -442,12 +449,7 @@ export function createAdmittedModels(
   const identity = createExecutionTelemetry(admission.packetReview === true);
   const route = configuration.provider ?? "meta";
 
-  const base: Provider =
-    route === "baseten"
-      ? basetenProvider()
-      : route === "opencode-go"
-        ? opencodeGoProvider()
-        : metaProvider();
+  const base = reviewProviders[route]();
 
   const modelId = configuration.model ?? reviewProviderRoutes[route].model;
   const baseUrl = reviewProviderRoutes[route].endpoint;
