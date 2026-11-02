@@ -112,7 +112,8 @@ desktop builds neither publish the image nor start cloud compute. There is no
 embedded Modal or model credential in a distributed binary.
 
 Use File > Import provider credential to encrypt a configuration with Electron
-safeStorage. Linux `basic_text` storage is refused. Without secure OS storage,
+safeStorage. Linux storage without a running secret service is refused, because
+Chromium would otherwise encrypt with a publicly known key. Without secure OS storage,
 set `MOKE_SESSION_CREDENTIAL_FILE` to an explicitly selected private JSON file
 for that launch. On Unix it must have owner-only permissions (for example `chmod 600`).
 It contains `provider`, `apiKey`, canonical `baseUrl`, and `model`.

@@ -101,12 +101,7 @@ export class SourceView {
     const rendered = await this.#ports.render({
       projectId: render.projectId,
       sheetId: sheet.id,
-      region: render.region ?? {
-        x: sheet.box.x,
-        y: sheet.box.y,
-        width: sheet.box.width,
-        height: sheet.box.height,
-      },
+      region: render.region ?? sheet.box,
       dpi: render.dpi,
     });
 

@@ -7,7 +7,14 @@ import { DatabaseSync } from "node:sqlite";
 import { Effect, Schema, Struct } from "effect";
 import { CloudReviewRecord } from "../../backend/cloud/contracts.ts";
 import { writeCloudState } from "../../backend/cloud/files.ts";
-import { Artifact, Project, Revision, ReviewMessage, Sheet } from "#lib/review/contracts.ts";
+import {
+  Artifact,
+  Project,
+  Region,
+  Revision,
+  ReviewMessage,
+  Sheet,
+} from "#lib/review/contracts.ts";
 import { PacketReview, PacketScope, ReviewPass, PacketFindingSummary } from "#lib/review/packet.ts";
 import { transformRegion } from "#lib/review/geometry.ts";
 import { createHeroPdf } from "../fixtures/hero-case.ts";
@@ -878,7 +885,7 @@ function seedCompletedReview(directory: string) {
               {
                 sheetId: secondSheet.id,
                 detail: "Second sheet source",
-                region: { x: 320, y: 190, width: 90, height: 110 },
+                region: Region.make({ x: 320, y: 190, width: 90, height: 110 }),
               },
             ],
           },

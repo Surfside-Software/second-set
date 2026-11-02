@@ -8,6 +8,7 @@ import {
   packetCoverageProgress,
   samePacketSheetSource,
 } from "#lib/review/packet-coverage.ts";
+import { Region } from "#lib/review/contracts.ts";
 import { PacketCoverage, PacketScope, PacketSheet } from "#lib/review/packet.ts";
 import { reviewDisciplines } from "#lib/review/execution.ts";
 import {
@@ -178,7 +179,7 @@ test("whole-set coverage also accounts for each supplied sheet", () => {
   expect(
     samePacketSheetSource(sheet, {
       ...sheet,
-      box: { x: sheet.box.x, y: sheet.box.y, width: 600, height: sheet.box.height },
+      box: Region.make({ x: sheet.box.x, y: sheet.box.y, width: 600, height: sheet.box.height }),
     }),
   ).toBe(false);
 });

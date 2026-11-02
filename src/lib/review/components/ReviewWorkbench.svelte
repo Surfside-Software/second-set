@@ -5,13 +5,17 @@
     Conversation,
     Finding,
     Project,
-    Region,
-    ReviewSnapshot,
     Sheet,
     SheetLabelSuggestions,
   } from "#lib/review/contracts.ts";
   import { Match, Option, Schema } from "effect";
-  import { ReviewCommand, OperationId, RevisionId } from "#lib/review/contracts.ts";
+  import {
+    OperationId,
+    Region,
+    ReviewCommand,
+    ReviewSnapshot,
+    RevisionId,
+  } from "#lib/review/contracts.ts";
   import { newCommandId, reviewCommand, type ReviewClient } from "#lib/review/client.ts";
   import CloudReviewControls from "./CloudReviewControls.svelte";
   import {
@@ -842,15 +846,19 @@
       : result.value.events;
 
     const seen = new Set<number>();
-    snapshot = {
-      ...result.value,
-      events: events.filter((event) => {
-        if (seen.has(event.sequence)) return false;
-        seen.add(event.sequence);
+    // Every value here was decoded at the RPC boundary, so its filters need not run again.
+    snapshot = ReviewSnapshot.make(
+      {
+        ...result.value,
+        events: events.filter((event) => {
+          if (seen.has(event.sequence)) return false;
+          seen.add(event.sequence);
 
-        return true;
-      }),
-    };
+          return true;
+        }),
+      },
+      { disableChecks: true },
+    );
 
     if (result.value.project !== null)
       projectConversations = {
@@ -1711,13 +1719,15 @@
       (entry) => entry.findingId === selectedFinding.id && entry.side === side,
     );
 
-    const region = selectedRegion ??
-      fact?.evidence.region ?? {
+    const region =
+      selectedRegion ??
+      fact?.evidence.region ??
+      Region.make({
         x: sheet.box.x + sheet.box.width * 0.25,
         y: sheet.box.y + sheet.box.height * 0.25,
         width: sheet.box.width * 0.5,
         height: sheet.box.height * 0.5,
-      };
+      });
 
     await loadSourceForFinding(selectedFinding, 300, region, side);
   }
@@ -2884,10 +2894,9 @@
                   const width = Math.min(box.x + box.width, region.x + region.width) - x;
                   const height = Math.min(box.y + box.height, region.y + region.height) - y;
                   if (width <= 0 || height <= 0) return;
-                  applySelectedRegion?.({ x, y, width, height });
-                  sourceView.overlays = [
-                    { region: { x, y, width, height }, title: "Selected review area" },
-                  ];
+                  const selected = Region.make({ x, y, width, height });
+                  applySelectedRegion?.(selected);
+                  sourceView.overlays = [{ region: selected, title: "Selected review area" }];
                   notice = "Review area selected. Confirm its count below.";
                 }}
               />

@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { BackendApi } from "../desktop/backend.ts";
 import { InferenceConfiguration } from "#lib/backend-rpc.ts";
 import { CommandId, FindingId, ReviewCommand } from "#lib/review/contracts.ts";
+import { ExecutionBudget } from "#lib/review/execution.ts";
 import { ResponseReceipt } from "../backend/inference/response.ts";
 import { createHeroPdf } from "../tests/fixtures/hero-case.ts";
 
@@ -110,7 +111,11 @@ const program = Effect.gen(function* () {
         commandId: id(),
         projectId,
         findingId,
-        budget: { maxCalls: 12, maxInputTokens: 64000, maxOutputTokens: 4096 },
+        budget: ExecutionBudget.make({
+          maxCalls: 12,
+          maxInputTokens: 64000,
+          maxOutputTokens: 4096,
+        }),
       });
 
       console.log(

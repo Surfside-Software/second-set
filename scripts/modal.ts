@@ -85,7 +85,7 @@ const main = Effect.scoped(
         .fromRegistry("oven/bun:1.4.4")
         .dockerfileCommands([
           "WORKDIR /opt/moke",
-          "RUN bun add --exact @napi-rs/canvas@1.0.13 @napi-rs/canvas-linux-x64-gnu@1.0.13 pdfjs-dist@6.4.299",
+          "RUN bun add --exact @napi-rs/canvas@1.1.0 @napi-rs/canvas-linux-x64-gnu@1.1.0 pdfjs-dist@6.5.438",
         ]);
 
       const image = yield* call(() => base.build(app));
