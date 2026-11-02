@@ -18,8 +18,8 @@ or incoming HTTP tunnel.
 Configure the existing model connection first; see [inference setup](inference.md).
 Create a named Secret in the [Modal Secrets dashboard](https://modal.com/secrets)
 with the key `MOKE_API_KEY` holding that provider's API key. Its name is
-`<appName>-<provider>-api`: the defaults are `moke-reviews-meta-api` and
-`moke-reviews-baseten-api`. The current JS SDK can reference named Secrets but
+`<appName>-<provider>-api`: the defaults are `moke-reviews-meta-api`,
+`moke-reviews-baseten-api` and `moke-reviews-opencode-go-api`. The current JS SDK can reference named Secrets but
 cannot create them; use the dashboard or Modal's admin CLI for that one-time step.
 The application and sandbox workloads remain TypeScript on Bun.
 

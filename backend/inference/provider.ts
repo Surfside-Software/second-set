@@ -1,6 +1,7 @@
 import { createModels, type Provider } from "@earendil-works/pi-ai/models";
 import { metaProvider } from "@earendil-works/pi-ai/providers/meta";
 import { basetenProvider } from "@earendil-works/pi-ai/providers/baseten";
+import { opencodeGoProvider } from "@earendil-works/pi-ai/providers/opencode-go";
 import type {
   AssistantMessage,
   FetchFunction,
@@ -18,7 +19,7 @@ import { type PacerLease, type Refusal, RequestPacer, sharedPacer } from "./paci
 import { parseResponseReceipt } from "./response.ts";
 import { createExecutionTelemetry, type RequestPhase } from "./telemetry.ts";
 import type { ProviderFailure } from "#lib/review/execution.ts";
-import { reviewModels } from "#lib/review/models.ts";
+import { ReviewProvider, reviewModels, reviewProviderRoutes } from "#lib/review/models.ts";
 
 /** Injectable HTTP transport; Bun's optional fetch utilities are supplied by the adapter. */
 export type ProviderTransport = (
@@ -28,7 +29,7 @@ export type ProviderTransport = (
 
 /** Private startup credentials and selected route; no environment credential fallback is used. */
 export interface ProviderConfiguration {
-  readonly provider?: "meta" | "baseten";
+  readonly provider?: typeof ReviewProvider.Type;
   readonly apiKey: Redacted.Redacted<string>;
   readonly route: "live" | "recorded";
   readonly baseUrl?: string;
@@ -51,8 +52,12 @@ export interface ProviderConfiguration {
 /** Meta serves Muse Spark 1.3 with a larger output ceiling than Pi's catalog records (checked 2026-10-29). */
 const metaOutputCeilings = new Map([["muse-spark-1.3", 256_000]]);
 
-/** Meta packet reviews reason at the extra-high level Meta's console uses for Muse Spark 1.3. */
-const packetReasoning = (provider: string) => (provider === "meta" ? "xhigh" : "high");
+/** Muse Spark and Wonder reason at the extra-high level Meta's console uses for them. */
+export const packetReasoning = (modelId: string) =>
+  reviewModels.find((model) => model.id === modelId)?.reasoning ?? "high";
+
+/** Go asks clients to name themselves; a generic SDK name counts against traffic review. */
+const opencodeGoUserAgent = "moke-review/1.0";
 
 /** Meta runs this search server-side and returns cited text; read_source still records evidence. */
 const metaWebSearch = { type: "web_search", search_context_size: "high" } as const;
@@ -188,11 +193,13 @@ export function reviewModelCapabilities(modelId: string) {
   if (modelId === "meta-models/muse-spark-open-1026")
     return { contextWindow: 1048576, maxOutputTokens: null };
 
-  const model = metaProvider()
+  const route = reviewModels.find((entry) => entry.id === modelId);
+
+  const model = (route?.provider === "opencode-go" ? opencodeGoProvider() : metaProvider())
     .getModels()
     .find((entry) => entry.id === modelId);
 
-  if (!model || !reviewModels.some((entry) => entry.id === modelId && entry.provider === "meta"))
+  if (!model || route === undefined || route.provider === "baseten")
     throw new Error("Pinned model catalog is incompatible");
 
   return {
@@ -433,17 +440,20 @@ export function createAdmittedModels(
   if (configuration.route === "recorded" && configuration.transport === undefined)
     throw new Error("Recorded execution requires a recorded transport");
   const identity = createExecutionTelemetry(admission.packetReview === true);
-  const base: Provider = configuration.provider === "baseten" ? basetenProvider() : metaProvider();
+  const route = configuration.provider ?? "meta";
 
-  const modelId =
-    configuration.model ??
-    (base.id === "baseten" ? "meta-models/muse-spark-open-1026" : "muse-spark-1.3");
+  const base: Provider =
+    route === "baseten"
+      ? basetenProvider()
+      : route === "opencode-go"
+        ? opencodeGoProvider()
+        : metaProvider();
 
-  const baseUrl =
-    base.id === "baseten" ? "https://inference.baseten.co/v1" : "https://api.meta.ai/v1";
+  const modelId = configuration.model ?? reviewProviderRoutes[route].model;
+  const baseUrl = reviewProviderRoutes[route].endpoint;
 
   if (
-    !reviewModels.some((model) => model.id === modelId && model.provider === base.id) ||
+    !reviewModels.some((model) => model.id === modelId && model.provider === route) ||
     (configuration.baseUrl !== undefined && configuration.baseUrl.replace(/\/$/, "") !== baseUrl)
   )
     throw new Error("Inference route does not match the selected pinned model");
@@ -477,7 +487,7 @@ export function createAdmittedModels(
   const pacer =
     configuration.pacer ??
     (configuration.route === "live"
-      ? sharedPacer(selected.provider === "baseten" ? "baseten" : "meta", configuration.apiKey)
+      ? sharedPacer(route, configuration.apiKey)
       : new RequestPacer(unpacedLimits));
 
   const imageFiles =
@@ -680,10 +690,11 @@ export function createAdmittedModels(
         )
           throw new Error("Provider admission denied");
 
-        // Baseten's Muse Spark media encoder accepts at most eight images per request,
-        // including images retained in earlier tool results. The durable journal stays intact.
+        // Baseten's Muse Spark media encoder accepts at most eight images per request, including
+        // images retained in earlier tool results. Go has no Files API, so every image would be
+        // resent inline on every request; it keeps the same window. The durable journal stays intact.
         const bounded = admission.packetReview
-          ? selected.provider === "baseten"
+          ? selected.provider !== "meta"
             ? boundedImageContext(transcript, {
                 images: 8,
                 step: 4,
@@ -741,7 +752,7 @@ export function createAdmittedModels(
               bounds.imageBytes > (admission.packetReview ? 64 : 2) * 1024 * 1024 ||
               bounds.requestBytes > (admission.packetReview ? 72 : 3) * 1024 * 1024 ||
               (!admission.packetReview && bounds.images > 6) ||
-              (selected.provider === "baseten" && bounds.images > 8)
+              (selected.provider !== "meta" && bounds.images > 8)
             )
               throw new Error("Transport admission denied");
             dispatched = true;
@@ -962,7 +973,7 @@ export function createAdmittedModels(
     fetch: FetchFunction,
     cacheKey: string | undefined,
   ): SimpleStreamOptions => {
-    const effort = packetReasoning(selected.provider);
+    const effort = packetReasoning(selected.id);
 
     const result: SimpleStreamOptions & { reasoningEffort?: "high" | "xhigh" } = {
       apiKey: Redacted.value(configuration.apiKey),
@@ -998,6 +1009,12 @@ export function createAdmittedModels(
 
         return { ...payload, ...changes };
       };
+    // Go routes and caches by session; the shared key keeps sheet reviewers on one cached prefix.
+    else if (selected.provider === "opencode-go") {
+      result.headers = { "User-Agent": opencodeGoUserAgent };
+
+      if (cacheKey !== undefined) result.sessionId = cacheKey;
+    }
     // Baseten routes cache hits by replica affinity rather than a request field.
     else if (cacheKey !== undefined) result.headers = { "x-session-affinity": cacheKey };
 

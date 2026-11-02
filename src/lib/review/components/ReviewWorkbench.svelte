@@ -53,6 +53,7 @@
   import {
     inInitialReviewPhase,
     initialReview,
+    initialReviewModelFor,
     initialReviewRequest,
   } from "#lib/review/initial-review.ts";
   import { followPacketReviews } from "#lib/review/packet-subscription.ts";
@@ -360,7 +361,7 @@
     ).map((model) => ({
       value: model.id,
       label: model.label,
-      description: `${model.provider === "meta" ? "Meta" : "Baseten"}${model.available ? "" : " · add a connection in settings"}`,
+      description: `${reviewProviderRoutes[model.provider].label}${"note" in model && model.note ? ` · ${model.note}` : ""}${model.available ? "" : " · add a connection in settings"}`,
       disabled: !model.available,
     })),
   );
@@ -377,7 +378,11 @@
           (executionStatus.unresolvedAttempts > 0 && !executionStatus.uncertaintyAcknowledged))),
   );
 
-  const initialReviewModel = initialReviewRequest.model;
+  const initialReviewModel = $derived(
+    initialReviewModelFor((id) =>
+      modelOptions.some((model) => model.value === id && !model.disabled),
+    ),
+  );
 
   // Shown until a revised set arrives; a first set made of several PDFs keeps it.
   const initialReviewVisible = $derived(
@@ -419,7 +424,7 @@
     if (sheets.length === 0) return "Waiting for the imported sheets.";
 
     if (!modelOptions.some((model) => model.value === initialReviewModel && !model.disabled))
-      return "Connect Meta in Review settings to run the initial review.";
+      return "Connect OpenCode Go or Meta in Review settings to run the initial review.";
 
     if (cloudSetup?.configured && estimatingWorkspace) return "Measuring the workspace for cloud…";
 
@@ -1271,7 +1276,7 @@
     location = initialReviewPlacement.location;
     await startDrawingReview(
       command,
-      initialReviewRequest,
+      { ...initialReviewRequest, model: initialReviewModel },
       initialReviewPlacement.location,
       () => undefined,
     );
@@ -2242,6 +2247,13 @@
         <p>
           Baseten <span class="connection-state"
             >{setup?.models?.some((model) => model.provider === "baseten" && model.available)
+              ? "Connected"
+              : "Not connected"}</span
+          >
+        </p>
+        <p>
+          OpenCode Go <span class="connection-state"
+            >{setup?.models?.some((model) => model.provider === "opencode-go" && model.available)
               ? "Connected"
               : "Not connected"}</span
           >

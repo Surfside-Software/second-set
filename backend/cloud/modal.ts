@@ -1,3 +1,4 @@
+import { reviewProviderRoutes } from "#lib/review/models.ts";
 import { Clock, Effect, Layer, Option, Redacted, Schema, Stream } from "effect";
 import {
   ExperimentalOutboundPolicy,
@@ -465,7 +466,7 @@ export const modalSandboxLayer = (
                   () =>
                     new CloudReviewError({
                       reason: "configuration",
-                      message: `The cloud ${provider.provider === "baseten" ? "Muse Spark Open" : "Meta"} connection is missing or inaccessible. Configure the matching provider secret with MOKE_API_KEY in Modal before sending. Your workspace has not been uploaded.`,
+                      message: `The cloud ${provider.provider === "baseten" ? "Muse Spark Open" : reviewProviderRoutes[provider.provider].label} connection is missing or inaccessible. Configure the matching provider secret with MOKE_API_KEY in Modal before sending. Your workspace has not been uploaded.`,
                     }),
                 ),
               );

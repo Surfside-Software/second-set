@@ -1,3 +1,4 @@
+import type { ReviewProvider } from "#lib/review/models.ts";
 import { Match } from "effect";
 import type {
   ExecutionReviewContext,
@@ -81,9 +82,12 @@ export const packetPromptVersion = "moke-packet-review-v9";
  */
 export type PacketPromptRole = "review" | "coordinator" | "sheet";
 
+const rollingImageGuidance = (model: string) =>
+  `${model} accepts at most eight images per request, including retained source images. Request at most eight render_sheet images in a tool batch, inspect their content and record concise page/content notes before requesting another batch. Earlier pixels may be replaced by an explicit omission notice in later requests; their metadata and durable artifacts remain available, but render an omitted detail again before making a new source claim. Rendering every assigned page remains required; the rolling image window is not a packet scope limit.`;
+
 const imageGuidance = {
-  baseten:
-    "Muse Spark Open accepts at most eight images per request, including retained source images. Request at most eight render_sheet images in a tool batch, inspect their content and record concise page/content notes before requesting another batch. Earlier pixels may be replaced by an explicit omission notice in later requests; their metadata and durable artifacts remain available, but render an omitted detail again before making a new source claim. Rendering every assigned page remains required; the rolling image window is not a packet scope limit.",
+  baseten: rollingImageGuidance("Muse Spark Open"),
+  "opencode-go": rollingImageGuidance("This model route"),
   meta: "Rendered pages and crops stay in your conversation. Render the full assigned page first, then focused crops at legible scale for dense notes, schedules, tables and details. Render a detail again before relying on a reading you are unsure of.",
 } as const;
 
@@ -93,8 +97,11 @@ export const browserCitationGuidance =
 
 const codeGuidance = `For Florida Building Code sections, Florida Statutes and Florida Administrative Code rules, call search_code when you are unsure of the section. It returns the exact section, a plan review note and the section's link; cite a result with record_citation and its id as codeReferenceId. A citation that names the document, edition and exact section gets the same link without a search. When a finding rests on a code requirement, or a sheet prints a code or standard citation, log it with record_citation in the same turn, one section per citation, and list its id in the finding's citationIds; a conflict between two drawings that rests on no requirement needs none. ICC Digital Codes blocks automated retrieval, so do not read_source codes.iccsafe.org links: record those citations as unverified with the section and codeReferenceId, and the engineer opens the link to confirm it. ${browserCitationGuidance} Statute links can be retrieved with read_source and verified against their text. read_source also extracts text from PDF sources such as county amendments and agency checklists; add #page=N to a PDF link to start at that page. A url this review already retrieved returns its saved copy; reread a saved source with read_source and its sourceId.`;
 
+const hostedSearchGuidance = `${codeGuidance} Use search_sources and read_source for other governing sources; record exact citations and applicability.`;
+
 const sourceGuidance = {
-  baseten: `${codeGuidance} Use search_sources and read_source for other governing sources; record exact citations and applicability.`,
+  baseten: hostedSearchGuidance,
+  "opencode-go": hostedSearchGuidance,
   meta: `${codeGuidance} For other governing sources and adopted editions, use your built-in web search, then read_source on the primary official page to retrieve and record it; record exact citations and applicability. search_sources remains available as a fallback. Web search results alone are leads, not recorded evidence.`,
 } as const;
 
@@ -121,7 +128,7 @@ const roleGuidance: Record<PacketPromptRole, ReadonlyArray<string>> = {
 export function packetReviewPrompt(
   scope: import("../../../src/lib/review/packet.ts").PacketReview["scope"],
   options: {
-    readonly provider: "meta" | "baseten";
+    readonly provider: typeof ReviewProvider.Type;
     readonly role: PacketPromptRole;
     /** The firm checklist the review started with. */
     readonly firmChecklist?: { readonly revision: number; readonly text: string } | undefined;

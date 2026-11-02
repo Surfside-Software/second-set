@@ -20,7 +20,7 @@ import {
   type Session,
 } from "../fixtures/packet-review.ts";
 
-const parallel = { minSheets: 2, concurrency: { meta: 4, baseten: 2 } } as const;
+const parallel = { minSheets: 2, concurrency: { meta: 4, baseten: 2, "opencode-go": 2 } } as const;
 
 const SheetInput = Schema.Struct({
   stage: Schema.Literal("sheet"),
@@ -932,7 +932,7 @@ test("a sheet reviewer cannot record, adopt or segment another sheet's findings 
     return coordinate(request);
   };
 
-  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1 } };
+  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1, "opencode-go": 1 } };
   const session = await open(directory, transport, true, undefined, "observe", sequential);
 
   try {
@@ -1279,7 +1279,7 @@ test("every sheet reviewer opens from the setup snapshot after a peer adds a sou
   };
 
   // One sheet at a time, so the second reviewer opens after the first has finished.
-  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1 } };
+  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1, "opencode-go": 1 } };
   let session = await open(directory, transport, true, undefined, "observe", sequential, sources);
 
   try {

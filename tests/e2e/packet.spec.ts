@@ -129,6 +129,7 @@ test("document QA needs no count check and persisted findings support evidence, 
     await page.getByRole("button", { name: "Review settings", exact: true }).click();
     const settings = page.getByRole("dialog", { name: "Review settings", exact: true });
     await expect(settings).toContainText("Baseten Connected");
+    await expect(settings).toContainText("OpenCode Go Not connected");
     await expect(
       settings.getByRole("button", { name: /^Maximum calls per inspection:/ }),
     ).toHaveCount(0);

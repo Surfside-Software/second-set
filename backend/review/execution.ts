@@ -853,6 +853,15 @@ export class ReviewExecution extends Context.Service<
               "unavailable",
               "Configure a supported provider credential before starting a live inspection.",
             );
+
+          // The execution table's CHECK admits these two; drawing-set reviews run on every provider.
+          const providerName = provider.provider ?? "meta";
+
+          if (providerName === "opencode-go")
+            return yield* failure(
+              "unavailable",
+              "Count checks run on Meta or Baseten. Choose one of their models for this inspection.",
+            );
           const selected = yield* port.inspect(new ExecutionSelection(request));
 
           const evidence = yield* Schema.decodeUnknownEffect(ExecutionEvidence)(selected).pipe(
@@ -908,7 +917,6 @@ export class ReviewExecution extends Context.Service<
                   "Resolve the existing execution before starting another attempt.",
                 );
               const runId = Schema.decodeUnknownSync(RunId)(randomUUID());
-              const providerName = provider.provider ?? "meta";
               const startedAt = DateTime.toEpochMillis(yield* DateTime.now);
 
               const run = {

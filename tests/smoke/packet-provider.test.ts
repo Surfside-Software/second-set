@@ -1,3 +1,4 @@
+import { ReviewProvider, reviewProviderRoutes } from "#lib/review/models.ts";
 import { expect, test } from "bun:test";
 import { Redacted, Schema } from "effect";
 import { createCanvas } from "@napi-rs/canvas";
@@ -58,7 +59,7 @@ class SignalledPacer extends RequestPacer {
   }
 }
 
-function response(provider: "meta" | "baseten", outputTokens = 6000) {
+function response(provider: typeof ReviewProvider.Type, outputTokens = 6000) {
   if (provider === "baseten") {
     const chunks = [
       {
@@ -124,26 +125,33 @@ interface FixtureOptions {
   readonly pacer?: RequestPacer;
   /** After its refusals, the transport fails as a connection lost after dispatch would. */
   readonly networkFailure?: boolean;
+  readonly cacheKey?: string;
 }
 
 function fixture(
-  provider: "meta" | "baseten" = "meta",
+  provider: typeof ReviewProvider.Type = "meta",
   packetReview = true,
   refusals = 0,
   options: FixtureOptions = { retryAfter: "1" },
 ) {
-  const requests: Array<{ url: string; authorization: string | null; body: string }> = [];
+  const requests: Array<{
+    url: string;
+    authorization: string | null;
+    headers: Headers;
+    body: string;
+  }> = [];
+
   const receipts: string[] = [];
   const phases: RequestPhase[] = [];
   const endings: boolean[] = [];
   const refused: Array<typeof ProviderFailure.Type> = [];
   const sent = counter();
-  const maxOutputTokens = provider === "meta" ? 256000 : 1048576;
+  const maxOutputTokens = { meta: 256000, baseten: 1048576, "opencode-go": 131072 }[provider];
 
   const admitted = createAdmittedModels(
     {
       provider,
-      model: provider === "meta" ? "muse-spark-1.3" : "meta-models/muse-spark-open-1026",
+      model: reviewProviderRoutes[provider].model,
       apiKey: Redacted.make(`packet-${provider}-fixture-key`),
       route: "recorded",
       pacer: options.pacer ?? new RequestPacer({ requestsPerMinute: 1e9, tokensPerMinute: 1e15 }),
@@ -151,6 +159,7 @@ function fixture(
         requests.push({
           url: input instanceof Request ? input.url : String(input),
           authorization: new Headers(init?.headers).get("authorization"),
+          headers: new Headers(init?.headers),
           body: Schema.decodeUnknownSync(Schema.String)(init?.body),
         });
         sent.add();
@@ -178,6 +187,7 @@ function fixture(
       packetReview,
       maxInputTokens: 1048576,
       maxOutputTokens,
+      ...(options.cacheKey === undefined ? {} : { cacheKey: () => options.cacheKey }),
       begin: async (phase) => {
         phases.push(phase);
 
@@ -336,6 +346,66 @@ test.each(["simple", "generic"] as const)(
     expect(session.receipts).toHaveLength(1);
   },
 );
+
+test("OpenCode Go sends Muse Spark through its route, names itself and uses no Meta-only features", async () => {
+  const session = fixture("opencode-go", true, 0, { cacheKey: "moke-sheet-fixture" });
+
+  const answer = await session.admitted.telemetry.startSpan(generation, (telemetry) =>
+    session.admitted.models.completeSimple(session.model, shortContext, { telemetry }),
+  );
+
+  expect(answer.stopReason).toBe("stop");
+  const captured = session.requests[0];
+
+  if (!captured) throw new Error("No OpenCode Go request reached transport");
+
+  expect(captured.url).toBe("https://opencode.ai/inference/go/v1/responses");
+  expect(captured.authorization).toBe("Bearer packet-opencode-go-fixture-key");
+  expect(captured.headers.get("user-agent")).toBe("moke-review/1.0");
+  expect(captured.headers.get("x-opencode-session")).toBe("moke-sheet-fixture");
+
+  const wire = Schema.decodeUnknownSync(MetaRequest)(captured.body);
+
+  expect(wire.model).toBe("muse-spark-1.3-contributor");
+  expect(wire.reasoning.effort).toBe("xhigh");
+  expect(wire.tools?.some((tool) => tool.type === "web_search") ?? false).toBe(false);
+  expect(session.admitted.capabilities.contextWindow).toBe(1048576);
+});
+
+test("OpenCode Go keeps the latest eight images, since it has no Files API to hold the rest", async () => {
+  const session = fixture("opencode-go");
+
+  const images = Array.from({ length: 12 }, (_, index) => {
+    const canvas = createCanvas(32, 32);
+    const drawing = canvas.getContext("2d");
+    drawing.fillStyle = `rgb(${index * 20}, 50, 100)`;
+    drawing.fillRect(0, 0, 32, 32);
+
+    return {
+      type: "image" as const,
+      mimeType: "image/png",
+      data: canvas.toBuffer("image/png").toString("base64"),
+    };
+  });
+
+  const context = {
+    messages: images.map((part, index) => ({
+      role: "user" as const,
+      content: [{ type: "text" as const, text: `Page ${index + 1}` }, part],
+      timestamp: index,
+    })),
+  };
+
+  await session.admitted.telemetry.startSpan(generation, (telemetry) =>
+    session.admitted.models.completeSimple(session.model, context, { telemetry }),
+  );
+
+  const body = session.requests[0]?.body ?? "";
+
+  expect(body.split("data:image/png;base64,").length - 1).toBe(8);
+  expect(body).toContain(images[11]?.data ?? "missing");
+  expect(body).not.toContain(images[0]?.data ?? "missing");
+});
 
 test("only packet review admits the actual compaction summarize phase while invalid phases stay blocked", async () => {
   const phase = {

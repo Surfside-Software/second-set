@@ -59,7 +59,7 @@ import {
   type PacketActivityTool,
   type PacketActivityStage,
 } from "#lib/review/packet.ts";
-import { reviewModels } from "#lib/review/models.ts";
+import { ReviewProvider, reviewModels } from "#lib/review/models.ts";
 import { initialReview } from "#lib/review/initial-review.ts";
 import type { DataDirectoryOwnership } from "../ownership.ts";
 import type { createReviewOperations } from "../review/operations.ts";
@@ -68,6 +68,7 @@ import { executionPersistence } from "../review/execution-store.ts";
 import {
   createAdmittedModels,
   promptCacheKey,
+  packetReasoning,
   reviewModelCapabilities,
   type ProviderConfiguration,
 } from "../inference/provider.ts";
@@ -122,7 +123,7 @@ const promptVersion = packetPromptVersion;
  */
 export const defaultParallel = {
   minSheets: 4,
-  concurrency: { meta: 32, baseten: 16 },
+  concurrency: { meta: 32, baseten: 16, "opencode-go": 16 },
   setup: defaultSetupLimits,
 } as const;
 
@@ -409,7 +410,7 @@ interface Configuration {
   /** Packets with at least minSheets sheets review each sheet in its own conversation. */
   readonly parallel?: {
     readonly minSheets: number;
-    readonly concurrency: Readonly<Record<"meta" | "baseten", number>>;
+    readonly concurrency: Readonly<Record<typeof ReviewProvider.Type, number>>;
     /** Coordinator setup's sheet and request limits; defaults to `defaultSetupLimits`. */
     readonly setup?: SetupLimits;
   };
@@ -1455,7 +1456,7 @@ export class PacketReviews extends Context.Service<
                   assertSetupSheet(current, input.sheetId, setupLimits);
 
                 if (
-                  row.payload.provider === "baseten" &&
+                  row.payload.provider !== "meta" &&
                   (imageCounts.get(api.conversationId) ?? 0) >= 8
                 )
                   throw error(
@@ -3112,7 +3113,7 @@ export class PacketReviews extends Context.Service<
               throw cause;
             }
 
-            const thinkingLevel = row.payload.provider === "meta" ? "xhigh" : "high";
+            const thinkingLevel = packetReasoning(row.payload.model);
 
             // A parallel coordinator starts with setup's tools; coordination widens them once.
             const root = await harness.root(BACKGROUND_CONTEXT, {

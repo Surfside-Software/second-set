@@ -326,7 +326,7 @@ test("swapping a section number rebuilds the owner's own link for every anchored
     expect(resolved?.url, `${other.section} to ${target.section}`).toBe(target.entry.url);
   }
 
-  expect(compared).toBeGreaterThan(150);
+  expect(compared).toBeGreaterThan(200);
 });
 
 test.each([

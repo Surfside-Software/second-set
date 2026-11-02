@@ -111,6 +111,11 @@ test("accepted trailing-slash routes are saved in the canonical form cloud dispa
       baseUrl: "https://inference.baseten.co/v1",
       model: "meta-models/muse-spark-open-1026",
     },
+    {
+      provider: "opencode-go",
+      baseUrl: "https://opencode.ai/inference/go/v1",
+      model: "muse-spark-1.3-contributor",
+    },
   ];
 
   try {
@@ -124,7 +129,9 @@ test("accepted trailing-slash routes are saved in the canonical form cloud dispa
       await writeFile(source, JSON.stringify({ providers }), { mode: 0o600 });
 
       expect(
-        (await readProviderConfigurations(source, true)).map((provider) => provider.baseUrl),
+        (await readProviderConfigurations(source, true)).map(
+          (provider): string => provider.baseUrl,
+        ),
       ).toEqual(routes.map((route) => route.baseUrl));
     }
   } finally {

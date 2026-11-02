@@ -518,7 +518,7 @@ test("parallel sheet reviewers share one retrieval of a source and reread it by 
     true,
     undefined,
     "observe",
-    { minSheets: 2, concurrency: { meta: 4, baseten: 2 } },
+    { minSheets: 2, concurrency: { meta: 4, baseten: 2, "opencode-go": 2 } },
     sources,
   );
 

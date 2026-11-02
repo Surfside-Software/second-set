@@ -9,6 +9,7 @@ import { ReviewCommand, RevisionId } from "#lib/review/contracts.ts";
 import {
   inInitialReviewPhase,
   initialReview,
+  initialReviewModelFor,
   initialReviewRequest,
 } from "#lib/review/initial-review.ts";
 import { PacketReview, StartPacketReview, selectPacketReviewScope } from "#lib/review/packet.ts";
@@ -122,6 +123,10 @@ test("the Initial Review request admits every sheet of a first set split across 
         text: initialReview.text,
       }),
     );
+
+    // The button uses OpenCode Go's Muse Spark when connected, and Meta's otherwise.
+    expect(initialReviewModelFor(() => true)).toBe("muse-spark-1.3-contributor");
+    expect(initialReviewModelFor((model) => model === "muse-spark-1.3")).toBe("muse-spark-1.3");
 
     // The exact request the Initial Review button sends with its saved message.
     expect(initialReviewRequest).toEqual({

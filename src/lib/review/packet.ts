@@ -8,7 +8,7 @@ import {
   ReviewDiscipline,
   ReviewDisciplineSelection,
 } from "./execution.ts";
-import { ReviewModelId } from "./models.ts";
+import { ReviewModelId, ReviewProvider } from "./models.ts";
 import { ReviewPreset } from "./initial-review.ts";
 import { FindingSummaryText } from "./finding-summary.ts";
 
@@ -449,7 +449,7 @@ export class PacketReview extends Schema.Class<PacketReview>("PacketReview")({
   request: Required,
   scope: PacketScope,
   model: ReviewModelId,
-  provider: Schema.Literals(["meta", "baseten"]),
+  provider: ReviewProvider,
   state: Schema.Literals(["running", "paused", "completed", "cancelled", "failed", "uncertain"]),
   version: Schema.Int,
   startedAt: Schema.Number,

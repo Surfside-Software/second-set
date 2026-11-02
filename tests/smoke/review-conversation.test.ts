@@ -80,7 +80,13 @@ test("model choice uses its provider credential, freezes on replay, and records 
     const setup = await Effect.runPromise(session.execution.setup);
     expect(setup.models?.filter((model) => model.available)).toHaveLength(3);
 
-    for (const model of reviewModels) {
+    // Count checks run on Meta or Baseten; OpenCode Go serves drawing-set reviews.
+    const countModels = reviewModels.filter(
+      (model): model is Exclude<typeof model, { provider: "opencode-go" }> =>
+        model.provider !== "opencode-go",
+    );
+
+    for (const model of countModels) {
       const state = await session.state();
       const conversation = state.conversations[0];
 
