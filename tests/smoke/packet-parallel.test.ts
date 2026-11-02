@@ -966,6 +966,7 @@ test("sheet reviewers choosing one citation id keep their own citations and find
   // Models number their citations, so every reviewer's first citation can carry this id.
   const shared = "11111111-1111-1111-8111-111111111111";
   const later = "22222222-2222-2222-8222-222222222222";
+  let sheetPrompt = "";
 
   const citation = (section: string, application: string) => ({
     id: shared,
@@ -985,6 +986,7 @@ test("sheet reviewers choosing one citation id keep their own citations and find
     const made = calls(request.input);
 
     if (systemPrompt(request).includes("## Parallel review: sheet reviewer")) {
+      sheetPrompt = systemPrompt(request);
       const input = outputs(SheetInput, request).at(0);
 
       if (!input) throw new Error("Sheet reviewer input is missing its sheet");
@@ -1059,6 +1061,10 @@ test("sheet reviewers choosing one citation id keep their own citations and find
 
     const finished = await until(session, started.id, "completed");
     const applications = finished.citations.map((entry) => entry.application).toSorted();
+
+    // A real review recorded no sheet citations until the sheet role was told to log them.
+    expect(sheetPrompt).toContain("a sheet prints a code or standard citation");
+    expect(sheetPrompt).toContain("list its id in the finding's citationIds");
 
     // The coordinator's citation and two per sheet, the first revised in place: none overwritten.
     expect(applications).toEqual(
