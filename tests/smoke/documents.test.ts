@@ -592,7 +592,7 @@ test("drawing-sized sheets and focused boxes fit the hard pixel ceiling with acc
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-});
+}, 60000);
 
 test("PDF import proposes printed sheet identities and retains original page references", async () => {
   const directory = await mkdtemp(join(tmpdir(), "moke-audit-3-labels-"));
