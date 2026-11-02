@@ -27,6 +27,7 @@ test("audit workbench imports native and dropped revisions, assigns compact shee
       MOKE_SESSION_CREDENTIAL_FILE: "",
       MODEL_API_KEY: "",
       BASETEN_API_KEY: "",
+      OPENCODE_API_KEY: "",
     },
   });
 

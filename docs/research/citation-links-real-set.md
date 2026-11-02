@@ -55,8 +55,9 @@ previous change only matters because of this.
 It then sent an all-zeros UUID, which passed. Every finding in runs A and B stored that placeholder,
 and the report printed `Prior comment 00000000-…` on each one, in reviews with no prior comments.
 `sourceId` went the same way: of 33 citation calls in run B, 23 sent all zeros and 10 sent `"null"`
-and were refused. The host now accepts these fields as optional and keeps only a source or comment this
-review actually holds. The report applies the same rule to stored rows.
+and were refused. The host now accepts these fields as optional. It keeps a source only if this review
+retrieved it and drops placeholder prior comments, and the report names only sources and comments
+the review holds, including on stored rows.
 
 **Reviewers chose the same citation ID.** The model numbers them, `11111111-…` then `22222222-…`.
 Run B had one ID chosen by two reviewers, and before this change the later citation would have

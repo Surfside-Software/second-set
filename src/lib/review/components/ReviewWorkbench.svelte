@@ -70,6 +70,7 @@
     ReviewModelOption,
     reviewModels,
     reviewProviderRoutes,
+    trainsOnDrawings,
   } from "#lib/review/models.ts";
   import {
     findingSubtitle,
@@ -367,7 +368,7 @@
     ).map((model) => ({
       value: model.id,
       label: model.label,
-      description: `${reviewProviderRoutes[model.provider].label}${model.note ? ` · ${model.note}` : ""}${model.available ? "" : " · add a connection in settings"}`,
+      description: `${reviewProviderRoutes[model.provider].label}${model.available ? "" : " · add a connection in settings"}`,
       disabled: !model.available,
     })),
   );
@@ -455,7 +456,11 @@
     }`,
   );
 
-  const initialReviewPlacementLabel = $derived(`Runs ${initialReviewPlacement.label}`);
+  const initialReviewPlacementLabel = $derived(
+    `Runs ${initialReviewPlacement.label}${
+      trainsOnDrawings(initialReviewModel) ? " · Trains on your drawings" : ""
+    }`,
+  );
 
   const initialReviewRunning = $derived(
     activePacketReview?.state === "running" && activePacketReview.preset === initialReview.id,

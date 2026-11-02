@@ -45,15 +45,17 @@ export const reviewModels = [
   // OpenCode Go sells this model at a discount in exchange for training on prompts and completions.
   {
     id: "muse-spark-1.3-contributor",
-    label: "Muse Spark 1.3 Contributor",
+    label: "Muse Spark 1.3 Contributor (trains on drawings)",
     provider: "opencode-go",
     reasoning: "xhigh",
-    note: "Trains on your drawings",
   },
   { id: "mimo-v2.6-flash", label: "MiMo-V2.6-Flash", provider: "opencode-go", reasoning: "high" },
   { id: "glm-5.3-flash", label: "GLM-5.3-Flash", provider: "opencode-go", reasoning: "high" },
   { id: "gpt-6-luna", label: "GPT-6 Luna", provider: "opencode-go", reasoning: "high" },
 ] as const;
+
+/** Whether a reviewer must be told that sending drawings to this model trains on them. */
+export const trainsOnDrawings = (model: string) => model === "muse-spark-1.3-contributor";
 
 /**
  * Connecting OpenCode Go makes it the only chat route, so a review cannot spend another provider's
@@ -72,7 +74,5 @@ export const ReviewModelOption = Schema.Struct({
   id: ReviewModelId,
   label: Schema.String,
   provider: ReviewProvider,
-  /** Something a reviewer must know before sending drawings to this model. */
-  note: Schema.optionalKey(Schema.String),
   available: Schema.Boolean,
 });

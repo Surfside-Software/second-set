@@ -855,7 +855,7 @@ export class ReviewExecution extends Context.Service<
           if (provider === undefined)
             return yield* failure(
               "unavailable",
-              "Configure a supported provider credential before starting a live inspection.",
+              "Count checks run on Meta or Baseten. Configure a supported provider credential before starting a live inspection.",
             );
 
           const providerName = provider.provider ?? "meta";

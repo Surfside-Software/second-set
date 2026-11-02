@@ -525,6 +525,14 @@ test("a finding names a prior comment only when this review holds it", () => {
 
   expect(html).not.toContain(`Prior comment ${placeholder}`);
 
+  // A citation id with no stored row is not a supporting citation either.
+  expect(
+    renderPacketReport(
+      review({ findings: [{ ...finding, citationIds: [placeholder] }] }),
+      new Map(),
+    ),
+  ).not.toContain(`Citation ${placeholder}`);
+
   const real = renderPacketReport(
     review({ findings: [{ ...finding, priorCommentId: identifiers.prior }] }),
     new Map(),

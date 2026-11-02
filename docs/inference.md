@@ -1,14 +1,16 @@
 # Inference setup
 
-For development, copy `.env.example` to `.env` and fill in either or both keys:
+For development, copy `.env.example` to `.env` and fill in the keys you use:
 
 ```dotenv
 MODEL_API_KEY=
 BASETEN_API_KEY=
+OPENCODE_API_KEY=
 ```
 
 Bun loads the root `.env` when `bun run dev` starts. Restart after changing it.
-Both configured providers are available together in the Model menu. Keep each
+Configured providers are available together in the Model menu, except that a Go
+key makes Go the only chat choice; see [OpenCode Go](#opencode-go). Keep each
 key with its own provider and endpoint; keys never enter renderer code or logs.
 The repository ignores `.env` and `.env.*` except the blank `.env.example`.
 
@@ -54,7 +56,8 @@ key is configured, packet reviews use it with either chat provider; see
 
 `MOKE_PROVIDER` chooses the preferred startup provider, with `meta` as the
 default. Each review saves the model selected in the workbench. Changing the menu
-does not change an existing run or silently substitute another provider. The
+does not change an existing run. When Go is connected, a follow-up whose earlier
+model the menu no longer offers moves to the first Go model. The
 other endpoint and model variables in `.env.example` support experiment scripts;
 they do not override the desktop's canonical routes.
 

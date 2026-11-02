@@ -563,6 +563,78 @@ test("a citation records a source only when this review retrieved it", async () 
   }
 }, 120000);
 
+test("a follow-up that leaves a finding's lists empty keeps what the finding held", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-finding-follow-up-"));
+  const findingId = id();
+  const citationId = id();
+  const laterComment = id();
+  let step = 0;
+
+  const finding = {
+    id: findingId,
+    title: "Sprinkler basis conflicts within the code analysis",
+    discipline: "life_safety",
+    severity: "Major",
+    status: "Needs input",
+    classification: "Code",
+    locations: [],
+    observed: "The code analysis uses non-sprinklered limits and requires sprinklers.",
+    correction: "State one sprinkler basis and revise the dependent notes to match it.",
+    evidenceNote: "The notes are legible on the supplied cover sheet.",
+  };
+
+  const session = await open(directory, async () => {
+    switch (step++) {
+      case 0:
+        return response([
+          {
+            name: "record_citation",
+            arguments: {
+              id: citationId,
+              jurisdiction: "Florida",
+              document: "FBC Building (Commercial)",
+              edition: "2023 8th Edition",
+              section: "903",
+              quote: "",
+              note: "",
+              application: "Sprinkler requirement on the cover.",
+              status: "unverified",
+            },
+          },
+          {
+            name: "record_finding",
+            arguments: { ...finding, citationIds: [citationId], priorCommentId: laterComment },
+          },
+        ]);
+      case 1:
+        // What the coordinator can send: it never sees the sheet finding's lists.
+        return response([
+          { name: "record_finding", arguments: { ...finding, title: "Updated", citationIds: [] } },
+        ]);
+      default:
+        return response([], "Follow-up fixture finished.");
+    }
+  });
+
+  try {
+    const started = await session.run(
+      session.packets.start(await session.request("Check the code analysis.")),
+    );
+
+    const finished = await until(session, started.id, "failed");
+    const [updated] = finished.findings;
+
+    expect(finished.findings).toHaveLength(1);
+    expect(updated?.title).toBe("Updated");
+    expect(updated?.citationIds).toEqual([citationId]);
+    // A prior comment can be recorded after the finding that names it.
+    expect(updated?.priorCommentId).toBe(laterComment);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
 test("a finding that drops its evidence and citation lists is still recorded", async () => {
   const directory = await mkdtemp(join(tmpdir(), "moke-finding-defaults-"));
   let step = 0;

@@ -382,6 +382,13 @@ const CitationInput = Schema.Struct({
   codeReferenceId: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(500))),
 });
 
+/** The UUID models invent when a schema requires an id they do not have. */
+const placeholderId = "00000000-0000-0000-0000-000000000000";
+
+/** A finding's list, or what it already held when an update leaves the list empty. */
+const orHeld = <T>(given: ReadonlyArray<T>, held: ReadonlyArray<T> | undefined) =>
+  given.length > 0 ? given : (held ?? []);
+
 /** A finding's optional link field, which a model may leave out or send as an empty string. */
 const orBlank = <S extends Schema.Top>(field: S) =>
   Schema.optionalKey(Schema.Union([field, Schema.Literal("")]));
@@ -1461,7 +1468,7 @@ export class PacketReviews extends Context.Service<
                 )
                   throw error(
                     "input",
-                    "The current source batch already contains eight images. Inspect those results before requesting more pages or details; Muse Spark Open accepts eight images per request.",
+                    "The current source batch already contains eight images. Inspect those results before requesting more pages or details; this model route accepts eight images per request.",
                   );
 
                 const sheet = row.payload.sheets.find((item) => item.id === input.sheetId);
@@ -1862,9 +1869,9 @@ export class PacketReviews extends Context.Service<
                 ]),
                 id: Schema.optionalKey(Id),
                 completed: Schema.optionalKey(Schema.Boolean),
-                // Models omit these, or send "" or "null", when they have none. Refusing that cost 66
-                // of about 160 calls on a real set, a paid turn each, and models then invented an
-                // all-zeros prior comment to get past the check. The host keeps only a real one.
+                // Models omit these or send "" when they have none, and send "null" as the prior
+                // comment. Refusing that cost 66 of about 160 calls on a real set, a paid turn each,
+                // and models then invented an all-zeros prior comment to get past the check.
                 evidenceIds: orBlank(PacketFinding.fields.evidenceIds),
                 citationIds: orBlank(PacketFinding.fields.citationIds),
                 calculationIds: orBlank(PacketFinding.fields.calculationIds),
@@ -1949,14 +1956,22 @@ export class PacketReviews extends Context.Service<
                       return stored(cited) && !stored(own) ? cited : own;
                     });
 
-                    const priorCommentId =
-                      review.priorComments.find((entry) => entry.id === input.priorCommentId)?.id ??
-                      null;
+                    // A comment can be recorded after its finding, so any real id is kept; the report
+                    // names only comments this review holds.
+                    const priorCommentId = Schema.is(Id)(input.priorCommentId)
+                      ? input.priorCommentId !== placeholderId
+                        ? input.priorCommentId
+                        : (existing?.priorCommentId ?? null)
+                      : (existing?.priorCommentId ?? null);
 
+                    // The coordinator updates sheet findings without seeing their lists; an update
+                    // that leaves one empty keeps what the finding held.
                     const recorded = {
                       ...input,
                       ...kept,
-                      citationIds,
+                      evidenceIds: orHeld(input.evidenceIds, existing?.evidenceIds),
+                      citationIds: orHeld(citationIds, existing?.citationIds),
+                      calculationIds: orHeld(input.calculationIds, existing?.calculationIds),
                       priorCommentId,
                       id,
                       summary,
