@@ -6,7 +6,7 @@
     "profile": "desktop",
     "authentication": "undecided"
   },
-  "effectRevision": "e17ecdbe902aa7108f775c8ab9c0ddf9f38801ab",
+  "effectRevision": "bc492f0965dc0f6a83cefd141071c5ead10f7efa",
   "references": "installed",
   "toolchain": {
     "packageManager": "bun@1.4.4",
