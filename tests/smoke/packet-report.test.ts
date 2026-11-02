@@ -485,6 +485,22 @@ test("discipline reports cannot borrow General coverage and do not inherit unrel
   expect(html).toContain("An earlier General check still needs its source.");
 });
 
+test("a citation's retrieved source is the id of a source this review holds, or Not available", () => {
+  const retrieved = review().citations[0];
+
+  if (retrieved === undefined) throw new Error("Missing citation fixture");
+
+  const line = (html: string) => /<dt>Retrieved source<\/dt><dd>([^<]*)<\/dd>/.exec(html)?.[1];
+
+  expect(line(renderPacketReport(review(), new Map()))).toBe(identifiers.source);
+
+  // Stored rows keep the model's placeholder; the report must not present it as a source.
+  for (const sourceId of ["00000000-0000-0000-0000-000000000000", null])
+    expect(
+      line(renderPacketReport(review({ citations: [{ ...retrieved, sourceId }] }), new Map())),
+    ).toBe("Not available");
+});
+
 test("indexed report citations show their standing and check without presenting unread paraphrases", () => {
   const base = review();
   const citation = base.citations[0];

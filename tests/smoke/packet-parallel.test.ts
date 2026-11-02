@@ -961,6 +961,104 @@ test("a sheet reviewer cannot record, adopt or segment another sheet's findings 
   }
 }, 120000);
 
+test("sheet reviewers choosing one citation id keep their own citations and findings", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-citation-"));
+  // Models number their citations, so every reviewer's first citation can carry this id.
+  const shared = "11111111-1111-1111-8111-111111111111";
+
+  const citation = (section: string, application: string) => ({
+    id: shared,
+    sourceId: null,
+    jurisdiction: "Florida",
+    document: "FBC Mechanical",
+    edition: "2023 8th Edition",
+    section,
+    quote: "",
+    application,
+    status: "unverified",
+    note: "",
+  });
+
+  const transport: ProviderTransport = async (_url, init) => {
+    const request = decodeRequest(init);
+    const made = calls(request.input);
+
+    if (systemPrompt(request).includes("## Parallel review: sheet reviewer")) {
+      const input = outputs(SheetInput, request).at(0);
+
+      if (!input) throw new Error("Sheet reviewer input is missing its sheet");
+      const own = input.sheet.id;
+      const rendered = outputs(Rendered, request).find((result) => result.artifact.sheetId === own);
+
+      if (!rendered) return response([{ name: "render_sheet", arguments: { sheetId: own } }]);
+
+      if (!made.includes("record_citation"))
+        return response([
+          { name: "record_citation", arguments: citation("803", `Connector on ${own}.`) },
+        ]);
+
+      if (made.filter((name) => name === "record_citation").length === 1)
+        return response([
+          { name: "record_citation", arguments: citation("803", `Revised connector on ${own}.`) },
+        ]);
+
+      if (!made.includes("record_finding"))
+        return response([
+          {
+            name: "record_finding",
+            arguments: {
+              ...findingOn([own], [rendered.artifact.id]),
+              title: `Connector on ${own}`,
+              citationIds: [shared],
+            },
+          },
+        ]);
+
+      return reviewOwnSheet(request, own);
+    }
+
+    const stage = outputs(CoordinatorInput, request).at(-1)?.stage;
+
+    if (stage === "setup") {
+      if (!made.includes("record_citation"))
+        return response([{ name: "record_citation", arguments: citation("802", "Whole set.") }]);
+
+      return response([], "Project configuration recorded.");
+    }
+
+    return coordinate(request);
+  };
+
+  const session = await open(directory, transport, true, undefined, "observe", parallel);
+
+  try {
+    const sheets = (await session.snapshot()).sheets;
+
+    const started = await session.run(
+      session.packets.start(await session.request("Review the whole drawing set.")),
+    );
+
+    const finished = await until(session, started.id, "completed");
+    const applications = finished.citations.map((entry) => entry.application).toSorted();
+
+    // The coordinator's citation and one revised citation per sheet: nothing was overwritten.
+    expect(applications).toEqual(
+      [...sheets.map((sheet) => `Revised connector on ${sheet.id}.`), "Whole set."].toSorted(),
+    );
+    expect(new Set(finished.citations.map((entry) => entry.id)).size).toBe(sheets.length + 1);
+
+    for (const sheet of sheets) {
+      const finding = finished.findings.find((entry) => entry.title === `Connector on ${sheet.id}`);
+      const cited = finished.citations.find((entry) => entry.id === finding?.citationIds[0]);
+
+      expect(cited?.application).toBe(`Revised connector on ${sheet.id}.`);
+    }
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
 test.each(["segment_objects", "finding zoom"] as const)(
   "a sheet reviewer's failed SAM request (%s) stops only that sheet; its peer and coordination finish",
   async (kind) => {

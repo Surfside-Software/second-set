@@ -475,6 +475,45 @@ test.each([
   120000,
 );
 
+test("a citation records a source only when this review retrieved it", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-citation-source-"));
+  let step = 0;
+
+  const placeholder = {
+    id: id(),
+    // The model fills the required field with an all-zeros UUID when it read nothing.
+    sourceId: "00000000-0000-0000-0000-000000000000",
+    jurisdiction: "Florida",
+    document: "FBC Mechanical",
+    edition: "2023 8th Edition",
+    section: "803",
+    quote: "",
+    note: "",
+    application: "Vent connectors on M-101.",
+    status: "unverified",
+  };
+
+  const session = await open(directory, async () =>
+    step++ === 0
+      ? response([{ name: "record_citation", arguments: placeholder }])
+      : response([], "Citation source fixture finished."),
+  );
+
+  try {
+    const started = await session.run(
+      session.packets.start(await session.request("Check the connector requirement.")),
+    );
+
+    const finished = await until(session, started.id, "failed");
+
+    expect(finished.citations).toHaveLength(1);
+    expect(finished.citations[0]?.sourceId).toBeNull();
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
 test("unread browser citations accept empty quote and note without becoming verified evidence", () => {
   const citation = Schema.decodeUnknownSync(PacketCitation)({
     id: id(),

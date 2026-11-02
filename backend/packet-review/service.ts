@@ -825,6 +825,13 @@ export class PacketReviews extends Context.Service<
           const imageCounts = new Map<number, number>();
           const nudged = new Set<number>();
 
+          /** The id a sheet reviewer's citation is stored under, so a peer's cannot overwrite it. */
+          const sheetCitationId = (row: Row, conversationId: number, id: string) => {
+            const sheetId = assignments.sheets.get(conversationId);
+
+            return sheetId === undefined ? id : stableId(row.id, 0, `citation:${sheetId}:${id}`);
+          };
+
           const outsideSheet = (
             conversationId: number,
             ...sheetIds: ReadonlyArray<string | null>
@@ -1754,7 +1761,7 @@ export class PacketReviews extends Context.Service<
               "record_citation",
               `Log a printed or governing citation and its edition, exact section, quote and applicability. Verified requires matching retrieved official document and edition, plus a substantive clause inside the claimed section or table. Missing or ambiguous section structure stays unverified. Pass codeReferenceId from search_code to attach the section's link. ${browserCitationGuidance}`,
               CitationInput,
-              async (task, { codeReferenceId, ...fields }) => {
+              async (task, { codeReferenceId, ...fields }, api) => {
                 // A citation that names no search result still links to its indexed section.
                 const selected =
                   codeReferenceId === undefined
@@ -1791,21 +1798,29 @@ export class PacketReviews extends Context.Service<
                 const current = await run(get(row.project_id, row.id));
                 const source = current.sources.find((entry) => entry.id === input.sourceId);
 
+                // Models fill the required ids with placeholders, so the host owns what they mean:
+                // a source is one this review retrieved, and each sheet numbers its own citations.
+                const recorded = {
+                  ...input,
+                  id: sheetCitationId(row, api.conversationId, input.id),
+                  sourceId: source?.id ?? null,
+                };
+
                 const citation =
-                  input.status === "verified" && !citationHasSourceSupport(input, source)
+                  recorded.status === "verified" && !citationHasSourceSupport(recorded, source)
                     ? {
-                        ...input,
+                        ...recorded,
                         status: "unverified" as const,
                         // Note text must stay trimmed; an empty note previously left a trailing space.
                         note: [
                           "Retrieved official text does not support the claimed document, edition and substantive quote within that section.",
-                          input.note,
+                          recorded.note,
                         ]
                           .filter((part) => part.length > 0)
                           .join(" ")
                           .slice(0, 32000),
                       }
-                    : input;
+                    : recorded;
 
                 return await recordTool(
                   row,
@@ -1892,9 +1907,17 @@ export class PacketReviews extends Context.Service<
                         ? { focus: existing.focus }
                         : {};
 
+                    // A reviewer may cite its own citation by the id it chose or the id it got back.
+                    const citationIds = input.citationIds.map((cited) => {
+                      const own = sheetCitationId(row, api.conversationId, cited);
+
+                      return review.citations.some((entry) => entry.id === own) ? own : cited;
+                    });
+
                     const recorded = {
                       ...input,
                       ...kept,
+                      citationIds,
                       id,
                       summary,
                       completed: existing?.completed ?? false,

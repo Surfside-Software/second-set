@@ -455,6 +455,8 @@ worker stay readable.
 
 Packet prompt `moke-packet-review-v8` removes access boilerplate and paraphrases of unread code text. It ships with `florida-code-index-v2` and requires a newly published worker image. Protocol remains 5; dispatched v6/v7 jobs with index v1 stay readable, but those identities cannot admit new work.
 
+`florida-code-index-v3` marks Reserved sections and adds the real high-velocity masonry sections, and the same worker keeps each sheet reviewer's citations apart and records a citation's source only when the review retrieved it. It requires a newly published worker image. Dispatched v8 jobs with index v2 stay readable.
+
 The protocol-3 handshake required support for explicit revision, selected-sheet
 and persisted-discipline scope, and includes both packet and count prompt versions.
 The operator deployment above now supplies that matching worker. Rebuild and

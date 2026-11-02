@@ -31,6 +31,26 @@ to its deepest indexed parent section, including sections explicitly listed in a
 shows an unverified citation with a link as Indexed, because its section is known
 and only its wording is unconfirmed.
 
+Some sections the owner's reference names are Reserved in the 8th Edition, with no
+requirement behind them: Building 2118 and 2308, Existing Building 608, and 102 in
+Mechanical, Plumbing and Fuel Gas. The owner's file stays unmodified, so each has its
+own entry in the additions marked `(Reserved)`, with a note saying what to check
+instead. That entry describes the link whichever way a citation reaches it.
+
+### How far the links are checked
+
+Nobody has opened an ICC link from Moke by automation, because the user agreement
+excludes it. A test rebuilds each of the owner's hand-written anchors by swapping the
+section number in another anchor from the same chapter, the same rule the host uses
+for a section listed in a combined title. Every section the host links this way, and
+the sections in the additions, was checked to exist with its title and Reserved
+status, against ICC's Eighth Edition tables of contents as returned by a search index
+and against UpCodes. The check is recorded in
+[the research note](../../../docs/research/citation-links-real-set.md). An owner's
+single-section link was not checked this way, and whether a browser scrolls to an
+anchor can only be seen by opening one. A wrong anchor opens the top of the right
+chapter.
+
 `read_source` also extracts embedded text from PDF sources, such as county
 amendments and agency checklists, through the PDF worker. A `#page=N` fragment
 starts at that page. Scanned PDFs without embedded text stay unavailable.

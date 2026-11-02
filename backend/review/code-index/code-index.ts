@@ -199,6 +199,14 @@ const referenceForSection = (entry: CodeReference, section: string) => {
   return new CodeReference(Struct.assign(entry, { url: url.href }));
 };
 
+/**
+ * The entry that describes exactly this link. A combined entry such as "2304 Wood / 2308 Light-Frame"
+ * names several sections, and the additions correct what one of them actually is, such as Reserved.
+ */
+const describedBy = (index: ReadonlyArray<CodeReference>, entry: CodeReference) =>
+  index.find((candidate) => candidate.url === entry.url && candidate.sections.length === 1) ??
+  entry;
+
 /** Preserve an explicit selection, retargeting only one listed section or its subsection. */
 export function selectedCodeReference(entry: CodeReference, section: string): CodeReference {
   const sections = [...new Set(section.toUpperCase().match(sectionPattern) ?? [])];
@@ -212,9 +220,17 @@ export function selectedCodeReference(entry: CodeReference, section: string): Co
 
   const [target] = listed;
 
-  return listed.length === 1 && target !== undefined
-    ? (referenceForSection(entry, target) ?? entry)
-    : entry;
+  if (listed.length !== 1 || target === undefined) return entry;
+  const retargeted = referenceForSection(entry, target);
+
+  // A section listed from another chapter has no derivable anchor, but may have its own entry.
+  return retargeted === undefined
+    ? (resolveCodeReference(floridaCodeIndex, {
+        document: entry.document,
+        edition: entry.edition,
+        section: target,
+      }) ?? entry)
+    : describedBy(floridaCodeIndex, retargeted);
 }
 
 const linkedSection = (entry: CodeReference) => {
@@ -295,7 +311,9 @@ export function resolveCodeReference(
   const [first] = matches;
 
   // One section listed under two topics is still one link; different links stay ambiguous.
-  return matches.every((entry) => entry.url === first?.url) ? first : undefined;
+  return first !== undefined && matches.every((entry) => entry.url === first.url)
+    ? describedBy(index, first)
+    : undefined;
 }
 
 /** Rank index entries for a reviewer's query by section numbers, then title, topic and check words. */

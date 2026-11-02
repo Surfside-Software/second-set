@@ -1,5 +1,5 @@
 {
-  "version": "florida-code-index-v2",
+  "version": "florida-code-index-v3",
   "files": [
     {
       "path": "assets/FBC_2023_plan_review_reference.md",
@@ -8,8 +8,8 @@
     },
     {
       "path": "assets/florida-code-additions.md",
-      "origin": "Written for this entry on 2026-10-30. Statute titles and facts checked against leg.state.fl.us, rule titles against flrules.org, and 9th Edition links against the ICC Digital Codes Florida page.",
-      "sha256": "8a157028ccbc243888b3d8b684e985e1a34b4836bd580e812c6f9f1da1ffe0ec"
+      "origin": "Written for this entry on 2026-10-30. Statute titles and facts checked against leg.state.fl.us, rule titles against flrules.org, and 9th Edition links against the ICC Digital Codes Florida page. 2026-11-02: 8th Edition section titles and Reserved status checked against the Eighth Edition tables of contents in ICC's PREFACE pages as returned by a search index, and against UpCodes; no ICC page was opened.",
+      "sha256": "d05dbb9a88834b45b9e6eaf4198e073c74917c6719ea92465b000fb6084c816e"
     }
   ]
 }
