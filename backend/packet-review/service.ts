@@ -1856,7 +1856,7 @@ export class PacketReviews extends Context.Service<
             ),
             tool(
               "record_finding",
-              "Save the complete source-specific technical finding, including necessary values, qualifications and evidence. Do not shorten or omit technical facts to fit a display limit. Give each location the tight PDF region of the problem area; when SAM is available the host renders a zoom of the first region under half its sheet and segments it for the reviewer. Reuse an existing issue ID for follow-up. The result includes the host-owned summary state and revision; if Pending, use record_finding_summary. Completed and the reviewer's decision are user-owned and cannot be set by this tool.",
+              "Save the complete source-specific technical finding, including necessary values, qualifications and evidence. Do not shorten or omit technical facts to fit a display limit. Give each location the tight PDF region of the problem area; when SAM is available the host renders a zoom of the first region under half its sheet and segments it for the reviewer. Reuse an existing issue ID for follow-up; an empty evidence, citation or calculation list keeps what the finding holds, and only a replacement list changes it. The result includes the host-owned summary state and revision; if Pending, use record_finding_summary. Completed and the reviewer's decision are user-owned and cannot be set by this tool.",
               Schema.Struct({
                 ...Struct.omit(PacketFinding.fields, [
                   "summary",

@@ -160,7 +160,19 @@ test("With OpenCode Go connected, Go models are the only chat choice while Meta 
 
   const environment = Object.fromEntries(
     Object.entries(process.env).flatMap(([key, value]) =>
-      value === undefined || key === "ELECTRON_RUN_AS_NODE" ? [] : [[key, value]],
+      value === undefined ||
+      [
+        "ELECTRON_RUN_AS_NODE",
+        "MOKE_SESSION_CREDENTIAL_FILE",
+        "MODEL_API_KEY",
+        "BASETEN_API_KEY",
+        "OPENCODE_API_KEY",
+        "MODAL_TOKEN_ID",
+        "MODAL_TOKEN_SECRET",
+        "MOKE_MODAL_CONFIG",
+      ].includes(key)
+        ? []
+        : [[key, value]],
     ),
   );
 
