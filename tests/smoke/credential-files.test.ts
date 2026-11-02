@@ -1,3 +1,4 @@
+import { offeredReviewModels, reviewModels } from "#lib/review/models.ts";
 import { expect, test } from "bun:test";
 import { Redacted } from "effect";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -98,6 +99,19 @@ test("explicit session credentials reject shared Unix permissions and accept a p
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("connecting OpenCode Go makes it the only chat route on offer", () => {
+  const offered = (connected: ReadonlyArray<string>) =>
+    offeredReviewModels(
+      reviewModels.map((model) => ({ ...model, available: connected.includes(model.provider) })),
+    ).map((model) => model.provider);
+
+  // Meta stays connected for SAM and count checks, without appearing as a chat choice.
+  expect(new Set(offered(["meta", "opencode-go"]))).toEqual(new Set(["opencode-go"]));
+  expect(new Set(offered(["meta", "baseten"]))).toEqual(
+    new Set(["meta", "baseten", "opencode-go"]),
+  );
 });
 
 test("accepted trailing-slash routes are saved in the canonical form cloud dispatch requires", async () => {
