@@ -143,7 +143,12 @@ test("project dialogs, selectors, settings, visual evidence selection, and chat 
     await expect(page.getByTestId("drawn-region-x")).not.toBeVisible();
     const image = page.getByRole("region", { name: "Original source render" }).locator("img");
 
-    const pickArea = async (side: "drawn" | "scheduled", left = 0.2, right = 0.4) => {
+    const pickArea = async (
+      side: "drawn" | "scheduled",
+      left = 0.2,
+      right = 0.4,
+      turned = false,
+    ) => {
       const selectArea = page
         .getByRole("region", { name: `${side} operand`, exact: true })
         .getByRole("button", { name: "Select area on drawing", exact: true });
@@ -161,6 +166,15 @@ test("project dialogs, selectors, settings, visual evidence selection, and chat 
       await page.evaluate(() => window.auditRpc.release());
       await expect(image).toBeVisible({ timeout: 15000 });
       await expect(page.getByText("Drag a box around the area to count.")).toBeVisible();
+
+      if (turned) {
+        await page.getByRole("button", { name: "Rotate sheet clockwise", exact: true }).click();
+        await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+        const viewport = page.getByRole("application", { name: "Pan and zoom source canvas" });
+        await viewport.focus();
+        await page.keyboard.press("ArrowRight");
+      }
+
       const imageBounds = await image.boundingBox();
 
       if (!imageBounds) throw new Error("Source image has no bounds");
@@ -176,11 +190,12 @@ test("project dialogs, selectors, settings, visual evidence selection, and chat 
       await page.mouse.up();
     };
 
-    await pickArea("drawn");
+    await pickArea("drawn", 0.2, 0.4, true);
     const selectedWidth = Number(await page.getByTestId("drawn-region-width").inputValue());
     const selectedHeight = Number(await page.getByTestId("drawn-region-height").inputValue());
-    expect(selectedWidth).toBeCloseTo(612 * 0.2, 0);
-    expect(selectedHeight).toBeCloseTo(792 * 0.25, 0);
+    // At 90 degrees, screen width follows image height and screen height follows image width.
+    expect(selectedWidth).toBeCloseTo(612 * 0.25, 0);
+    expect(selectedHeight).toBeCloseTo(792 * 0.2, 0);
     await page.getByTestId("drawn-count-input").fill("2");
     await page
       .getByTestId("drawn-statement-input")

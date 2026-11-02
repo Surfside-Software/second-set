@@ -190,14 +190,14 @@ test("document QA needs no count check and persisted findings support evidence, 
     await expect(cloud.locator(".receipt-details")).toHaveCount(0);
     await expect(page.getByLabel("Message", { exact: true })).toBeEditable();
     const panel = page.getByTestId("packet-review-panel");
-    await expect(panel).toContainText("Whole-set review");
+    await expect(panel.locator(".scope")).toHaveText("Whole set");
     await expect(panel.getByRole("heading", { level: 2 })).toHaveText(
       "Review finished with coverage gaps",
     );
-    await expect(panel).toContainText("1 of 2 sheets opened");
-    await expect(panel.locator(".progress")).toContainText("4 of 88 review passes recorded");
+    await expect(panel.locator(".progress")).toContainText("1 of 2 sheets");
+    await expect(panel.locator(".progress")).toContainText("4 of 88 passes");
     // The gap headline names the recorded pass that is still unsettled.
-    await expect(panel.locator(".progress")).toContainText("1 still needs input or a reason");
+    await expect(panel.locator(".progress")).toContainText("1 needs input");
     await expect(panel).toContainText("Offline desktop fixture");
     await expect(panel.locator(".summary strong")).toHaveText("Offline desktop fixture");
     await expect(panel.locator(".summary code")).toHaveText("saved evidence");
@@ -215,28 +215,43 @@ test("document QA needs no count check and persisted findings support evidence, 
     expect(exportedReport).toContain("1 of 2 requested sheets opened");
     expect(exportedReport).toContain("4 of 88 requested review passes recorded");
     expect(exportedReport).toContain("1 unopened sheet; 84 unreviewed passes");
-    await panel.getByText("Governing sources and citations", { exact: true }).click();
-    await expect(
-      panel.getByRole("button", { name: "Open source in browser", exact: true }),
-    ).toBeVisible();
-    await expect(panel).toContainText(
-      "1004 Occupant Load · FBC Building (Commercial), 2023 8th Edition",
-    );
+    const sourcesSummary = panel.locator("summary").filter({ hasText: /^Sources and citations/ });
+    await sourcesSummary.click();
+    await expect(sourcesSummary.locator(".record-meta")).toHaveText("1 indexed");
+    const citationRow = panel.getByTestId("citation-row");
+    await expect(citationRow).toHaveAttribute("data-standing", "indexed");
+    await expect(citationRow.locator(".tag")).toHaveText("Indexed");
+    await expect(citationRow).toContainText("1004 Occupant Load");
+    await expect(citationRow).toContainText("FBC Building (Commercial) · 2023 8th Edition");
+    // The status names what the index gives and what the engineer still confirms, on hover.
+    await citationRow.locator(".tag").hover();
+    await expect(page.getByTestId("review-tooltip")).toContainText("Florida code index");
+    await page.mouse.move(0, 0);
+    await expect(page.getByTestId("review-tooltip")).toBeHidden();
+    await citationRow.locator("summary").focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(citationRow.locator("summary")).toBeFocused();
+    await expect(page.getByTestId("review-tooltip")).toContainText("wording is unconfirmed");
+    await citationRow.locator("summary").click();
+    await expect(citationRow).toContainText("The engineer confirms the section from its link.");
+    await citationRow.locator("summary").click();
+    await expect(panel.getByRole("button", { name: "Open Saved source fixture" })).toBeVisible();
     // Record the URL the trusted shell would open, instead of launching a browser.
     await app.evaluate(({ shell }) => {
       shell.openExternal = async (url) => {
         process.env.MOKE_E2E_OPENED_URL = url;
       };
     });
-    await panel.getByRole("button", { name: "Open section to confirm", exact: true }).click();
+    await panel.getByRole("button", { name: "Open 1004 Occupant Load", exact: true }).click();
     await expect
       .poll(() => app.evaluate(() => process.env.MOKE_E2E_OPENED_URL))
       .toBe(codeSectionUrl);
-    await panel.getByText("Saved retrieved text", { exact: true }).click();
+    await panel.getByTestId("source-row").locator("summary").click();
     await expect(
       panel.getByText("Stored source text remains inspectable offline.", { exact: true }),
     ).toBeVisible();
-    await panel.getByText("Governing sources and citations", { exact: true }).click();
+    await sourcesSummary.click();
     await page.getByText("Previous reviews in this conversation", { exact: true }).click();
     await page.getByRole("button", { name: "Open saved review", exact: true }).first().click();
     await expect(page.getByTestId("historical-review-panel")).toContainText(seeded.previousSummary);
@@ -262,61 +277,67 @@ test("document QA needs no count check and persisted findings support evidence, 
     await expect(page.locator(".application-message")).toContainText(seeded.previousSummary);
     await expect(page.locator(".application-message")).not.toContainText(seeded.currentSummary);
     await expect(page.getByRole("button", { name: /^Check:/ })).toHaveCount(0);
-    await panel.getByText("Sheet coverage and review records", { exact: true }).click();
-    const coverage = panel.locator(".coverage");
-    const filters = coverage.getByRole("group", { name: "Find review records", exact: true });
-    const statusFilter = filters.getByLabel("Status", { exact: true });
-    const disciplineFilter = filters.getByLabel("Discipline", { exact: true });
-    await expect(statusFilter).toHaveValue("attention");
-    await expect(panel.getByTestId("coverage-matches")).toContainText(
-      "86 matching records across 2 sheets",
-    );
+    const coverageSummary = panel.locator("summary").filter({ hasText: /^Coverage/ });
+    await coverageSummary.click();
+    await expect(coverageSummary.locator(".record-meta")).toHaveText("4 of 88");
+    const cells = panel.getByTestId("coverage-cell");
+    // Two sheets across eleven disciplines: one cell each, rolled up from its four passes.
+    await expect(cells).toHaveCount(22);
+
+    const generalCell = panel.getByRole("button", {
+      name: `${seeded.firstSheetLabel}, General: Issue`,
+      exact: true,
+    });
+
+    await expect(generalCell).toHaveAttribute("data-status", "issue");
     await expect(
-      panel
-        .getByTestId("discipline-coverage")
-        .getByRole("row", { name: /^General / })
-        .getByRole("cell"),
-    ).toHaveText(["8", "1", "1", "1", "4", "1"]);
+      panel.getByRole("button", {
+        name: `${seeded.secondSheetLabel}, General: Unreviewed`,
+        exact: true,
+      }),
+    ).toHaveAttribute("data-status", "unreviewed");
     await expect(panel.getByTestId("coverage-record")).toHaveCount(0);
-    // Saved configuration keys read as labels, and values keep their original casing.
+    await generalCell.hover();
+    await expect(page.getByTestId("review-tooltip")).toContainText(
+      "1 checked · 1 issue · 1 need input · 1 not applicable",
+    );
+    await page.screenshot({ path: test.info().outputPath("audit-coverage-summary.png") });
+    await generalCell.click();
+    const records = panel.getByTestId("coverage-record");
+    await expect(records).toHaveCount(4);
+    await expect(records.filter({ hasText: "Not applicable" }).locator("summary")).toContainText(
+      "Prior comments",
+    );
+    await records.filter({ hasText: "Not applicable" }).locator("summary").click();
+    await expect(
+      panel.getByText("This synthetic fixture has no prior comments.", { exact: true }),
+    ).toBeVisible();
+    await panel.getByRole("button", { name: "Close passes", exact: true }).click();
+    await expect(records).toHaveCount(0);
+    // The legend filters to one status, and leaves the review's own progress alone.
+    const legend = panel.getByRole("group", { name: "Show only one status", exact: true });
+    await legend.getByRole("button", { name: /^Checked/ }).click();
+    await expect(panel.getByTestId("coverage-matrix").locator("tbody tr")).toHaveCount(1);
+    await expect(generalCell).not.toHaveClass(/\bdim\b/);
+    await expect(generalCell).toHaveAttribute("data-status", "issue");
+    await legend.getByRole("button", { name: /^Checked/ }).click();
+    await expect(panel.getByTestId("coverage-matrix").locator("tbody tr")).toHaveCount(2);
+    await expect(panel.locator(".progress")).toContainText("4 of 88 passes");
+    await coverageSummary.click();
+    // Saved configuration keys read as labels, values keep their casing, and a paragraph of model
+    // text stays behind its row.
+    const projectSummary = panel.locator("summary").filter({ hasText: /^Project/ });
+    await projectSummary.click();
     await expect(panel.locator(".configuration")).toContainText("Permit stage");
     await expect(panel.locator(".configuration")).not.toContainText("permitStage");
     await expect(panel.locator(".configuration dd").first()).toHaveCSS("text-transform", "none");
-    await page.screenshot({ path: test.info().outputPath("audit-coverage-summary.png") });
-    await panel.locator(".sheet-coverage > summary").first().click();
-    await expect(panel.getByTestId("coverage-record")).toHaveCount(20);
-    await expect(coverage).toContainText("Page 1 of 3");
-    await coverage.getByRole("button", { name: "Next records", exact: true }).click();
-    await expect(panel.getByTestId("coverage-record")).toHaveCount(20);
-    await expect(coverage).toContainText("Page 2 of 3");
-    await coverage.getByRole("button", { name: "Next records", exact: true }).click();
-    await expect(panel.getByTestId("coverage-record")).toHaveCount(2);
-    await expect(
-      coverage.getByRole("button", { name: "Next records", exact: true }),
-    ).toBeDisabled();
-    await statusFilter.selectOption("checked");
-    await expect(panel.getByTestId("coverage-record")).toHaveCount(1);
-    await expect(panel.getByTestId("coverage-record")).toContainText("Checked");
-    await statusFilter.selectOption("not_applicable");
-    await expect(panel.getByTestId("coverage-record")).toHaveCount(1);
-    await expect(panel.getByTestId("coverage-record")).toContainText("Not applicable");
-    await expect(panel.getByTestId("coverage-record")).toContainText(
-      "This synthetic fixture has no prior comments.",
+    await expect(panel.locator(".configuration .fact").first().locator(".tag")).toHaveText(
+      "Needs input",
     );
-    await statusFilter.selectOption("unreviewed");
-    await disciplineFilter.selectOption("civil");
-    await expect(panel.getByTestId("coverage-matches")).toContainText(
-      "8 matching records across 2 sheets",
-    );
-    await expect(panel.getByTestId("coverage-record")).toHaveCount(4);
-    await filters.getByRole("searchbox", { name: "Sheet", exact: true }).fill("page 2");
-    await expect(panel.locator(".sheet-coverage")).toHaveCount(1);
-    await expect(panel.getByTestId("coverage-matches")).toContainText(
-      "4 matching records across 1 sheet",
-    );
-    await expect(panel.locator(".progress")).toContainText("4 of 88 review passes recorded");
-    await filters.getByRole("searchbox", { name: "Sheet", exact: true }).fill("");
-    await panel.getByText("Sheet coverage and review records", { exact: true }).click();
+    await expect(panel.getByText("synthetic source", { exact: true })).toBeHidden();
+    await panel.locator(".configuration .fact").first().locator("summary").click();
+    await expect(panel.getByText("synthetic source", { exact: true })).toBeVisible();
+    await projectSummary.click();
     const finding = page.getByTestId(`packet-finding-${seeded.findingId}`);
     await finding.click();
     const detail = page.getByTestId("selected-packet-finding");
@@ -340,7 +361,7 @@ test("document QA needs no count check and persisted findings support evidence, 
     });
     await page
       .getByRole("button", {
-        name: "Supplied synthetic drawing packet · Focus detail",
+        name: "Supplied synthetic drawing packet",
         exact: true,
       })
       .click();
@@ -418,7 +439,7 @@ test("document QA needs no count check and persisted findings support evidence, 
     });
     await page
       .getByRole("button", {
-        name: "Supplied synthetic drawing packet · Focus detail",
+        name: "Supplied synthetic drawing packet",
         exact: true,
       })
       .click();
@@ -515,9 +536,7 @@ test("document QA needs no count check and persisted findings support evidence, 
       .locator(".findings-bubble")
       .getByRole("button", { name: "SAM focus finding", exact: false })
       .click();
-    await expect(page.getByTestId("sam-focus-caption")).toContainText(
-      "SAM 3.1 focus · 1 segmented object",
-    );
+    await expect(page.getByTestId("sam-focus-caption")).toHaveText("1 SAM segment");
     await expect(page.locator(".viewer svg.masks path")).toHaveCount(1);
     await expect(page.locator(".viewer .overlay")).toHaveAttribute("title", "Finding region");
     await expect(
@@ -585,7 +604,18 @@ test("document QA needs no count check and persisted findings support evidence, 
     await page.reload();
     monitor();
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await expect(page.getByTestId("cloud-review-controls")).toContainText("Local edits are paused");
+
+    const lockTiming = page
+      .getByTestId("cloud-review-controls")
+      .locator("p")
+      .filter({ hasText: /^Elapsed/ });
+
+    await expect(lockTiming).toHaveAttribute("data-tip", /Local edits are paused until then/);
+    await lockTiming.hover();
+    await expect(page.getByTestId("review-tooltip")).toBeVisible();
+    await expect(page.getByTestId("review-tooltip")).toContainText("Local edits are paused");
+    await page.mouse.move(0, 0);
+    await expect(page.getByTestId("review-tooltip")).toBeHidden();
     await expect(page.getByLabel("Message", { exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Save as note", exact: true })).toBeDisabled();
     await expect(page.getByTestId("import-pdf")).toBeDisabled();
@@ -596,7 +626,9 @@ test("document QA needs no count check and persisted findings support evidence, 
     await page.getByTestId(`packet-finding-${seeded.findingId}`).click();
     const mirroredFinding = page.getByTestId("selected-packet-finding");
     await expect(mirroredFinding.getByRole("checkbox")).toBeDisabled();
-    await expect(mirroredFinding.getByRole("button", { name: /Focus detail/ })).toBeDisabled();
+    await expect(
+      mirroredFinding.getByRole("button", { name: "Supplied synthetic drawing packet" }),
+    ).toBeDisabled();
     await expect(page.locator(".viewer img")).toBeVisible();
     await page.screenshot({
       path: test.info().outputPath("integration-cloud-mirrored-finding.png"),
@@ -816,6 +848,8 @@ function seedCompletedReview(directory: string) {
     const secondSheet = sheets[1];
     const firstFinding = review.findings[0];
 
+    if (!secondSheet) throw new Error("The coverage fixture needs its second imported sheet.");
+
     const request = {
       commandId: crypto.randomUUID(),
       projectId: project.id,
@@ -977,6 +1011,8 @@ function seedCompletedReview(directory: string) {
     }
 
     return {
+      firstSheetLabel: firstSheet.label,
+      secondSheetLabel: secondSheet.label,
       findingId,
       secondFindingId,
       findingTitle,

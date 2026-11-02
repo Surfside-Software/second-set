@@ -7,6 +7,7 @@
     SuggestedSheetLabel,
   } from "#lib/review/contracts.ts";
   import { ReviewDiscipline, reviewDisciplines } from "#lib/review/disciplines.ts";
+  import { tip } from "#lib/review/tooltip.ts";
   import { sheetCaption } from "./review-format.ts";
   import SheetThumbnail from "./SheetThumbnail.svelte";
 
@@ -144,13 +145,7 @@
     <h2>Project sheets</h2>
     <span class="tag">{sheets.length} {sheets.length === 1 ? "sheet" : "sheets"}</span>
   </div>
-  <p class="muted">
-    Assign disciplines to focus a review, or review the whole set. No sheet confirmation is needed
-    for document review.
-  </p>
-  {#if sheets.length === 0}<p>
-      Import a drawing PDF to begin. Earlier revisions stay in the project.
-    </p>
+  {#if sheets.length === 0}<p class="muted">No sheets yet.</p>
   {:else}
     {#if onSuggestLabels && onApplyLabels}
       <div class="name-tools">
@@ -159,13 +154,13 @@
           type="button"
           data-testid="read-sheet-labels"
           disabled={busy || readingLabels || applyingLabels || genericSheets.length === 0}
+          {...tip(
+            genericSheets.length > 0
+              ? "Suggest names from the PDF's title blocks. Names you set stay as they are."
+              : "All sheets already have names.",
+          )}
           onclick={suggestNames}
           >{readingLabels ? "Reading sheet names…" : "Read sheet names"}</button
-        >
-        <small class="muted"
-          >{genericSheets.length > 0
-            ? "Suggest names from this stored PDF. Custom labels and count verification stay unchanged."
-            : "All sheets already have names. Custom labels are preserved."}</small
         >
       </div>
       {#if labelNotice?.revisionId === sheets[0]?.revisionId}<p class="label-notice" role="status">
@@ -182,10 +177,6 @@
               onclick={() => (labelSuggestions = null)}>Dismiss</button
             >
           </div>
-          <p class="muted">
-            Review names before applying. Unconfirmed sheet names remain advisory; applying names
-            does not confirm sheets or change count coverage.
-          </p>
           <div class="suggestion-table">
             <table>
               <thead><tr><th>Current label</th><th>Suggested name</th></tr></thead>
@@ -203,9 +194,7 @@
               </tbody>
             </table>
           </div>
-          {#if applicableSuggestions.length === 0}<p role="status">
-              No sheet names can be applied. Existing labels stay in place.
-            </p>{/if}
+          {#if applicableSuggestions.length === 0}<p role="status">No sheet names to apply.</p>{/if}
           <div class="name-apply">
             <small class="muted"
               >{applicableSuggestions.length}
@@ -227,9 +216,9 @@
       {/if}
     {/if}
     <label class="sheet-search"
-      >Find a sheet<input
+      ><span class="sr-only">Find a sheet</span><input
         type="search"
-        placeholder="Sheet number, title, discipline or page"
+        placeholder="Find a sheet…"
         bind:value={query}
       /></label
     >
@@ -291,11 +280,13 @@
                 aria-label={`Preview ${sheet.label}`}
                 onclick={() => onPreview(sheet)}><SheetThumbnail {sheet} {loadThumbnail} /></button
               >{/if}
-            <span class="sheet-identity selectable" title={sheetCaption(sheet)}
+            <span class="sheet-identity selectable" {...tip(sheetCaption(sheet))}
               ><strong>{sheet.label}</strong><small
-                >Original PDF page {sheet.pageIndex + 1}{!sheet.confirmed
-                  ? " · label unverified"
-                  : ""}</small
+                >Page {sheet.pageIndex + 1}{#if !sheet.confirmed}<span
+                    class="unconfirmed"
+                    {...tip("Label not confirmed yet. Only count checks need this.")}
+                    ><span class="sr-only">label unverified</span></span
+                  >{/if}</small
               ></span
             >
             <select
@@ -341,10 +332,6 @@
                   maxlength="160"
                 /></label
               >
-              <p class="muted">
-                Only for verified count comparisons. Discipline assignment does not confirm source
-                coverage.
-              </p>
               <div class="coverage-field">
                 <label for={`sheet-coverage-${sheet.id}`}>Count-check coverage</label>
                 <select id={`sheet-coverage-${sheet.id}`} name="coverage" value={sheet.coverage}
@@ -393,10 +380,6 @@
       }}
     >
       <h2>New count check</h2>
-      <p class="muted">
-        Choose one object type and a bounded room or area. MOKE compares its drawn and scheduled
-        counts.
-      </p>
       <label
         >Check name<input
           {@attach focusCheckName}
@@ -610,6 +593,23 @@
   }
   .sheet-identity strong {
     font-weight: 500;
+  }
+  .unconfirmed {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border: 1px solid var(--color-ash);
+    border-radius: 1px;
+    vertical-align: 1px;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .sheet-identity small {
     color: var(--color-text-muted);

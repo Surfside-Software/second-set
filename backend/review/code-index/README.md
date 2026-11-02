@@ -25,6 +25,12 @@ Each entry's `access` says how a reviewer reads the text it points to.
   official text, so `read_source` can retrieve them and a citation can be
   verified against the quote.
 
+A citation that names no `search_code` result still gets its link when its
+document, edition and section identify one index entry. A subsection falls back
+to its indexed parent section, and another edition never matches. The workbench
+shows an unverified citation with a link as Indexed, because its section is known
+and only its wording is unconfirmed.
+
 `read_source` also extracts embedded text from PDF sources, such as county
 amendments and agency checklists, through the PDF worker. A `#page=N` fragment
 starts at that page. Scanned PDFs without embedded text stay unavailable.

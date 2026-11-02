@@ -135,7 +135,7 @@
             "status-dot",
             { running: status.state === "running", failed: status.state === "failed" },
           ]}
-        ></span><span
+        ></span><span class:thinking-text={status.state === "running"}
           >{status.state === "running"
             ? "Reviewing drawings"
             : status.state === "pausing"
@@ -152,16 +152,8 @@
       {#if elapsed !== null}<span class="elapsed" data-testid="execution-timer"
           >Elapsed {formatElapsed(elapsed)}</span
         >{/if}
-      {#if status.state === "completed"}<p>
-          Inspection finished. Open Findings to review the results.
-        </p>{/if}
-      {#if status.state === "failed"}<p>
-          The inspection stopped. Check the evidence, configuration and call limit before starting
-          another.
-        </p>{/if}
       {#if status.state === "incompatible"}<p>
-          This saved inspection uses an earlier engine or instruction version. Start a separate
-          inspection to use this build.
+          Saved with an earlier version. Start a new inspection to use this build.
         </p>{/if}
       {#if status.state === "uncertain" || (status.unresolvedAttempts > 0 && status.state === "cancelled")}
         <p class="uncertain">

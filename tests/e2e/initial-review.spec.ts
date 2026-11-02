@@ -94,9 +94,11 @@ test("Initial Review stays through a split first set and leaves once a revision 
     const closePanel = page.getByRole("button", { name: "Close source panel", exact: true });
     await closePanel.click();
     await expect(initial).toBeEnabled();
-    await expect(initial).toHaveAccessibleDescription(
-      "Whole set · all disciplines · four passes · Muse Spark 1.3 · on this computer",
+    await expect(initial).toHaveAttribute(
+      "data-tip",
+      "Whole set · all disciplines · four passes · Muse Spark 1.3",
     );
+    await expect(page.locator("#initial-review-summary")).toHaveText("Runs on this computer");
 
     // A second PDF imported before any review is part of the first set.
     await page.getByTestId("import-pdf").click();

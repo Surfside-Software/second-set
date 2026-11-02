@@ -64,6 +64,17 @@ test("text typed while a send is pending stays in the composer for notes, review
     // Follow-up: the acknowledgement is held while the reviewer keeps typing.
     await page.getByTestId(`conversation-${active.id}`).click();
     await expect(composer).toHaveAttribute("placeholder", "Steer this review…");
+
+    // A running review is unmistakable, and its help moved from a line of subtext to the control.
+    const heading = page.getByTestId("packet-review-panel").getByRole("heading", { level: 2 });
+    await expect(heading).toHaveText("Review in progress");
+    await expect(heading).toHaveCSS("animation-name", "forge-thinking");
+    await expect(page.getByRole("button", { name: "Send message", exact: true })).toHaveAttribute(
+      "data-tip",
+      /Joins this review after its current step/,
+    );
+    await expect(page.locator(".composer-help")).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("review-in-progress.png") });
     await page.evaluate(
       (value) => {
         window.rpcControl.answer("SteerPacketReview", value);

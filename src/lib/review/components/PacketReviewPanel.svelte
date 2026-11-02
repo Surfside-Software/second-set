@@ -3,19 +3,19 @@
   import { Match, Schema } from "effect";
   import {
     cachedPromptShare,
+    citationStanding,
+    citationStandingLabels,
     packetFindingText,
     packetVerdictLabels,
     type PacketReview,
   } from "#lib/review/packet.ts";
-  import {
-    configurationLabel,
-    countPacketCoverage,
-    indexPacketCoverage,
-    packetCoverageProgress,
-  } from "#lib/review/packet-coverage.ts";
-  import { ReviewDiscipline, reviewDisciplines } from "#lib/review/disciplines.ts";
-  import ReviewText from "./ReviewText.svelte";
+  import { packetCoverageProgress, packetProjectFacts } from "#lib/review/packet-coverage.ts";
   import { ReviewSourceUrl } from "#lib/review/source-url.ts";
+  import { tip } from "#lib/review/tooltip.ts";
+  import CitationRow from "./CitationRow.svelte";
+  import CoverageMatrix from "./CoverageMatrix.svelte";
+  import ReviewIcon from "./ReviewIcon.svelte";
+  import ReviewText from "./ReviewText.svelte";
   import { formatElapsed } from "./review-format.ts";
 
   let {
@@ -39,13 +39,6 @@
     onRefresh?: () => Promise<void>;
     onCopyDiagnostics: () => Promise<boolean>;
   } = $props();
-
-  const passLabels = {
-    completeness: "Document completeness",
-    requirements: "Code and agency requirements",
-    coordination: "Drawing coordination",
-    prior_comments: "Prior comments",
-  } as const;
 
   let diagnosticNotice = $state("");
 
@@ -72,13 +65,13 @@
     if (review.parallel === undefined || review.state !== "running") return null;
     const { stage, sheets } = review.parallel;
 
-    if (stage === "setup") return "Recording project facts before sheet reviewers start";
+    if (stage === "setup") return "Setting up project facts";
 
-    if (stage === "coordination") return "Comparing sheets for cross-sheet conflicts";
+    if (stage === "coordination") return "Comparing sheets";
 
     const count = (state: string) => sheets.filter((entry) => entry.state === state).length;
 
-    return `Sheet reviewers: ${count("running")} running · ${count("completed")} of ${sheets.length} finished${
+    return `Reviewers: ${count("running")} running · ${count("completed")} of ${sheets.length} done${
       count("failed") > 0 ? ` · ${count("failed")} stopped` : ""
     }`;
   });
@@ -111,100 +104,14 @@
   const scope = $derived(
     Match.value(review.scope).pipe(
       Match.tagsExhaustive({
-        SelectedSheets: () => "Selected sheets review",
-        WholeSet: () => "Whole-set review",
-        Discipline: ({ discipline }) => `${discipline.replaceAll("_", " ")} review`,
+        SelectedSheets: () => "Selected sheets",
+        WholeSet: () => "Whole set",
+        Discipline: ({ discipline }) => discipline.replaceAll("_", " "),
       }),
     ),
   );
 
   const coverageProgress = $derived(packetCoverageProgress(review));
-
-  type CoverageRow = PacketReview["coverage"][number];
-
-  const CoverageFilter = Schema.Literals([
-    "attention",
-    "all",
-    "unreviewed",
-    "needs_input",
-    "issue",
-    "checked",
-    "not_applicable",
-  ]);
-
-  const DisciplineFilter = Schema.Union([Schema.Literal("all"), ReviewDiscipline]);
-
-  const statusLabels = {
-    unreviewed: "Unreviewed",
-    needs_input: "Needs input",
-    issue: "Issue recorded",
-    checked: "Checked",
-    not_applicable: "Not applicable",
-  } as const;
-
-  const recordsPerPage = 20;
-  let coverageFilter = $state<typeof CoverageFilter.Type>("attention");
-  let disciplineFilter = $state<typeof DisciplineFilter.Type>("all");
-  let sheetQuery = $state("");
-  let includeEarlierCoverage = $state(false);
-  let expandedSheetId = $state<string | null>(null);
-  let coveragePage = $state(0);
-
-  const disciplineCoverage = $derived(
-    reviewDisciplines.flatMap((discipline) => {
-      const rows = coverageProgress.rows.filter((row) => row.discipline === discipline.id);
-
-      return rows.length > 0 ? [{ ...discipline, ...countPacketCoverage(rows) }] : [];
-    }),
-  );
-
-  const detailCoverage = $derived(
-    includeEarlierCoverage ? coverageProgress.ledger : coverageProgress.rows,
-  );
-
-  // Grouped once per coverage change; the filters and sheet search below reuse the groups.
-  const sheetCoverage = $derived(indexPacketCoverage(detailCoverage));
-
-  function matchesFilters(row: CoverageRow) {
-    if (disciplineFilter !== "all" && row.discipline !== disciplineFilter) return false;
-
-    if (coverageFilter === "all") return true;
-
-    if (coverageFilter !== "attention") return row.status === coverageFilter;
-
-    return (
-      row.status === "unreviewed" ||
-      row.status === "needs_input" ||
-      row.status === "issue" ||
-      (row.status === "not_applicable" && row.note.trim().length === 0)
-    );
-  }
-
-  const matchingCoverage = $derived(
-    new Map(
-      [...sheetCoverage].map(([sheetId, entry]) => [sheetId, entry.rows.filter(matchesFilters)]),
-    ),
-  );
-
-  const coverageSheets = $derived(
-    review.sheets.flatMap((sheet) => {
-      if (
-        !`${sheet.label} ${sheet.documentName} page ${sheet.pageIndex + 1}`
-          .toLowerCase()
-          .includes(sheetQuery.trim().toLowerCase())
-      )
-        return [];
-
-      const matching = matchingCoverage.get(sheet.id) ?? [];
-      const counts = sheetCoverage.get(sheet.id)?.counts;
-
-      return matching.length > 0 && counts ? [{ sheet, matching, counts }] : [];
-    }),
-  );
-
-  const matchingCount = $derived(
-    coverageSheets.reduce((total, entry) => total + entry.matching.length, 0),
-  );
 
   // Needs-input and unexplained not-applicable passes count as recorded but leave a gap.
   const unsettledRecorded = $derived(coverageProgress.recorded - coverageProgress.settled);
@@ -219,6 +126,40 @@
       review.findings.some((finding) => finding.status === "Needs input") ||
       review.citations.some((citation) => citation.status !== "verified"),
   );
+
+  const toConfirm = $derived(
+    review.citations.filter((citation) => citationStanding(citation) === "indexed").length,
+  );
+
+  const standingCounts = $derived(
+    (["indexed", "verified", "unverified", "incorrect"] as const).flatMap((standing) => {
+      const count = review.citations.filter(
+        (citation) => citationStanding(citation) === standing,
+      ).length;
+
+      return count > 0 ? [`${count} ${citationStandingLabels[standing].toLowerCase()}`] : [];
+    }),
+  );
+
+  const projectFacts = $derived(packetProjectFacts(review.projectConfiguration));
+  const factsNeedingInput = $derived(projectFacts.filter((fact) => fact.needsInput).length);
+
+  // What "with gaps" means for this review, on hover of the heading.
+  const stateHelp = $derived.by(() => {
+    if (running || !review.finished) return undefined;
+
+    const unsettled = coverageProgress.total - coverageProgress.settled;
+    const needInput = review.findings.filter((finding) => finding.status === "Needs input").length;
+
+    const parts = [
+      unsettled > 0 ? `${unsettled} review passes still open` : "",
+      review.missingInputs.length > 0 ? `${review.missingInputs.length} inputs missing` : "",
+      needInput > 0 ? `${needInput} findings need input` : "",
+      toConfirm > 0 ? `${toConfirm} code sections for you to confirm` : "",
+    ].filter(Boolean);
+
+    return parts.length > 0 ? parts.join(" · ") : undefined;
+  });
 
   const stateLabel = $derived(
     running
@@ -248,73 +189,95 @@
 </script>
 
 <section
-  class="packet-review"
-  aria-label={scope}
+  class={["packet-review", { running }]}
+  aria-label={`${scope} review`}
   data-testid={historical ? "historical-review-panel" : "packet-review-panel"}
 >
   <header>
-    <div>
-      <h2>{stateLabel}</h2>
-      <p class="scope">{scope}</p>
+    <div class="heading">
+      {#if running}<span class="live-dot" aria-hidden="true"></span>{/if}
+      <h2 class:thinking-text={running} {...stateHelp ? tip(stateHelp) : {}}>
+        {stateLabel}
+      </h2>
+      <span class="tag scope">{scope}</span>
     </div>
     <span class="duration" aria-label="Review elapsed time">{formatElapsed(elapsed)}</span>
   </header>
-  <p class="progress" role="status">
+  <div
+    class="meter"
+    role="progressbar"
+    aria-label="Review passes recorded"
+    aria-valuemin="0"
+    aria-valuemax={coverageProgress.total}
+    aria-valuenow={coverageProgress.recorded}
+  >
+    <span
+      style:width={`${(coverageProgress.recorded / Math.max(1, coverageProgress.total)) * 100}%`}
+    ></span>
+  </div>
+  <p
+    class="progress"
+    role="status"
+    {...tip(
+      "Every sheet gets four passes for each discipline: completeness, code, coordination and prior comments.",
+      "Review passes",
+    )}
+  >
     {review.inspectedSheetIds.length} of {review.sheets.length}
-    {review.sheets.length === 1 ? "sheet" : "sheets"} opened · {coverageProgress.recorded}
+    {review.sheets.length === 1 ? "sheet" : "sheets"} · {coverageProgress.recorded}
     of
-    {coverageProgress.total} review passes recorded{unsettledRecorded > 0
-      ? ` · ${unsettledRecorded} still ${unsettledRecorded === 1 ? "needs" : "need"} input or a reason`
-      : ""}
+    {coverageProgress.total} passes{unsettledRecorded > 0
+      ? ` · ${unsettledRecorded} ${unsettledRecorded === 1 ? "needs" : "need"} input`
+      : ""}{stageLine ? ` · ${stageLine}` : ""}
   </p>
-  {#if stageLine}<p class="muted stage-line">{stageLine}</p>{/if}
   {#if review.summary}<div class="summary">
       <ReviewText
         text={review.summary.length > 500 ? review.summary.slice(0, 500) + "…" : review.summary}
       />
     </div>
-    {#if review.summary.length > 500}<details class="records">
+    {#if review.summary.length > 500}<details class="inline-record">
         <summary>Full review notes</summary>
         <ReviewText text={review.summary} />
       </details>{/if}{/if}
-  {#if review.steering?.length}<details class="records">
+  {#if review.steering?.length}<details class="inline-record">
       <summary>Follow-up instructions · {review.steering.length}</summary
       >{#each review.steering as instruction (instruction.commandId)}<p>
           {instruction.text}
           <span class="muted"
             >{instruction.status === "queued"
-              ? "Queued for the next tool boundary"
+              ? "Queued"
               : instruction.status === "applied"
                 ? "Applied"
                 : instruction.status === "pending"
-                  ? "Saved; delivery not confirmed"
-                  : "Not answered — review stopped before it could finish"}</span
+                  ? "Saved"
+                  : "Not answered"}</span
           >
         </p>{/each}
     </details>{/if}
   {#if failureMessage}<p class="attention" role="alert">{failureMessage}</p>{/if}
-  {#if review.missingInputs.length > 0}
-    <div class="missing">
-      <h3>Needs input</h3>
-      <ul>
-        {#each review.missingInputs as input, index (`${index}:${input}`)}<li>{input}</li>{/each}
-      </ul>
-    </div>
-  {/if}
   <div class="actions">
-    <button class="btn" disabled={busy} onclick={onExport}>Export review report</button>
-    {#if review.error || review.state !== "running"}<button class="btn" onclick={copyDiagnostics}
-        >Copy review diagnostics</button
+    <button
+      class="btn"
+      disabled={busy}
+      {...tip("Save a self-contained HTML report with evidence and coverage.")}
+      onclick={onExport}>Export review report</button
+    >
+    {#if review.error || review.state !== "running"}<button
+        class="btn"
+        {...tip("Copy technical details for troubleshooting.")}
+        onclick={copyDiagnostics}>Copy review diagnostics</button
       >{/if}
     {#if !historical && onRefresh}<button
         class="btn"
         disabled={busy}
         data-testid="refresh-review"
+        {...tip("Reload this review's saved progress.")}
         onclick={onRefresh}>Refresh review</button
       >{/if}
     {#if running && !historical}<button
         class="btn"
         disabled={busy}
+        {...tip("Stop after the current step. Resume any time.")}
         onclick={() => onControl("pause")}>Pause review</button
       >{/if}
     {#if budgetExhausted && !historical}<div class="budget-extension">
@@ -332,12 +295,12 @@
         ><button
           class="btn"
           disabled={busy || !validAdditionalCalls}
+          {...validAdditionalCalls
+            ? tip(`New budget: ${extendedBudget} calls, ${review.admittedCalls} already used.`)
+            : {}}
           onclick={() => onControl("resume", extendedBudget)}>Add calls and resume</button
         >
-        <p class="muted">
-          {#if validAdditionalCalls}New call budget: {extendedBudget} total, including {review.admittedCalls}
-            already used.{:else}Enter a positive whole number of additional calls.{/if}
-        </p>
+        {#if !validAdditionalCalls}<p class="muted">Enter a positive whole number.</p>{/if}
       </div>{:else if review.state === "paused" && !historical}<button
         class="btn"
         disabled={busy}
@@ -351,9 +314,8 @@
   </div>
   {#if diagnosticNotice}<p role="status" class="muted">{diagnosticNotice}</p>{/if}
   {#if review.state === "uncertain"}<p class="muted">
-      The last provider request has an uncertain outcome. Its recorded work is preserved; it will
-      not be sent again automatically. It may have been charged. Cancel this stopped review to
-      unlock a new request; saved findings and failure details remain in history.
+      The last request may have been charged and won't be sent again. Cancel to start a new review;
+      saved work stays.
     </p>{/if}
   {#if review.findings.length > 0}
     <div class="findings">
@@ -376,252 +338,145 @@
       {/each}
     </div>
   {/if}
-  {#if review.calculations.length > 0}<details class="records">
-      <summary>Supporting calculations · {review.calculations.length}</summary
-      >{#each review.calculations as calculation (calculation.id)}<section>
-          <h4>{calculation.title}</h4>
-          <p>
-            <code>{calculation.expression}</code> =
-            <strong>{calculation.result} {calculation.unit}</strong>
-          </p>
-          <p class="muted">
-            {Object.entries(calculation.inputs)
-              .map(([name, input]) => `${name} = ${input.value} ${input.unit}`)
-              .join(" · ")}
-          </p>
-          <p>{calculation.explanation}</p>
-        </section>{/each}
-    </details>{/if}
-  {#if review.citations.length > 0 || review.sources.length > 0}<details class="records">
-      <summary>Governing sources and citations</summary
-      >{#each review.citations as citation (citation.id)}<section>
-          <h4>{citation.document} {citation.edition} · {citation.section}</h4>
-          <p class="muted">{citation.jurisdiction} · {citation.status}</p>
-          {#if citation.quote}<blockquote>{citation.quote}</blockquote>{/if}
-          <p>{citation.application}</p>
-          {#if citation.note}<p class="muted">{citation.note}</p>{/if}
-          {#if citation.reference}
-            {@const reference = citation.reference}
-            <p class="muted">{reference.title} · {reference.document}, {reference.edition}</p>
-            {#if Schema.is(ReviewSourceUrl)(reference.url)}<button
-                class="btn"
-                onclick={() => onOpenSource(reference.url)}
-                >{reference.access === "open_in_browser"
-                  ? "Open section to confirm"
-                  : "Open section in browser"}</button
-              >{/if}{/if}
-        </section>{/each}{#each review.sources as source (source.id)}<p class="muted">
-          {source.title || source.url} · {source.status}{source.official
-            ? " · official source"
-            : ""}
-        </p>
-        <section class="source-record">
-          <p>{source.url}</p>
-          <p class="muted">Retrieved {new Date(source.retrievedAt).toLocaleString()}</p>
-          {#if Schema.is(ReviewSourceUrl)(source.url)}<button
-              class="btn"
-              onclick={() => onOpenSource(source.url)}>Open source in browser</button
-            >{/if}
-          <details>
-            <summary>Saved retrieved text</summary>
-            <p>{source.text || "No text was retrieved."}</p>
-          </details>
-        </section>{/each}
-    </details>{/if}
-  {#if review.priorComments.length > 0}<details class="records">
-      <summary>Prior comments · {review.priorComments.length}</summary
-      >{#each review.priorComments as comment (comment.id)}<section>
-          <h4>{comment.agency} {comment.number} · {comment.status}</h4>
-          <p>{comment.comment}</p>
-          <p>{comment.response}</p>
-          {#if comment.changedSources}<p class="muted">{comment.changedSources}</p>{/if}
-        </section>{/each}
-    </details>{/if}
-  <details class="coverage">
-    <summary>Sheet coverage and review records</summary>
-    <div class="coverage-list">
-      {#if Object.keys(review.projectConfiguration).length > 0}<section>
-          <h4>Project configuration</h4>
-          <dl class="configuration">
-            {#each Object.entries(review.projectConfiguration) as [name, value] (name)}<dt>
-                {configurationLabel(name)}
-              </dt>
-              <dd>{value}</dd>{/each}
-          </dl>
-        </section>{/if}
-      {#if review.jurisdictionLeads}{@const leads = review.jurisdictionLeads}
-        <p class="muted" data-testid="jurisdiction-leads">
-          {leads.reviews.length === 0
-            ? "No earlier review in this workspace matched the jurisdiction."
-            : `Earlier reviews in this jurisdiction: ${leads.reviews.map((item) => `${item.projectName} (same ${item.match === "locality" ? "county or city" : "state"})`).join(", ")}. Offered as leads, not evidence: ${leads.sources} sources, ${leads.citations} citations, ${leads.editions} code editions, ${leads.agencyComments} agency comments.`}
-        </p>{/if}
-      {#if review.firmChecklist}<p class="muted" data-testid="firm-checklist-applied">
-          Firm checklist revision {review.firmChecklist.revision} applied to this review.
-        </p>{/if}
-      <p class="muted">
-        The requested scope contains {review.sheets.length}
-        {review.sheets.length === 1 ? "sheet" : "sheets"} × {disciplineCoverage.length}
-        {disciplineCoverage.length === 1 ? "discipline" : "disciplines"} × {Object.keys(passLabels)
-          .length} review passes = {coverageProgress.total} required passes. Checked and issue statuses
-        record the reviewer's work; they do not establish engineering correctness. Not applicable is counted
-        separately and requires a reason.
-      </p>
-      <div class="coverage-table-scroll" role="region" aria-label="Coverage by discipline">
-        <table class="discipline-coverage" data-testid="discipline-coverage">
-          <caption>Requested scope by discipline</caption>
-          <thead
-            ><tr
-              ><th scope="col">Discipline</th><th scope="col">Required</th><th scope="col"
-                >Checked</th
-              ><th scope="col">Issues</th><th scope="col">Needs input</th><th scope="col"
-                >Unreviewed</th
-              ><th scope="col">Not applicable</th></tr
-            ></thead
-          >
-          <tbody>
-            {#each disciplineCoverage as discipline (discipline.id)}
-              <tr
-                ><th scope="row">{discipline.label}</th><td>{discipline.total}</td><td
-                  >{discipline.checked}</td
-                ><td>{discipline.issues}</td><td>{discipline.needsInput}</td><td
-                  >{discipline.unreviewed}</td
-                ><td>{discipline.notApplicable}</td></tr
-              >
-            {/each}
-          </tbody>
-        </table>
-      </div>
-      <fieldset class="coverage-filters">
-        <legend>Find review records</legend>
-        <div class="coverage-filter">
-          <label for={`coverage-status-${review.id}`}>Status</label>
-          <select
-            id={`coverage-status-${review.id}`}
-            value={coverageFilter}
-            onchange={(event) => {
-              coverageFilter = Schema.decodeUnknownSync(CoverageFilter)(event.currentTarget.value);
-              coveragePage = 0;
-            }}
-            ><option value="attention">Needs attention</option><option value="all"
-              >All statuses</option
-            ><option value="unreviewed">Unreviewed</option><option value="needs_input"
-              >Needs input</option
-            ><option value="issue">Issues recorded</option><option value="checked">Checked</option
-            ><option value="not_applicable">Not applicable</option></select
-          >
-        </div>
-        <div class="coverage-filter">
-          <label for={`coverage-discipline-${review.id}`}>Discipline</label>
-          <select
-            id={`coverage-discipline-${review.id}`}
-            value={disciplineFilter}
-            onchange={(event) => {
-              disciplineFilter = Schema.decodeUnknownSync(DisciplineFilter)(
-                event.currentTarget.value,
-              );
-              coveragePage = 0;
-            }}
-            ><option value="all">All disciplines</option
-            >{#each reviewDisciplines as discipline (discipline.id)}<option value={discipline.id}
-                >{discipline.label}</option
-              >{/each}</select
-          >
-        </div>
-        <div class="coverage-filter">
-          <label for={`coverage-sheet-${review.id}`}>Sheet</label>
-          <input
-            id={`coverage-sheet-${review.id}`}
-            type="search"
-            placeholder="Sheet, document or page"
-            bind:value={sheetQuery}
-          />
-        </div>
-        <label class="earlier-coverage"
-          ><input
-            type="checkbox"
-            checked={includeEarlierCoverage}
-            onchange={(event) => {
-              includeEarlierCoverage = event.currentTarget.checked;
-              coveragePage = 0;
-            }}
-          />Include compatible records from earlier scopes</label
+  <div class="records">
+    {#if review.missingInputs.length > 0}<details class="record">
+        <summary
+          >Needs input<span class="record-meta attention-count">{review.missingInputs.length}</span
+          ></summary
         >
-      </fieldset>
-      <p class="muted">
-        Needs attention includes unreviewed passes, missing inputs, recorded issues and Not
-        applicable entries without a reason. Filters affect the records below; the requested-scope
-        counts above stay unchanged.
-      </p>
-      <p role="status" data-testid="coverage-matches">
-        {matchingCount} matching {matchingCount === 1 ? "record" : "records"} across {coverageSheets.length}
-        {coverageSheets.length === 1 ? "sheet" : "sheets"}. Open a sheet to inspect up to {recordsPerPage}
-        records at a time.
-      </p>
-      {#each coverageSheets as entry (entry.sheet.id)}
-        <details
-          class="sheet-coverage"
-          name={`coverage-${review.id}`}
-          ontoggle={(event) => {
-            if (event.newState === "open") {
-              expandedSheetId = entry.sheet.id;
-              coveragePage = 0;
-            } else if (expandedSheetId === entry.sheet.id) expandedSheetId = null;
-          }}
+        <ul class="record-body selectable">
+          {#each review.missingInputs as input, index (`${index}:${input}`)}<li>{input}</li>{/each}
+        </ul>
+      </details>{/if}
+    {#if review.citations.length > 0 || review.sources.length > 0}<details class="record">
+        <summary
+          >Sources and citations{#if standingCounts.length > 0}<span class="record-meta"
+              >{standingCounts.join(" · ")}</span
+            >{/if}</summary
         >
-          <summary>
-            {entry.sheet.label}
-            <span class="muted">· {entry.sheet.documentName}, page {entry.sheet.pageIndex + 1}</span
-            >
-            · {entry.matching.length} / {entry.counts.total} passes match
-          </summary>
-          {#if expandedSheetId === entry.sheet.id}
-            {@const pages = Math.ceil(entry.matching.length / recordsPerPage)}
-            {@const currentPage = Math.min(coveragePage, pages - 1)}
-            <p class="muted sheet-counts">
-              {entry.counts.checked} checked · {entry.counts.issues} issues · {entry.counts
-                .needsInput} need input · {entry.counts.unreviewed} unreviewed · {entry.counts
-                .notApplicable} not applicable
-            </p>
-            {#each entry.matching.slice(currentPage * recordsPerPage, (currentPage + 1) * recordsPerPage) as item (`${item.pass}:${item.discipline}`)}<p
-                class="coverage-record"
-                data-testid="coverage-record"
+        <div class="record-body">
+          {#each review.citations as citation (citation.id)}<CitationRow
+              {citation}
+              onOpen={(url) => void onOpenSource(url)}
+            />{/each}
+          {#if review.sources.length > 0}<h4>Retrieved sources</h4>{/if}
+          {#each review.sources as source (source.id)}
+            <div class="source" data-testid="source-row">
+              <details>
+                <summary
+                  {...tip(
+                    `${source.official ? "Official source. " : ""}${source.status === "available" ? "Retrieved and saved with this review." : "Text was not retrieved. Open the source to check it by hand."}`,
+                  )}
+                >
+                  <span class={["tag", { success: source.status === "available" }]}
+                    >{source.status === "available" ? "Read" : "Unavailable"}</span
+                  >
+                  <span class="source-name">{source.title || source.url}</span>
+                </summary>
+                <div class="source-text selectable">
+                  <p class="muted">
+                    {source.url} · {new Date(source.retrievedAt).toLocaleString()}
+                  </p>
+                  <p>{source.text || "No text was retrieved."}</p>
+                </div>
+              </details>
+              {#if Schema.is(ReviewSourceUrl)(source.url)}<button
+                  type="button"
+                  class="icon-btn"
+                  aria-label={`Open ${source.title || source.url}`}
+                  {...tip("Open this source in your browser.")}
+                  onclick={() => onOpenSource(source.url)}
+                  ><ReviewIcon name="arrow-up-right" /></button
+                >{/if}
+            </div>
+          {/each}
+        </div>
+      </details>{/if}
+    <details class="record">
+      <summary
+        >Coverage<span class="record-meta"
+          >{coverageProgress.recorded} of {coverageProgress.total}</span
+        ></summary
+      >
+      <CoverageMatrix {review} />
+    </details>
+    {#if projectFacts.length > 0 || review.firmChecklist || review.jurisdictionLeads?.reviews.length}<details
+        class="record"
+      >
+        <summary
+          >Project{#if factsNeedingInput > 0}<span class="record-meta attention-count"
+              >{factsNeedingInput} need input</span
+            >{/if}</summary
+        >
+        <dl class="configuration record-body">
+          {#each projectFacts as fact (fact.key)}
+            <div class="fact" data-needs-input={fact.needsInput || undefined}>
+              <dt {...tip(fact.label)}>{fact.label}</dt>
+              <dd>
+                {#if fact.detail}<details>
+                    <summary>
+                      {#if fact.needsInput}<span class="tag accent">{fact.value}</span>{:else}<span
+                          class="fact-value">{fact.value}</span
+                        >{/if}
+                    </summary>
+                    <p class="selectable">{fact.detail}</p>
+                  </details>{:else if fact.needsInput}<span class="tag accent">{fact.value}</span
+                  >{:else}{fact.value}{/if}
+              </dd>
+            </div>
+          {/each}
+          {#if review.jurisdictionLeads?.reviews.length}{@const leads = review.jurisdictionLeads}
+            <div class="fact" data-testid="jurisdiction-leads">
+              <dt>Earlier reviews</dt>
+              <dd
+                {...tip(
+                  `${leads.reviews.map((item) => `${item.projectName} (same ${item.match === "locality" ? "county or city" : "state"})`).join(", ")}. Offered as leads, not evidence: ${leads.sources} sources, ${leads.citations} citations, ${leads.editions} code editions, ${leads.agencyComments} agency comments.`,
+                  "Same jurisdiction",
+                )}
               >
-                <span
-                  >{passLabels[item.pass]} · {reviewDisciplines.find(
-                    (discipline) => discipline.id === item.discipline,
-                  )?.label}</span
-                ><strong
-                  >{statusLabels[item.status]}{item.status === "not_applicable" && !item.note.trim()
-                    ? " · reason missing"
-                    : ""}</strong
-                >
-                {#if item.note}<small>{item.note}</small>{/if}
-              </p>{/each}
-            {#if pages > 1}<nav
-                class="coverage-pagination"
-                aria-label={`Review records for ${entry.sheet.label}`}
-              >
-                <button
-                  class="btn"
-                  disabled={currentPage === 0}
-                  onclick={() => (coveragePage = currentPage - 1)}>Previous records</button
-                >
-                <span>Page {currentPage + 1} of {pages}</span>
-                <button
-                  class="btn"
-                  disabled={currentPage + 1 >= pages}
-                  onclick={() => (coveragePage = currentPage + 1)}>Next records</button
-                >
-              </nav>{/if}
-          {/if}
-        </details>
-      {/each}
-      {#if coverageSheets.length === 0}<p>No review records match these filters.</p>{/if}
-      <p class="muted">
-        {review.citations.length} citations · {review.calculations.length} calculations · {review
-          .priorComments.length} prior comments
-      </p>
-      <p class="muted">
+                {leads.reviews.length} in this jurisdiction
+              </dd>
+            </div>{/if}
+          {#if review.firmChecklist}<div class="fact" data-testid="firm-checklist-applied">
+              <dt>Firm checklist</dt>
+              <dd>Revision {review.firmChecklist.revision}</dd>
+            </div>{/if}
+        </dl>
+      </details>{/if}
+    {#if review.calculations.length > 0}<details class="record">
+        <summary>Calculations<span class="record-meta">{review.calculations.length}</span></summary>
+        <div class="record-body">
+          {#each review.calculations as calculation (calculation.id)}<section class="calculation">
+              <h4>{calculation.title}</h4>
+              <p>
+                <code>{calculation.expression}</code> =
+                <strong>{calculation.result} {calculation.unit}</strong>
+              </p>
+              <p class="muted">
+                {Object.entries(calculation.inputs)
+                  .map(([name, input]) => `${name} = ${input.value} ${input.unit}`)
+                  .join(" · ")}
+              </p>
+              <p>{calculation.explanation}</p>
+            </section>{/each}
+        </div>
+      </details>{/if}
+    {#if review.priorComments.length > 0}<details class="record">
+        <summary
+          >Prior comments<span class="record-meta">{review.priorComments.length}</span></summary
+        >
+        <div class="record-body">
+          {#each review.priorComments as comment (comment.id)}<section class="calculation">
+              <h4>{comment.agency} {comment.number} · {comment.status}</h4>
+              <p>{comment.comment}</p>
+              <p>{comment.response}</p>
+              {#if comment.changedSources}<p class="muted">{comment.changedSources}</p>{/if}
+            </section>{/each}
+        </div>
+      </details>{/if}
+    <details class="record">
+      <summary>Technical details</summary>
+      <p class="muted record-body technical">
         {review.admittedCalls} provider calls{review.maxCalls === null
           ? ""
           : ` of the optional ${review.maxCalls}-call budget`}{cachedShare === null
@@ -630,12 +485,13 @@
           ? ` · ${review.preset}`
           : ""}
       </p>
-    </div>
-  </details>
+    </details>
+  </div>
 </section>
 
 <style>
   .packet-review {
+    position: relative;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: 0 var(--space-lg) var(--space-lg);
@@ -645,14 +501,44 @@
     box-shadow: var(--shadow-card);
     font-size: var(--text-body-sm);
   }
+  /* A slow Ember breath around the whole card while the model is working. */
+  .packet-review.running {
+    border-color: color-mix(in srgb, var(--color-ember) 45%, var(--color-border));
+  }
+  .packet-review.running::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    box-shadow:
+      0 0 0 1px var(--color-ember-halo),
+      0 0 32px -6px var(--color-ember-halo);
+    pointer-events: none;
+    animation: review-breath 2.4s ease-in-out infinite;
+  }
+  @keyframes review-breath {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-md);
-    margin: 0 calc(var(--space-lg) * -1) var(--space-md);
+    margin: 0 calc(var(--space-lg) * -1);
     padding: var(--space-md) var(--space-lg);
-    border-bottom: 1px solid var(--color-border);
+  }
+  .heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs) var(--space-sm);
+    min-width: 0;
   }
   h2 {
     margin: 0;
@@ -661,6 +547,38 @@
     font-weight: 600;
     line-height: var(--leading-snug);
     letter-spacing: var(--tracking-tight);
+  }
+  .running h2 {
+    font-size: var(--text-headline-md);
+  }
+  .live-dot {
+    position: relative;
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-ember);
+  }
+  .live-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--color-ember);
+    animation: review-ping 1.6s var(--ease-out) infinite;
+  }
+  @keyframes review-ping {
+    from {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(3.2);
+    }
+  }
+  .scope {
+    text-transform: uppercase;
   }
   h3 {
     display: flex;
@@ -680,20 +598,14 @@
     margin: 6px 0;
   }
   .summary,
-  li,
-  small {
+  li {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  .scope,
   .muted,
   .progress {
     color: var(--color-text-muted);
     font-size: var(--text-mono-sm);
-  }
-  .scope {
-    margin: 2px 0 0;
-    text-transform: capitalize;
   }
   .duration {
     color: var(--color-text-muted);
@@ -703,11 +615,53 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  .running .duration {
+    color: var(--color-text);
+  }
+  .meter {
+    position: relative;
+    height: 2px;
+    margin: 0 calc(var(--space-lg) * -1) var(--space-md);
+    overflow: hidden;
+    background: var(--color-border);
+  }
+  .meter span {
+    display: block;
+    height: 100%;
+    background: var(--color-ash-soft);
+    transition: width var(--duration-base) var(--ease-out);
+  }
+  .running .meter span {
+    background: var(--color-ember);
+  }
+  .running .meter::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 30%;
+    background: linear-gradient(90deg, transparent, var(--color-spark), transparent);
+    animation: review-scan 1.8s linear infinite;
+  }
+  @keyframes review-scan {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(340%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .packet-review.running::before,
+    .live-dot::after,
+    .running .meter::after {
+      animation: none;
+    }
+    .running .meter::after {
+      display: none;
+    }
+  }
   .progress {
     margin-top: 0;
-  }
-  .stage-line {
-    font-size: var(--text-mono-sm);
   }
   .budget-extension {
     display: flex;
@@ -738,20 +692,10 @@
     gap: var(--space-xs);
     margin-top: var(--space-md);
   }
-  .coverage-table-scroll:focus-visible {
-    box-shadow: var(--shadow-focus-ring);
-  }
-  .attention,
-  .missing {
-    border-left: 2px solid var(--color-accent);
-    padding-left: var(--space-sm);
-  }
   .attention {
+    border-left: 2px solid var(--color-error);
+    padding-left: var(--space-sm);
     color: var(--color-error);
-    border-left-color: var(--color-error);
-  }
-  .missing h3 {
-    margin-top: var(--space-sm);
   }
   ul {
     margin: 6px 0;
@@ -845,69 +789,48 @@
     color: var(--color-text-muted);
     text-decoration: line-through;
   }
+  /* The review's records: one quiet row each, with what matters on the right. */
   .records {
-    border-top: 1px solid var(--color-border);
-    padding-top: var(--space-sm);
+    display: grid;
     margin-top: var(--space-md);
-    font-size: var(--text-body-sm);
   }
-  .records > summary,
-  .coverage > summary {
-    font-size: var(--text-body-sm);
-    font-weight: 500;
+  .inline-record {
+    margin-top: var(--space-xs);
   }
-  .records p,
-  blockquote {
+  .inline-record p {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  .records blockquote {
-    margin: 10px 0;
-    padding-left: var(--space-sm);
-    border-left: 2px solid var(--color-border-strong);
-    color: var(--color-text-muted);
-  }
-  .coverage {
-    margin-top: var(--space-md);
+  .record {
     border-top: 1px solid var(--color-border);
-    padding-top: var(--space-sm);
-    font-size: var(--text-mono-sm);
   }
-  .sheet-coverage {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-  .sheet-coverage summary {
-    flex-wrap: wrap;
-    line-height: var(--leading-relaxed);
+  .record > summary {
+    width: 100%;
+    min-height: 40px;
+    font-size: var(--text-body-sm);
+    font-weight: 500;
     color: var(--color-text);
   }
-  .coverage-table-scroll {
-    overflow-x: auto;
-    margin: var(--space-md) 0;
-  }
-  .discipline-coverage {
-    width: 100%;
-    border-collapse: collapse;
+  .record-meta {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono-sm);
+    font-weight: 400;
+    letter-spacing: var(--tracking-wide);
     font-variant-numeric: tabular-nums;
   }
-  .discipline-coverage caption {
-    text-align: left;
-    font-weight: 600;
-    margin-bottom: var(--space-xs);
+  .attention-count {
+    color: var(--color-ember);
   }
-  .discipline-coverage th,
-  .discipline-coverage td {
-    border-bottom: 1px solid var(--color-border);
-    padding: var(--space-xs);
-    text-align: right;
-    white-space: nowrap;
+  .record-body {
+    margin: 0 0 var(--space-sm);
   }
-  .discipline-coverage td {
-    font-family: var(--font-mono);
-    letter-spacing: var(--tracking-wide);
+  .technical {
+    padding-left: 20px;
   }
-  .discipline-coverage thead th {
+  .record-body > h4 {
+    margin: var(--space-sm) 0 var(--space-2xs);
     color: var(--color-text-muted);
     font-family: var(--font-mono);
     font-size: var(--text-label-sm);
@@ -915,104 +838,95 @@
     letter-spacing: var(--tracking-wider);
     text-transform: uppercase;
   }
-  .discipline-coverage tbody tr:hover > * {
-    background: var(--color-wash);
-  }
-  .discipline-coverage th:first-child {
-    text-align: left;
-    padding-left: 0;
-  }
-  .discipline-coverage tbody th {
-    font-weight: 500;
-  }
-  .coverage-filters {
+  .source {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
-    gap: var(--space-sm);
-    padding: var(--space-sm) 0;
-    margin: 0;
-    border: 0;
-  }
-  .coverage-filters legend {
-    padding: 0 0 var(--space-xs);
-    font-weight: 600;
-  }
-  .coverage-filter {
-    display: grid;
-    gap: 6px;
-    min-width: 0;
-  }
-  .coverage-filter label {
-    color: var(--color-text-muted);
-    font-family: var(--font-mono);
-    font-size: var(--text-label-sm);
-    font-weight: 500;
-    letter-spacing: var(--tracking-wider);
-    text-transform: uppercase;
-  }
-  .coverage-filters select,
-  .coverage-filters input[type="search"] {
-    width: 100%;
-    min-width: 0;
-  }
-  .coverage-filters .earlier-coverage {
-    display: flex;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr) 32px;
+    align-items: start;
     gap: var(--space-xs);
-    grid-column: 1 / -1;
-    font-size: var(--text-body-sm);
-  }
-  .coverage-list .sheet-counts {
-    margin: 10px 0;
-  }
-  .coverage-record {
-    padding: 6px 0;
+    padding: 2px 0;
     border-top: 1px solid var(--color-border);
   }
-  .coverage-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-xs);
-    margin-top: 10px;
+  .source details {
+    min-width: 0;
   }
-  .coverage-pagination span {
-    font-family: var(--font-mono);
-    letter-spacing: var(--tracking-wide);
-    color: var(--color-text-muted);
+  .source summary {
+    width: 100%;
+    min-height: 32px;
+    color: var(--color-text);
   }
-  .source-record {
+  .source .tag {
+    height: 20px;
+  }
+  .source-name {
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .source-text {
+    max-height: 280px;
+    overflow: auto;
+    padding: 0 var(--space-xs) var(--space-xs) 20px;
+  }
+  .source-text p {
+    margin: var(--space-2xs) 0;
+    line-height: var(--leading-normal);
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  .coverage-list section {
-    margin-top: var(--space-sm);
+  .calculation {
+    padding: 0 0 var(--space-xs) 20px;
+    overflow-wrap: anywhere;
   }
-  .coverage-list p {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 14px;
-    margin: 4px 0;
-  }
-  .coverage-list strong {
-    font-weight: 500;
-    text-transform: capitalize;
-    margin-left: auto;
+  .calculation p {
+    white-space: pre-wrap;
   }
   .configuration {
     display: grid;
-    grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
-    gap: 6px var(--space-md);
-    margin: 4px 0 var(--space-sm);
   }
-  .configuration dt {
+  .fact {
+    display: grid;
+    grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-md);
+    padding: 6px 0 6px 20px;
+    border-top: 1px solid var(--color-border);
+  }
+  .fact dt {
+    overflow: hidden;
     color: var(--color-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .configuration dd {
+  .fact dd {
     margin: 0;
+    min-width: 0;
     overflow-wrap: anywhere;
   }
-  .coverage-list small {
-    flex-basis: 100%;
+  .fact dd summary {
+    width: 100%;
+    color: var(--color-text);
+  }
+  .fact dd summary::before {
+    order: 1;
+  }
+  .fact-value {
+    min-width: 0;
+  }
+  .fact dd p {
+    margin: var(--space-2xs) 0 0;
     color: var(--color-text-muted);
+    font-size: var(--text-mono-sm);
+    line-height: var(--leading-normal);
+  }
+  .fact .tag {
+    height: 20px;
+  }
+  @media (max-width: 640px) {
+    .fact {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2px;
+    }
   }
 </style>

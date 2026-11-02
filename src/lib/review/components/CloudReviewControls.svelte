@@ -4,6 +4,7 @@
   import { createCloudResultDelivery } from "#lib/review/cloud-delivery.ts";
   import { packetActivityStageLabels } from "#lib/review/packet.ts";
   import { reviewModels } from "#lib/review/models.ts";
+  import { tip } from "#lib/review/tooltip.ts";
   import {
     CloudReviewUpdate,
     cloudReviewLocksWorkspace,
@@ -250,7 +251,7 @@
   <section class="cloud-review" aria-label="Cloud review" data-testid="cloud-review-controls">
     {#if status && visible}
       <div class="summary" role="status">
-        <strong
+        <strong class:thinking-text={status.phase === "running"}
           >Cloud review · {!loaded && status.phase === "imported"
             ? "Updating this view"
             : partial && status.phase === "ready"
@@ -313,10 +314,6 @@
                 max={Math.max(1, status.transfer.totalBytes)}
               ></progress>
             </div>
-          {:else if status.transferBytes !== undefined && locked}
-            <p>
-              Prepared workspace package: {(status.transferBytes / 1024 / 1024).toFixed(1)} MiB.
-            </p>
           {/if}
           {#if locked}
             <p>Stage: {stage}.</p>
@@ -332,9 +329,6 @@
               {#if activity.status === "finished"}
                 · finished{/if}
             </p>
-          {/if}
-          {#if status.packet?.lastOpenedDrawing !== undefined && locked}
-            <p>Last recorded drawing opened: {status.packet.lastOpenedDrawing}.</p>
           {/if}
           {#if status.packet?.totalSheets !== undefined}
             <p>
@@ -352,20 +346,15 @@
                 : ""}.
             </p>
           {/if}
-          {#if status.packet?.changedAt !== undefined && locked}
-            <p>Last review activity {duration(now - status.packet.changedAt)} ago.</p>
-          {/if}
           {#if locked}
-            <p>
+            <p
+              {...tip(
+                `Ends by ${new Date(status.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Local edits are paused until then.`,
+              )}
+            >
               Elapsed {duration(now - status.createdAt)} · Remaining {duration(
                 status.expiresAt - now,
-              )}. Local edits are paused. Ends by {new Date(status.expiresAt).toLocaleTimeString(
-                [],
-                {
-                  hour: "numeric",
-                  minute: "2-digit",
-                },
-              )}.
+              )}
             </p>
             <label
               ><input type="checkbox" bind:checked={acknowledge} /> I understand this review may have
@@ -381,8 +370,8 @@
               aria-label="Findings so far"
               data-testid="cloud-finding-preview"
             >
-              <p>
-                <strong>Findings so far</strong> · preview only. Final findings sync when the review finishes.
+              <p {...tip("Preview only. Final findings sync when the review finishes.")}>
+                <strong>Findings so far</strong>
               </p>
               <ol>
                 {#each findingPreview as finding (finding.id)}

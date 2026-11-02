@@ -2,6 +2,7 @@
   import type { Region, Revision, Sheet } from "#lib/review/contracts.ts";
   import type { PacketFindingFocus } from "#lib/review/packet.ts";
   import type { SourceView } from "#lib/review/source-view.svelte.ts";
+  import { tip } from "#lib/review/tooltip.ts";
   import SourceViewer from "./SourceViewer.svelte";
 
   let {
@@ -58,22 +59,20 @@
 {#if provenance === "render"}
   {#if view.sheet && view.artifact}<div class="source-provenance selectable">
       <strong>{view.sheet.label}</strong><span
+        {...tip(`Source SHA ${revision?.sha256.slice(0, 16)}`)}
         >{revision?.name} · page {view.sheet.pageIndex + 1} · {view.artifact.dpi} DPI</span
       >
-      <details>
-        <summary>Source details</summary><span>Source SHA {revision?.sha256.slice(0, 16)}</span>
-      </details>
     </div>{/if}
 {:else if view.sheet}
   <div class="source-provenance selectable">
     <strong>{view.sheet.label}</strong><span
-      >{revision?.name} · page {view.sheet.pageIndex + 1}{crop
-        ? " · partial view of this page"
-        : ""}</span
+      >{revision?.name} · page {view.sheet.pageIndex + 1}{crop ? " · partial view" : ""}</span
     >
-    {#if focus}<span data-testid="sam-focus-caption"
-        >SAM 3.1 focus · {focus.segments.length} segmented
-        {focus.segments.length === 1 ? "object" : "objects"} · proposals, not verified symbols</span
+    {#if focus}<span
+        class="tag"
+        data-testid="sam-focus-caption"
+        {...tip("SAM 3.1 outlines are proposals, not verified symbols.")}
+        >{focus.segments.length} SAM {focus.segments.length === 1 ? "segment" : "segments"}</span
       >{/if}
   </div>
 {/if}
@@ -83,8 +82,10 @@
     color: var(--color-text-muted);
   }
   .source-provenance {
-    display: grid;
-    gap: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px var(--space-xs);
     font-size: var(--text-mono-sm);
     color: var(--color-text-muted);
     overflow-wrap: anywhere;
@@ -94,9 +95,5 @@
     color: var(--color-text);
     font-size: var(--text-body-sm);
     font-weight: 600;
-  }
-  .source-provenance details span {
-    font-family: var(--font-mono);
-    letter-spacing: var(--tracking-wide);
   }
 </style>

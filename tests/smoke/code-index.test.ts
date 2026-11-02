@@ -1,14 +1,16 @@
 import { expect, test } from "bun:test";
-import { Schema } from "effect";
+import { Schema, Struct } from "effect";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PacketCitation } from "#lib/review/packet.ts";
 import {
+  CodeReference,
   codeReference,
   floridaCodeIndex,
   parseCodeReferences,
+  resolveCodeReference,
   searchCodeReferences,
 } from "../../backend/review/code-index/code-index.ts";
 import provenance from "../../backend/review/code-index/provenance.json";
@@ -75,6 +77,98 @@ test("search ranks section numbers and plan review terms", () => {
   expect(searchCodeReferences(floridaCodeIndex, "egress", 20).length).toBeLessThanOrEqual(20);
 });
 
+test("a citation that names no search result resolves to its one indexed section", () => {
+  const resolve = (document: string, edition: string, section: string) =>
+    resolveCodeReference(floridaCodeIndex, { document, edition, section })?.title;
+
+  // The same volume under the names reviewers and drawings use.
+  expect(resolve("Florida Building Code, Building", "2023 8th Edition", "1004")).toBe(
+    "1004 Occupant Load",
+  );
+  expect(resolve("FBC Building (Commercial)", "", "Section 1004")).toBe("1004 Occupant Load");
+  expect(resolve("Florida Building Code, Building 2023", "", "1004")).toBe("1004 Occupant Load");
+  // A subsection falls back to the section the link actually opens.
+  expect(resolve("FBC Building", "2023 8th Edition", "1004.5")).toBe("1004 Occupant Load");
+  expect(resolve("FBC Mechanical", "2023 8th Edition", "802")).toBe("802/803 Vents & Connectors");
+  expect(resolve("FBC Mechanical", "2023 8th Edition", "803")).toBeUndefined();
+  // Existing Building is a different volume from Building, despite the shared word.
+  expect(resolve("FBC Existing Building", "2023 8th Edition", "301.3")).toBe(
+    "301.3 Compliance path election",
+  );
+  expect(resolve("FBC Building", "2023 8th Edition", "301.3")).toBeUndefined();
+  // Statutes resolve too, and can be read and verified.
+  expect(resolve("Florida Statutes", "", "553.79")).toStartWith("553.79");
+  // Another edition, another code or no section number never links to this index.
+  expect(resolve("Florida Building Code, Building", "2020 7th Edition", "1004")).toBeUndefined();
+  expect(resolve("International Building Code", "2021", "1004")).toBeUndefined();
+  expect(resolve("Florida Building Code, Building", "2023 8th Edition", "Means of egress")).toBe(
+    undefined,
+  );
+});
+
+test("automatic citation links follow URL sections, reject ambiguity and respect every edition hint", () => {
+  const resolve = (document: string, section: string, edition = "2023 8th Edition") =>
+    resolveCodeReference(floridaCodeIndex, { document, edition, section });
+
+  expect(resolve("FBC Building", "303")).toBeUndefined();
+  expect(resolve("FBC Building", "304")?.url).toEndWith("_Sec304");
+  expect(resolve("FBC Building", "318")).toBeUndefined();
+  expect(resolve("FBC Mechanical", "1004")?.url).toContain("FLMC2023P2");
+  expect(resolve("FBC Building", "1004")?.url).toContain("FLBC2023P2");
+  expect(resolve("FBC Building", "1004 and 1005")).toBeUndefined();
+  expect(resolve("FBC Building", "1004", "7th Edition")).toBeUndefined();
+  expect(resolve("FBC Building 2020", "1004")).toBeUndefined();
+  expect(resolve("FBC Residential", "r302.1")?.url).toEndWith("_SecR302.1");
+  expect(resolve("FBC Residential", "R609.4.1")?.url).toEndWith("_SecR609.4");
+  expect(resolve("Florida Administrative Code", "101", "Current rules")).toBeUndefined();
+  expect(resolve("Florida Administrative Code", "69A-60.004", "Current rules")?.url).toEndWith(
+    "id=69A-60.004",
+  );
+  // Two topics list 2002 at the same URL. Duplicate topics do not make the link ambiguous.
+  expect(resolve("FBC Building", "2002")?.url).toEndWith("_Sec2002");
+});
+
+test("multi-section citations resolve only a complete title set at one unambiguous link", () => {
+  const citation = {
+    document: "FBC Mechanical",
+    edition: "2023 8th Edition",
+    section: "802/803",
+  };
+
+  for (const section of ["802/803", "802 / 803", "802 and 803", "803, 802", "802/803/802"]) {
+    expect(resolveCodeReference(floridaCodeIndex, { ...citation, section })?.url).toEndWith(
+      "_Sec802",
+    );
+  }
+
+  for (const section of ["803", "802, 803, 804", "802 and 1105", "802.1/803"]) {
+    expect(resolveCodeReference(floridaCodeIndex, { ...citation, section })).toBeUndefined();
+  }
+
+  expect(resolveCodeReference(floridaCodeIndex, { ...citation, section: "802" })?.url).toEndWith(
+    "_Sec802",
+  );
+  expect(
+    resolveCodeReference(floridaCodeIndex, { ...citation, edition: "2020 7th Edition" }),
+  ).toBeUndefined();
+  expect(
+    resolveCodeReference(floridaCodeIndex, { ...citation, document: "FBC Building" }),
+  ).toBeUndefined();
+  const entry = resolveCodeReference(floridaCodeIndex, citation);
+
+  expect(entry).toBeDefined();
+
+  if (!entry) return;
+
+  expect(resolveCodeReference([entry, entry], citation)?.url).toBe(entry.url);
+  expect(
+    resolveCodeReference(
+      [entry, new CodeReference(Struct.assign(entry, { url: `${entry.url}-other` }))],
+      citation,
+    ),
+  ).toBeUndefined();
+});
+
 test("a citation names a search_code result and the host attaches its link", async () => {
   const directory = await mkdtemp(join(tmpdir(), "moke-code-citation-"));
 
@@ -138,6 +232,7 @@ test("a citation names a search_code result and the host attaches its link", asy
       document: "FBC Building (Commercial)",
       edition: "2023 8th Edition",
       title: "1004 Occupant Load",
+      check: indexed?.check ?? "",
       url: indexed?.url ?? "",
       access: "open_in_browser",
     });

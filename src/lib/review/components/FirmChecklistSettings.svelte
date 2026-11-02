@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { FirmChecklist } from "#lib/review/packet.ts";
+  import { tip } from "#lib/review/tooltip.ts";
+  import ReviewIcon from "./ReviewIcon.svelte";
 
   let {
     checklist,
@@ -31,12 +33,16 @@
 </script>
 
 <section class="settings-section" data-testid="firm-checklist">
-  <h3>Firm checklist</h3>
-  <p class="muted">
-    Checks your firm wants on every review, one per line. New reviews follow them as firm practice:
-    a deviation is a recommendation unless a governing source makes it a code issue. Running reviews
-    keep the revision they started with.
-  </p>
+  <h3>
+    Firm checklist<button
+      type="button"
+      class="icon-btn"
+      aria-label="About firm checklist"
+      {...tip(
+        "Checks your firm wants on every review, one per line. A deviation is a recommendation unless a governing source makes it a code issue. Running reviews keep the revision they started with.",
+      )}><ReviewIcon name="info-circle" size={14} /></button
+    >
+  </h3>
   <label class="sr-only" for={`${id}-text`}>Firm checklist</label><textarea
     id={`${id}-text`}
     rows="7"
@@ -51,11 +57,13 @@
       disabled={disabled || !loaded || !changed}
       onclick={() => onSave(draft.trim())}>Save checklist</button
     >
-    {#if checklist}<span class="muted stamp"
-        >Revision {checklist.revision} · saved {new Date(checklist.savedAt).toLocaleString()}</span
+    {#if checklist}<span
+        class="muted stamp"
+        {...tip(`Saved ${new Date(checklist.savedAt).toLocaleString()}`)}
+        >Revision {checklist.revision}</span
       >{/if}
   </div>
-  <p class="muted" role="status">{message}</p>
+  {#if message}<p class="muted" role="status">{message}</p>{/if}
 </section>
 
 <style>
@@ -66,9 +74,15 @@
     border-bottom: 1px solid var(--color-border);
   }
   h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin: 0;
     font-size: var(--text-body-md);
     font-weight: 600;
+  }
+  h3 :global(svg) {
+    color: var(--color-text-muted);
   }
   p {
     margin: 6px 0;

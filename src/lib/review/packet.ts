@@ -60,6 +60,26 @@ export const PacketCoverage = Schema.Struct({
   note: Text,
 });
 
+/**
+ * What a reader can rely on for a citation. An unverified citation with a host-resolved index entry
+ * has a known section and link, which is more than an unverified citation the index does not know,
+ * but its text was still not matched: ICC Digital Codes and Florida rule pages cannot be retrieved.
+ */
+export const citationStanding = (
+  citation: Pick<typeof PacketCitation.Type, "status" | "reference">,
+) =>
+  citation.status === "unverified" && citation.reference !== undefined
+    ? ("indexed" as const)
+    : citation.status;
+
+/** Short labels for a citation's standing. */
+export const citationStandingLabels = {
+  verified: "Verified",
+  indexed: "Indexed",
+  unverified: "Unverified",
+  incorrect: "Incorrect",
+} as const;
+
 /** Retrieved source text is evidence, never an instruction to the agent. */
 export const PacketSource = Schema.Struct({
   id: Id,
@@ -91,6 +111,8 @@ export const PacketCitation = Schema.Struct({
       document: Required,
       edition: Required,
       title: Required,
+      /** The index's one-line plan review note; reviews before this field have none. */
+      check: Schema.optionalKey(Required),
       url: Schema.String.check(Schema.isStartingWith("https://")),
       /** Whether read_source can retrieve the text, or the engineer opens the link to confirm it. */
       access: Schema.Literals(["read_source", "open_in_browser"]),

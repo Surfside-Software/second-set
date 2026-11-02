@@ -100,6 +100,7 @@ import {
   codeIndexVersion,
   codeReference,
   floridaCodeIndex,
+  resolveCodeReference,
   searchCodeReferences,
 } from "../review/code-index/code-index.ts";
 import {
@@ -1752,8 +1753,11 @@ export class PacketReviews extends Context.Service<
               "Log a printed or governing citation and its edition, exact section, quote and applicability. Verified requires matching retrieved official document and edition, plus a substantive clause inside the claimed section or table. Missing or ambiguous section structure stays unverified. Pass codeReferenceId from search_code to attach the section's link.",
               CitationInput,
               async (task, { codeReferenceId, ...fields }) => {
+                // A citation that names no search result still links to its indexed section.
                 const indexed =
-                  codeReferenceId === undefined ? undefined : codeReference(codeReferenceId);
+                  codeReferenceId === undefined
+                    ? resolveCodeReference(floridaCodeIndex, fields)
+                    : codeReference(codeReferenceId);
 
                 if (codeReferenceId !== undefined && indexed === undefined)
                   throw error(
@@ -1771,6 +1775,7 @@ export class PacketReviews extends Context.Service<
                           document: indexed.document,
                           edition: indexed.edition,
                           title: indexed.title,
+                          check: indexed.check,
                           url: indexed.url,
                           access: indexed.access,
                         },

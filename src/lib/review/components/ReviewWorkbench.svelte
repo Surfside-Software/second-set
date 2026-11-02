@@ -17,6 +17,7 @@
     RevisionId,
   } from "#lib/review/contracts.ts";
   import { newCommandId, reviewCommand, type ReviewClient } from "#lib/review/client.ts";
+  import CitationRow from "./CitationRow.svelte";
   import CloudReviewControls from "./CloudReviewControls.svelte";
   import {
     cloudReviewLocksWorkspace,
@@ -60,6 +61,8 @@
   import ReviewText from "./ReviewText.svelte";
   import SourceCanvas from "./SourceCanvas.svelte";
   import ReviewSelect from "./ReviewSelect.svelte";
+  import ReviewTooltips from "./ReviewTooltips.svelte";
+  import { tip } from "#lib/review/tooltip.ts";
   import { ReviewModelId, reviewModels } from "#lib/review/models.ts";
   import {
     findingSubtitle,
@@ -430,8 +433,91 @@
   const initialReviewSummary = $derived(
     `Whole set · all disciplines · four passes · ${
       reviewModels.find((model) => model.id === initialReviewModel)?.label ?? initialReviewModel
-    } · ${initialReviewPlacement.label}`,
+    }`,
   );
+
+  const initialReviewPlacementLabel = $derived(`Runs ${initialReviewPlacement.label}`);
+
+  const initialReviewRunning = $derived(
+    activePacketReview?.state === "running" && activePacketReview.preset === initialReview.id,
+  );
+
+  // Why the composer cannot send right now, in one line. Everything else lives in hover text.
+  const composerHelp = $derived.by(
+    (): { text: string; action?: { target: "sheets" | "settings"; label: string } } | null => {
+      if (submittingCloud && !cloudLocked && cloudSubmittedAt !== null)
+        return {
+          text: `Packaging the workspace · ${formatElapsed(Math.max(0, cloudSubmitClock - cloudSubmittedAt))}`,
+        };
+
+      if (cloudBlocked)
+        return {
+          text: cloudLoaded
+            ? "Cloud review in progress. Local edits are paused."
+            : "Connecting to your cloud review…",
+        };
+
+      if (busy) return { text: "Saving your request…" };
+
+      if (reviewMode === "note") return null;
+
+      if (location === "cloud") {
+        if (cloudLocalReviews.length > 0)
+          return { text: `Finish or cancel these reviews first: ${cloudLocalReviews.join(", ")}.` };
+
+        if (cloudEstimateOverLimit)
+          return { text: "This workspace exceeds the 1 GiB / 5,000 file cloud limit." };
+
+        if (cloudEstimateMissing)
+          return {
+            text: estimatingWorkspace
+              ? "Measuring the workspace for cloud…"
+              : "Cloud size check unavailable. Recheck the workspace below.",
+          };
+      }
+
+      if (activePacketReview?.state === "running") return null;
+
+      if (sheets.length === 0) return { text: "Import the drawing set to start a review." };
+
+      if (scopeMode === "discipline" && discipline === "auto")
+        return { text: "Choose a discipline reviewer." };
+
+      if (!scopeCount)
+        return {
+          text: "No sheets match this scope.",
+          action: { target: "sheets", label: "Choose sheets or assign disciplines" },
+        };
+
+      if (!setup?.configured)
+        return {
+          text: "Provider not configured.",
+          action: { target: "settings", label: "Open review settings" },
+        };
+
+      if (!selectedModelAvailable)
+        return { text: "Choose a connected model or add a connection in review settings." };
+
+      if (!validCallLimit)
+        return { text: "Enter a positive whole-number call budget or leave it blank." };
+
+      if (executionBlocked)
+        return {
+          text:
+            activePacketReview?.state === "uncertain"
+              ? "Cancel the stopped review to start a new one."
+              : "Use the review controls above first.",
+        };
+
+      return null;
+    },
+  );
+
+  async function openExternalSource(url: string) {
+    const result = await client.openReviewSource(url);
+
+    if (!result.ok) error = result.error.message;
+  }
 
   const visibleFindings = $derived(
     findings.filter((finding) =>
@@ -1889,13 +1975,11 @@
       if (!result.ok) error = result.error.message;
       else if (result.value) notice = "Review report exported.";
     }}
-    onOpenSource={async (url) => {
-      const result = await client.openReviewSource(url);
-      if (!result.ok) error = result.error.message;
-    }}
+    onOpenSource={openExternalSource}
   />
 {/snippet}
 
+<ReviewTooltips />
 <div class="workbench-root">
   <div
     class={[
@@ -1910,12 +1994,15 @@
   >
     <header class="window-bar">
       <div class="brand-slot">
-        <button class="icon-btn" aria-label="Toggle conversation sidebar" onclick={toggleSidebar}
-          ><ReviewIcon name="layout-sidebar" size={18} /></button
+        <button
+          class="icon-btn"
+          aria-label="Toggle conversation sidebar"
+          {...tip("Show or hide projects and conversations.")}
+          onclick={toggleSidebar}><ReviewIcon name="layout-sidebar" size={18} /></button
         >{@render mark()}<span class="brand-name">MOKE</span>
       </div>
       <nav class="breadcrumbs" aria-label="Breadcrumb">
-        {#if project}<span class="project-crumb" title={project.name}
+        {#if project}<span class="project-crumb" {...tip(project.name)}
             ><span class="project-monogram" aria-hidden="true">{projectMonogram(project.name)}</span
             ><span>{project.name}</span></span
           ><span class="breadcrumb-divider" aria-hidden="true">/</span>{/if}
@@ -1923,7 +2010,7 @@
       </nav>
       <div class="window-actions">
         {#if project}
-          <span class="compact-project" title={project.name}>{project.name}</span>
+          <span class="compact-project" {...tip(project.name)}>{project.name}</span>
           <details class="compact-actions">
             <summary aria-label="More project actions">More</summary>
             <div>
@@ -1942,8 +2029,8 @@
             class="btn ghost-btn import-trigger"
             disabled={busy || cloudBlocked}
             data-testid="import-pdf"
-            title="Import PDF"
             aria-busy={importing}
+            {...tip("Add a drawing set or a new revision to this project.", "Import PDF")}
             onclick={importPdf}
             ><ReviewIcon name="upload" size={16} /><span
               >{importing ? "Importing PDF…" : "Import PDF"}</span
@@ -1953,13 +2040,17 @@
             class="btn ghost-btn secondary-count"
             data-testid="open-create-finding"
             disabled={busy || cloudBlocked}
-            title="New count check"
+            {...tip(
+              "Compare how many of something are drawn on one sheet with how many its schedule lists, such as Type A lights in Room 101. MOKE flags any mismatch.",
+              "New count check",
+            )}
             onclick={() => openSetup("sheets", true)}
             ><ReviewIcon name="plus" size={16} /><span>New count check</span></button
           >
           <button
             class="btn sheets-trigger"
             aria-expanded={panelOpen && sourceTab === "sheets"}
+            {...tip("Browse this project's sheets, assign disciplines and choose what to review.")}
             onclick={() => openSetup("sheets")}
             ><ReviewIcon name="file-text" size={16} /><span>Sheets</span><span class="finding-count"
               >{sheets.length}</span
@@ -1972,6 +2063,7 @@
             aria-label="Open findings"
             aria-expanded={popoverOpen}
             popovertarget="review-findings"
+            {...tip("Every finding in this project, ready to open with its evidence.")}
             onclick={positionFindings}
             ><ReviewIcon name="layout-grid" size={16} /><span>Findings</span><span
               class="finding-count">{findings.length + packetFindings.length}</span
@@ -1996,7 +2088,6 @@
             onclick={() => projectDialog?.close()}><ReviewIcon name="x" size={18} /></button
           >
         </header>
-        <p>Keep drawings, conversations, and findings together.</p>
         <label
           >Project name<input
             bind:this={projectNameInput}
@@ -2052,11 +2143,7 @@
             maxlength="160"
             required
           /></label
-        >
-        <p>
-          Earlier sources and reviews stay in the project. Sheet correspondence is confirmed
-          separately.
-        </p>{/if}
+        >{/if}
       <!-- svelte-ignore a11y_no_static_element_interactions (The drop zone also provides a native chooser button.) -->
       <div
         class="pdf-drop-zone"
@@ -2067,7 +2154,7 @@
       >
         <ReviewIcon name="upload" size={28} /><strong
           >{droppedPdf?.name ?? "Drop a PDF here"}</strong
-        ><span>or choose a file from your computer</span><button
+        ><button
           class="btn"
           disabled={importing ||
             pendingDropImport !== null ||
@@ -2104,11 +2191,6 @@
         >
       </header>
       <section class="settings-section">
-        <h3>Review scope</h3>
-        <p class="muted">
-          Ask for a whole-set QA pass, a discipline review, or follow-up scrutiny. MOKE follows the
-          project instructions and records the sources, coverage, findings, and missing inputs.
-        </p>
         <details>
           <summary>Optional call budget</summary>
           <label
@@ -2117,13 +2199,10 @@
               min="1"
               step="1"
               bind:value={callLimit}
-              placeholder="No application call limit"
+              placeholder="No limit"
+              {...tip("Applies to the next review. Recorded work stays if the budget is reached.")}
             /></label
           >
-          <p class="muted">
-            Leave blank to let the review continue without an application call ceiling. A budget
-            applies to the next review; recorded work remains available if it is reached.
-          </p>
         </details>
       </section>
       <FirmChecklistSettings
@@ -2134,17 +2213,22 @@
         onSave={saveFirmChecklist}
       />
       <section class="settings-section">
-        <h3>Cloud reviews</h3>
-        <p>{cloudSetup?.configured ? "Connected" : "Cloud connection needs setup"}</p>
+        <h3>
+          Cloud reviews<button
+            type="button"
+            class="icon-btn"
+            aria-label="About cloud reviews"
+            {...tip(
+              "Choose Push to cloud in the composer. Results sync automatically, even after you reopen Moke. Local edits pause during the review. Model usage is billed separately from cloud compute.",
+            )}><ReviewIcon name="info-circle" size={14} /></button
+          >
+        </h3>
+        <p>
+          {cloudSetup?.configured ? "Connected" : "Needs setup"}<span class="connection-state"
+            >{cloudSetup?.timeoutMinutes ?? 15} min limit</span
+          >
+        </p>
         {#if cloudSetup?.message}<p class="muted">{cloudSetup.message}</p>{/if}
-        <p class="muted">
-          Choose Push to cloud in the composer. Progress and results sync automatically, including
-          after you reopen Moke. Local edits pause during the review.
-        </p>
-        <p class="muted">
-          Review time limit: {cloudSetup?.timeoutMinutes ?? 15} minutes. Model usage is billed separately
-          from cloud compute.
-        </p>
       </section>
       <section class="settings-section">
         <h3>Model connections</h3>
@@ -2162,22 +2246,15 @@
               : "Not connected"}</span
           >
         </p>
-        <p class="muted">Add a connection from File → Import provider credential configuration.</p>
+        {#if !setup?.models?.some((model) => model.available)}<p class="muted">
+            Add one from File → Import provider credential configuration.
+          </p>{/if}
       </section>
       <section class="settings-section">
-        <h3>You make the final call</h3>
-        <p class="muted">
-          Review the findings, evidence, governing sources, and any missing inputs before using a
-          report. Completion checkboxes track your correction work; they do not change the review's
-          evidence or source status.
-        </p>
         <details>
-          <summary>Technical details</summary>
-          <p class="muted">
-            MOKE uses the selected model's configured capabilities and durable review history.
-            Context management preserves source records and completed work. Image-token usage and
-            cost may be unavailable.
-          </p>
+          <summary {...tip("Findings are review results, not professional approval.")}
+            >Technical details</summary
+          >
           <p class="muted">
             {setup?.packetPromptVersion ?? setup?.promptVersion} · {setup?.instructionRevision.slice(
               0,
@@ -2200,7 +2277,10 @@
               >{project ? "New conversation" : "New project"}</span
             ></button
           >
-          <button class="nav-action" onclick={openSearch}
+          <button
+            class="nav-action"
+            {...tip("Find a finding in this conversation or a count check in this project.")}
+            onclick={openSearch}
             ><ReviewIcon name="search" size={16} /><span>Search findings</span><kbd
               >{shortcutLabel}</kbd
             ></button
@@ -2220,7 +2300,7 @@
                   ><ReviewIcon
                     name={expandedProjects.includes(entry.id) ? "chevron-down" : "chevron-right"}
                     size={13}
-                  /><ReviewIcon name="folder" size={16} /><span title={entry.name}
+                  /><ReviewIcon name="folder" size={16} /><span {...tip(entry.name)}
                     >{entry.name}</span
                   ></button
                 >
@@ -2233,7 +2313,7 @@
                         aria-current={selectedConversationId === thread.id ? "page" : undefined}
                         data-testid={"conversation-" + thread.id}
                         onclick={() => selectProject(entry, thread.id)}
-                        ><ReviewIcon name="message" size={14} /><span title={thread.title}
+                        ><ReviewIcon name="message" size={14} /><span {...tip(thread.title)}
                           >{thread.title}</span
                         ></button
                       >
@@ -2255,13 +2335,14 @@
               onclick={() => openSetup("settings")}
               ><ReviewIcon name="settings" size={16} /><span>Review settings</span><span
                 class={["connection-dot", { connected: setup?.configured }]}
-                title={setup?.configured ? "Provider configured" : "Provider not configured"}
+                {...tip(setup?.configured ? "Provider connected" : "Provider not connected")}
               ></span></button
             >
             <div class="package-actions">
               <button
                 class="nav-action"
                 disabled={busy || cloudBlocked || !project}
+                {...tip("Save every project, review and source file to one package.")}
                 onclick={async () => {
                   busy = true;
                   const result = await client.chooseReviewExport();
@@ -2274,6 +2355,7 @@
               ><button
                 class="nav-action"
                 disabled={busy || cloudBlocked}
+                {...tip("Replace this workspace with a saved package.")}
                 onclick={async () => {
                   busy = true;
                   const result = await client.chooseReviewRestore();
@@ -2333,7 +2415,6 @@
             {:else if project === null}<div class="chat-empty">
                 {@render mark(40)}
                 <h1>Start a drawing review</h1>
-                <p>Create a project, import its drawings, and ask MOKE to review them.</p>
                 <button class="btn md primary" onclick={openProjectDialog}
                   ><ReviewIcon name="folder-plus" size={16} />Create a project</button
                 >
@@ -2342,23 +2423,12 @@
               <div class="chat-empty">
                 {@render mark(40)}
                 <h1>What should MOKE review?</h1>
-                {#if sheets.length === 0}<p>
-                    Import a drawing PDF to begin. Your source sheets and review history stay with
-                    this project.
-                  </p>
-                  <button class="btn md primary" disabled={busy} onclick={importPdf}
+                {#if sheets.length === 0}<button
+                    class="btn md primary"
+                    disabled={busy}
+                    onclick={importPdf}
                     ><ReviewIcon name="upload" size={16} />Import drawings</button
-                  >
-                {:else}<p>
-                    Ask for a whole-set QA pass or select a discipline reviewer. MOKE reads the
-                    supplied sheets, checks sources and coordination, and prepares findings with
-                    clear source evidence.
-                  </p>
-                  <p class="muted">
-                    {initialReviewVisible
-                      ? "Start with Initial Review for a complete first pass, or ask for a specific check."
-                      : "For example: “Run a quick QA pass on this drawing set.”"}
-                  </p>{/if}
+                  >{/if}
               </div>
             {/if}
             {#each conversationMessages as message (message.id)}
@@ -2386,10 +2456,7 @@
                 {#if message.role === "application"}<ReviewText
                     text={message.text}
                   />{:else if message.text === initialReview.text}<div class="preset-request">
-                    <p>
-                      <strong>Initial Review</strong>
-                      <span class="muted">· whole set · all disciplines · four passes</span>
-                    </p>
+                    <p><strong>Initial Review</strong></p>
                     <details>
                       <summary>Show the full request</summary>
                       <p>{message.text}</p>
@@ -2474,6 +2541,7 @@
               <div class="scope-bar">
                 <ReviewSelect
                   label="Scope"
+                  hint="Which sheets the next review covers."
                   value={scopeMode}
                   options={[
                     { value: "whole_set", label: "Whole set" },
@@ -2488,7 +2556,9 @@
                     if (value === "selected_sheets") openSetup("sheets");
                   }}
                 />
-                <span class="muted review-scope"
+                <span
+                  class="muted review-scope"
+                  {...tip("The revision and sheets this review covers.")}
                   >{scopeRevision?.name ?? "No revision"} · {scopeCount}
                   {scopeCount === 1 ? "sheet" : "sheets"}</span
                 >
@@ -2512,11 +2582,13 @@
                   type="button"
                   class="btn primary"
                   disabled={!initialReviewReady}
-                  aria-describedby="initial-review-summary"
+                  {...tip(initialReviewSummary, "Complete first-submittal review")}
                   onclick={startInitialReview}>Initial Review</button
                 >
-                <span id="initial-review-summary" class="muted" aria-live="polite"
-                  >{initialReviewBlocker ?? initialReviewSummary}</span
+                <span
+                  id="initial-review-summary"
+                  class={["muted", { "thinking-text": initialReviewRunning }]}
+                  aria-live="polite">{initialReviewBlocker ?? initialReviewPlacementLabel}</span
                 >
               </div>
             {/if}
@@ -2552,6 +2624,9 @@
                 <div class="composer-options">
                   <ReviewSelect
                     label="Execution location"
+                    hint={cloudSetup?.configured
+                      ? "Push to cloud sends every project in this workspace, up to 1 GiB and 5,000 files. Local edits pause until results sync."
+                      : "Where the review runs."}
                     value={location}
                     options={[
                       { value: "local", label: "On this computer" },
@@ -2565,6 +2640,7 @@
                   />
                   <ReviewSelect
                     label="Model"
+                    hint="The model that reads the drawings and records findings."
                     value={selectedModel}
                     options={modelOptions}
                     disabled={busy || executionBlocked || cloudBlocked}
@@ -2575,13 +2651,15 @@
                   />
                   <ReviewSelect
                     label="Reviewer"
+                    hint={scopeMode === "discipline"
+                      ? "Reviews the sheets assigned to this discipline."
+                      : "Set Scope to Selected discipline to choose one reviewer."}
                     value={scopeMode === "discipline" ? discipline : "all"}
                     options={scopeMode === "discipline"
                       ? [
                           {
                             value: "auto",
                             label: "Choose discipline…",
-                            description: "Reviews sheets assigned to this discipline",
                           },
                           ...reviewDisciplines.map((scope) => ({
                             value: scope.id,
@@ -2604,6 +2682,7 @@
                   aria-label="Save as note"
                   aria-pressed={reviewMode === "note"}
                   disabled={busy || cloudBlocked}
+                  {...tip("Save your message to the conversation without starting a review.")}
                   onclick={() => {
                     reviewMode = reviewMode === "note" ? "review" : "note";
                   }}>Note</button
@@ -2628,31 +2707,34 @@
                         executionBlocked ||
                         !scopeCount))}
                   aria-label="Send message"
-                  title={reviewMode === "review"
-                    ? activePacketReview?.state === "running"
-                      ? "Send follow-up to this review"
-                      : location === "cloud"
-                        ? "Push review to cloud"
-                        : "Send and start document review"
-                    : "Save note"}><ReviewIcon name="arrow-up" size={16} stroke={1.8} /></button
+                  {...tip(
+                    reviewMode === "review"
+                      ? activePacketReview?.state === "running"
+                        ? "Joins this review after its current step. Enter sends, Shift+Enter adds a line."
+                        : location === "cloud"
+                          ? "Push this review to the cloud."
+                          : "Start this review. Enter sends, Shift+Enter adds a line."
+                      : "Save this note.",
+                  )}><ReviewIcon name="arrow-up" size={16} stroke={1.8} /></button
                 >
               </div>
             </form>
             {#if reviewMode === "review" && location === "cloud" && !cloudBlocked}
               <div class="cloud-preview" aria-label="Cloud transfer preview">
-                <strong>Cloud reviews use the whole workspace</strong>
+                <strong>Whole workspace</strong>
                 {#if cloudSetup?.workspaceEstimate}
                   {@const estimate = cloudSetup.workspaceEstimate}
                   {@const synced = Math.min(estimate.syncedBytes ?? 0, estimate.bytes)}
                   <span>
                     {#if synced > 0}About {((estimate.bytes - synced) / 1024 / 1024).toFixed(1)} MiB to
-                      upload at Send; {(synced / 1024 / 1024).toFixed(1)} MiB of source files are already
-                      in cloud storage ·{:else}Estimated {(estimate.bytes / 1024 / 1024).toFixed(1)} MiB
-                      ·{/if}
+                      upload; {(synced / 1024 / 1024).toFixed(1)} MiB already synced ·{:else}{(
+                        estimate.bytes /
+                        1024 /
+                        1024
+                      ).toFixed(1)} MiB ·{/if}
                     {estimate.files} files ·
                     {estimate.projects}
-                    {estimate.projects === 1 ? "project" : "projects"}. Limit: 1,024 MiB / 5,000
-                    files.
+                    {estimate.projects === 1 ? "project" : "projects"}
                   </span>
                 {:else}<span>
                     {estimatingWorkspace
@@ -2668,46 +2750,16 @@
                 {#if cloudSetup?.workspaceEstimateError}<p role="alert">
                     {cloudSetup.workspaceEstimateError}
                   </p>{/if}
-                {#if cloudLocalReviews.length > 0}<p role="alert">
-                    Local reviews must finish or be cancelled before the whole workspace can go to
-                    the cloud. Still active on this computer: {cloudLocalReviews.join(", ")}.
-                    Recheck when they are done.
-                  </p>{/if}
-                {#if cloudEstimateOverLimit}<p role="alert">
-                    This workspace exceeds the cloud limit. Your message has not been sent. Export a
-                    backup and use a smaller workspace for this review.
-                  </p>{/if}
               </div>
             {/if}
-            <div class="composer-help">
-              {#if submittingCloud && !cloudLocked && cloudSubmittedAt !== null}Checking cloud setup
-                and packaging the workspace · {formatElapsed(
-                  Math.max(0, cloudSubmitClock - cloudSubmittedAt),
-                )}. Upload progress appears when packaging finishes.{:else if cloudBlocked}{cloudLoaded
-                  ? "Cloud review in progress. Results sync automatically; local edits are paused."
-                  : "Connecting to your cloud review…"}{:else if reviewMode === "review" && location === "cloud"}Uses
-                every project in this workspace (up to 1 GiB / 5,000 files). Source PDFs and renders
-                sync to cloud storage after import, so Send uploads the database, review history and
-                any files not yet synced. Results sync automatically. Local edits pause until sync
-                completes or you stop the review.{:else if reviewMode === "note"}Notes are saved
-                without starting a review.{:else if activePacketReview?.state === "running"}Follow-ups
-                join this review after its current tool round. Enter sends · Shift+Enter adds a
-                line.{:else if sheets.length === 0}Import the drawing set to start a review.{:else if scopeMode === "discipline" && discipline === "auto"}Choose
-                a discipline reviewer, then review its assigned sheets.{:else if !scopeCount}No
-                sheets match this scope.
-                <button class="text-button" onclick={() => openSetup("sheets")}
-                  >Choose sheets or assign disciplines</button
-                >.{:else if !setup?.configured}Provider not configured. <button
-                  class="text-button"
-                  onclick={() => openSetup("settings")}>Open review settings</button
-                >{:else if !selectedModelAvailable}Choose a connected model or add a connection in
-                review settings.{:else if !validCallLimit}Enter a positive whole-number call budget
-                or leave it blank.{:else if executionBlocked}{activePacketReview?.state ===
-                "uncertain"
-                  ? "Cancel the stopped review to unlock a new request. Its saved work and possible charges remain recorded."
-                  : "Use the review controls above before sending another request."}{:else}Review
-                the findings, source status, and coverage before using the results.{/if}
-            </div>
+            {#if composerHelp}{@const help = composerHelp}
+              <div class="composer-help">
+                {help.text}
+                {#if help.action}{@const action = help.action}<button
+                    class="text-button"
+                    onclick={() => openSetup(action.target)}>{action.label}</button
+                  >{/if}
+              </div>{/if}
           </div>
         {/if}
       </section>
@@ -2753,11 +2805,10 @@
                 data-testid="selected-packet-finding"
               >
                 <h2>{selectedPacketText.title}</h2>
-                <p class="muted">
-                  {selectedPacketFinding.severity} · {selectedPacketFinding.status} · {selectedPacketFinding.discipline.replaceAll(
-                    "_",
-                    " ",
-                  )}
+                <p class="finding-tags">
+                  <span class="tag">{selectedPacketFinding.severity}</span><span class="tag"
+                    >{selectedPacketFinding.status}</span
+                  ><span class="tag">{selectedPacketFinding.discipline.replaceAll("_", " ")}</span>
                 </p>
                 <details
                   class="finding-description"
@@ -2778,13 +2829,14 @@
                     role="status"
                     class="muted"
                   >
-                    Short summary pending. The full technical finding is shown.
+                    Short summary pending.
                   </p>{/if}
                 <div class="finding-evidence-actions">
                   {#if selectedPacketFinding.focus}{@const focus =
                       selectedPacketFinding.focus}<button
                       class="evidence-action"
                       disabled={busy || sourceView.loading || cloudBlocked}
+                      {...tip("Zoom to the area SAM 3.1 outlined. Outlines are proposals.")}
                       onclick={() => openPacketFocus(focus)}
                       >SAM focus · {focus.segments.length}
                       {focus.segments.length === 1 ? "segment" : "segments"}</button
@@ -2792,6 +2844,7 @@
                   {#each selectedPacketFinding.locations as location, index (index)}<button
                       class="evidence-action"
                       disabled={busy || sourceView.loading || cloudBlocked}
+                      {...tip(location.region ? "Zoom to this detail." : "Open this sheet.")}
                       onclick={async () => {
                         const sheet = sheets.find((item) => item.id === location.sheetId);
                         if (sheet) {
@@ -2802,10 +2855,7 @@
                               : [],
                           });
                         }
-                      }}
-                      >{location.detail}{location.region
-                        ? " · Focus detail"
-                        : " · View sheet"}</button
+                      }}>{location.detail}</button
                     >{/each}
                 </div>
                 {#if selectedPacketFinding.evidenceNote}<details>
@@ -2815,12 +2865,11 @@
                 {#each selectedPacketFinding.citationIds as id (id)}{@const citation =
                     displayedPacketReview?.citations.find(
                       (item) => item.id === id,
-                    )}{#if citation}<details>
-                      <summary>{citation.document} {citation.section} · {citation.status}</summary>
-                      <p>{citation.quote}</p>
-                      <p>{citation.application}</p>
-                      <p>{citation.note}</p>
-                    </details>{/if}{/each}<label
+                    )}{#if citation}<CitationRow
+                      {citation}
+                      onOpen={(url) => void openExternalSource(url)}
+                    />{/if}{/each}<label
+                  {...tip("Tracks your correction work. Doesn't change the finding's status.")}
                   ><input
                     type="checkbox"
                     checked={selectedPacketFinding.completed}
@@ -2833,7 +2882,7 @@
                           event.currentTarget.checked,
                         );
                     }}
-                  />Completed · tracks your correction work</label
+                  />Completed</label
                 >
                 {#key selectedPacketFinding.id}<FindingDecision
                     decision={selectedPacketFinding.decision}
@@ -2975,7 +3024,7 @@
               class={["finding-row", { selected: selectedFindingId === finding.id }]}
               data-testid={"finding-row-" + finding.id}
               onclick={() => openFinding(finding)}
-              title={findingSubtitle(finding, sheets)}
+              {...tip(findingSubtitle(finding, sheets))}
               ><ReviewIcon name="file-text" size={16} /><span class="finding-title"
                 >{finding.title}</span
               ><span class="outcome tag">{formatOutcome(finding.outcome)}</span><ReviewIcon
@@ -2984,7 +3033,7 @@
               /></button
             >{/each}
           {#if packetFindings.length === 0 && findings.length === 0}<p class="menu-empty">
-              No findings yet. Ask MOKE to review the supplied drawing set.
+              No findings yet.
             </p>{/if}
         </div>{/if}
     </section>
@@ -2992,7 +3041,7 @@
         <div class="search-field">
           <ReviewIcon name="search" size={16} /><input
             aria-label="Search findings"
-            placeholder={`Search this conversation in ${project?.name ?? "this project"}`}
+            placeholder="Search findings"
             bind:this={searchInput}
             bind:value={findQuery}
           /><button class="icon-btn" aria-label="Close search" onclick={() => (searchOpen = false)}
@@ -3017,9 +3066,7 @@
           {#if visiblePacketFindings.length === 0 && visibleFindings.length === 0}<p
               class="menu-empty"
             >
-              {findQuery
-                ? "No matching findings in this conversation or the project's count checks. Other conversations and projects are not searched."
-                : "No findings in this conversation or count comparisons."}
+              {findQuery ? "No matching findings." : "No findings yet."}
             </p>{/if}
         </div>
       </section>{/if}
@@ -3572,7 +3619,6 @@
     line-height: 1.5;
     color: var(--color-text-muted);
     margin-top: var(--space-xs);
-    min-height: 18px;
   }
   .composer-help .text-button {
     font-size: var(--text-mono-sm);
@@ -3819,9 +3865,15 @@
     letter-spacing: var(--tracking-tight);
   }
   .workspace-dialog h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin: 0;
     font-size: var(--text-body-md);
     font-weight: 600;
+  }
+  .workspace-dialog h3 :global(svg) {
+    color: var(--color-text-muted);
   }
   .workspace-dialog p {
     line-height: var(--leading-relaxed);
@@ -4100,6 +4152,12 @@
   .selected-finding details {
     margin: var(--space-xs) 0;
   }
+  .finding-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2xs);
+    margin: 0 0 var(--space-sm);
+  }
   .selected-finding > label {
     display: flex;
     align-items: center;
@@ -4299,9 +4357,6 @@
     color: var(--color-text);
     font-size: var(--text-body-md);
     font-weight: 600;
-  }
-  .pdf-drop-zone span {
-    font-size: var(--text-body-sm);
   }
   @media (max-width: 1180px) and (min-width: 701px) {
     .desktop.source-open .app-body {
