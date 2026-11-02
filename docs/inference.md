@@ -39,9 +39,12 @@ nothing, and GPT-6 Luna keeps abuse logs for 30 days. They have not been tried o
   ID per prompt prefix and runs 16 sheet reviewers at a time.
 - **Images.** Go has no Files API, so images travel inline. Reviews keep the eight-image window Baseten
   uses, so a reviewer inspects a batch before requesting the next.
-- **What needs another key.** SAM runs only on Meta, so object counting needs `MODEL_API_KEY`. Selected
-  count checks run on Meta or Baseten, because their table admits only those two. There is no built-in
-  web search; reviewers use `search_sources` and `read_source`.
+- **The only chat route once connected.** With a Go key present, the model menu and the Initial Review
+  button offer only Go models, so a review cannot spend Meta or Baseten credits by accident.
+- **What stays on Meta.** SAM runs only on Meta, so object counting needs `MODEL_API_KEY`. Selected
+  count checks run on Meta or Baseten, because their table admits only those two; a check started while
+  a Go model is selected uses that default route.
+- **Search.** There is no built-in web search; reviewers use `search_sources` and `read_source`.
 
 Keep the `-1026` suffix for the supplied Baseten hackathon key. Public examples
 use `meta-models/muse-spark-open`, which is a different configured model ID. SAM

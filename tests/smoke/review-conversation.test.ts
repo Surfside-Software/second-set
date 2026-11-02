@@ -80,6 +80,32 @@ test("model choice uses its provider credential, freezes on replay, and records 
     const setup = await Effect.runPromise(session.execution.setup);
     expect(setup.models?.filter((model) => model.available)).toHaveLength(3);
 
+    // A count check that names an OpenCode Go model runs on the default route instead of failing.
+    const state = await session.state();
+    const conversation = state.conversations[0];
+
+    if (!conversation) throw new Error("Missing conversation");
+
+    const routed = await send(session, {
+      command: ReviewCommand.cases.PostMessage.make({
+        commandId: id(),
+        projectId: session.projectId,
+        expectedVersion: state.project?.version ?? -1,
+        conversationId: conversation.id,
+        text: "Inspect the electrical lighting count in Room 101.",
+      }),
+      executionCommandId: id(),
+      findingId: session.findingId,
+      discipline: "auto" as const,
+      model: "muse-spark-1.3-contributor",
+      budget,
+    });
+
+    if (!routed.execution) throw new Error(routed.error?.message ?? "Missing execution");
+    const routedStatus = await completed(session, routed.execution);
+    expect(routedStatus.provider).toBe("meta");
+    expect(routedStatus.model).toBe("muse-spark-1.3");
+
     // Count checks run on Meta or Baseten; OpenCode Go serves drawing-set reviews.
     const countModels = reviewModels.filter(
       (model): model is Exclude<typeof model, { provider: "opencode-go" }> =>

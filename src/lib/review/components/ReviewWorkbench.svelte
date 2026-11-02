@@ -64,7 +64,13 @@
   import ReviewSelect from "./ReviewSelect.svelte";
   import ReviewTooltips from "./ReviewTooltips.svelte";
   import { tip } from "#lib/review/tooltip.ts";
-  import { ReviewModelId, reviewModels } from "#lib/review/models.ts";
+  import {
+    offeredReviewModels,
+    ReviewModelId,
+    ReviewModelOption,
+    reviewModels,
+    reviewProviderRoutes,
+  } from "#lib/review/models.ts";
   import {
     findingSubtitle,
     formatOutcome,
@@ -352,19 +358,27 @@
   );
 
   const modelOptions = $derived(
-    (
+    offeredReviewModels<typeof ReviewModelOption.Type>(
       setup?.models ??
-      reviewModels.map((model) => ({
-        ...model,
-        available: setup?.configured && setup.provider === model.provider,
-      }))
+        reviewModels.map((model) => ({
+          ...model,
+          available: Boolean(setup?.configured) && setup?.provider === model.provider,
+        })),
     ).map((model) => ({
       value: model.id,
       label: model.label,
-      description: `${reviewProviderRoutes[model.provider].label}${"note" in model && model.note ? ` · ${model.note}` : ""}${model.available ? "" : " · add a connection in settings"}`,
+      description: `${reviewProviderRoutes[model.provider].label}${model.note ? ` · ${model.note}` : ""}${model.available ? "" : " · add a connection in settings"}`,
       disabled: !model.available,
     })),
   );
+
+  // A draft or earlier review can name a model the menu no longer offers; use the first it does.
+  $effect(() => {
+    const first = modelOptions.find((model) => !model.disabled)?.value;
+
+    if (first !== undefined && !modelOptions.some((model) => model.value === selectedModel))
+      selectedModel = first;
+  });
 
   const selectedModelAvailable = $derived(
     modelOptions.some((model) => model.value === selectedModel && !model.disabled),
@@ -1637,7 +1651,7 @@
     selectedModel =
       saved?.model ??
       previousReview?.model ??
-      setup?.models?.find((model) => model.available)?.id ??
+      offeredReviewModels(setup?.models ?? []).find((model) => model.available)?.id ??
       selectedModel;
     modelChosen = saved?.model !== undefined;
     location = saved?.location ?? "local";

@@ -835,8 +835,12 @@ export class ReviewExecution extends Context.Service<
 
           if (closing) return yield* failure("cancelled", "Execution is closing.");
 
+          // Count checks stay on Meta or Baseten; see the execution table's CHECK. When the menu offers
+          // only OpenCode Go, its selection means "the default", not a request to refuse the check.
+          const requestedRoute = reviewModels.find((entry) => entry.id === request.model);
+
           const model =
-            request.model ??
+            (requestedRoute?.provider === "opencode-go" ? undefined : request.model) ??
             configuration.provider?.model ??
             ((configuration.provider?.provider ?? providers[0]?.provider ?? "meta") === "meta"
               ? "muse-spark-1.3"
@@ -854,7 +858,6 @@ export class ReviewExecution extends Context.Service<
               "Configure a supported provider credential before starting a live inspection.",
             );
 
-          // The execution table's CHECK admits these two; drawing-set reviews run on every provider.
           const providerName = provider.provider ?? "meta";
 
           if (providerName === "opencode-go")

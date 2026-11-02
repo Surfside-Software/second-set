@@ -52,6 +52,18 @@ export const reviewModels = [
   { id: "gpt-6-luna", label: "GPT-6 Luna", provider: "opencode-go", reasoning: "high" },
 ] as const;
 
+/**
+ * Connecting OpenCode Go makes it the only chat route, so a review cannot spend another provider's
+ * credits by accident. Meta stays connected for SAM and count checks, which do not use this list.
+ */
+export function offeredReviewModels<
+  Model extends { readonly provider: typeof ReviewProvider.Type; readonly available: boolean },
+>(models: ReadonlyArray<Model>): ReadonlyArray<Model> {
+  return models.some((model) => model.provider === "opencode-go" && model.available)
+    ? models.filter((model) => model.provider === "opencode-go")
+    : models;
+}
+
 /** Renderer-safe model availability contains no credential information. */
 export const ReviewModelOption = Schema.Struct({
   id: ReviewModelId,
