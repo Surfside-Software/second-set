@@ -142,6 +142,162 @@ const sectionScore = (query: string, section: string) => {
   return left.startsWith(`${right}.`) || right.startsWith(`${left}.`) ? 6 : 0;
 };
 
+/**
+ * A code volume's name in comparable form: "Florida Building Code, Building (Commercial) 2023" and
+ * "FBC Building" are one volume, while "FBC Existing Building" stays a different one.
+ */
+const volumeName = (document: string) =>
+  document
+    .toLowerCase()
+    .replace(/florida building code/g, "fbc")
+    .replace(/\(commercial\)/g, " ")
+    .replace(/\b(?:(?:19|20)\d{2}|\d+(?:st|nd|rd|th)|edition)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** Sections explicitly starting slash-separated title segments or a leading section range. */
+export function listedCodeSections(entry: CodeReference): ReadonlyArray<string> {
+  const leading = /^([A-Z]{0,2}\d{3,4}(?:\.\d+)*)(?=\s|\/|$)/;
+
+  const range = /^([A-Z]{0,2}\d{3,4}(?:\.\d+)*)-([A-Z]{0,2}\d{3,4}(?:\.\d+)*)(?=\s|$)/.exec(
+    entry.title,
+  );
+
+  const sections = range
+    ? [range[1] ?? "", range[2] ?? ""]
+    : entry.title.split("/").flatMap((part) => {
+        const section = leading.exec(part.trim())?.[1];
+
+        return section === undefined ? [] : [section];
+      });
+
+  return sections.length > 1 ? sections : [];
+}
+
+const sectionChapter = (section: string) => {
+  const digits = /^[A-Z]*(\d{3,4})/i.exec(section)?.[1];
+
+  return digits === undefined ? undefined : Number(digits.slice(0, -2));
+};
+
+const referenceForSection = (entry: CodeReference, section: string) => {
+  if (linkedSection(entry) === section.toLowerCase()) return entry;
+
+  if (!listedCodeSections(entry).some((listed) => listed.toLowerCase() === section.toLowerCase()))
+    return undefined;
+  const url = new URL(entry.url);
+  const chapter = /_Ch(\d+)(?:_SubCh\d+)?_Sec[A-Z]{0,2}\d+(?:\.\d+)*$/i.exec(url.hash)?.[1];
+
+  if (
+    url.hostname !== "codes.iccsafe.org" ||
+    chapter === undefined ||
+    Number(chapter) !== sectionChapter(section)
+  )
+    return undefined;
+  url.hash = url.hash.replace(/_Sec[A-Z]{0,2}\d+(?:\.\d+)*$/i, `_Sec${section.toUpperCase()}`);
+
+  return new CodeReference(Struct.assign(entry, { url: url.href }));
+};
+
+/** Preserve an explicit selection, retargeting only one listed section or its subsection. */
+export function selectedCodeReference(entry: CodeReference, section: string): CodeReference {
+  const sections = [...new Set(section.toUpperCase().match(sectionPattern) ?? [])];
+  const [number] = sections;
+
+  if (sections.length !== 1 || number === undefined) return entry;
+
+  const listed = listedCodeSections(entry).filter(
+    (value) => number === value.toUpperCase() || number.startsWith(`${value.toUpperCase()}.`),
+  );
+
+  const [target] = listed;
+
+  return listed.length === 1 && target !== undefined
+    ? (referenceForSection(entry, target) ?? entry)
+    : entry;
+}
+
+const linkedSection = (entry: CodeReference) => {
+  const url = new URL(entry.url);
+
+  if (url.hostname === "codes.iccsafe.org")
+    return /_Sec([A-Z]{0,2}\d+(?:\.\d+)*)$/i.exec(url.hash)?.[1]?.toLowerCase();
+
+  if (url.hostname === "flrules.org") return url.searchParams.get("id")?.toLowerCase();
+
+  return /\/Sections\/0*(\d+(?:\.\d+)*)\.html$/i
+    .exec(url.searchParams.get("URL") ?? url.pathname)?.[1]
+    ?.toLowerCase();
+};
+
+/**
+ * The index entry behind a citation that names no search result, or undefined when the document,
+ * edition and section do not identify exactly one link. A subsection falls back to its indexed
+ * parent section, and a citation to another edition never links to this one.
+ */
+export function resolveCodeReference(
+  index: ReadonlyArray<CodeReference>,
+  citation: { readonly document: string; readonly edition: string; readonly section: string },
+): CodeReference | undefined {
+  const sections = [...new Set(citation.section.toUpperCase().match(sectionPattern) ?? [])];
+  const [sectionNumber] = sections;
+
+  if (sectionNumber === undefined) return undefined;
+  const section = sectionNumber.toLowerCase();
+  const volume = volumeName(citation.document);
+  const edition = `${citation.edition} ${citation.document}`.toLowerCase();
+  const years = edition.match(/\b(?:19|20)\d{2}\b/g) ?? [];
+  const editions = edition.match(/\b\d+(?:st|nd|rd|th)\b/g) ?? [];
+
+  const candidates = index.filter(
+    (entry) =>
+      volumeName(entry.document) === volume &&
+      years.every((year) => entry.edition.includes(year)) &&
+      editions.every((edition) => entry.edition.toLowerCase().includes(edition)),
+  );
+
+  const exact = candidates.flatMap((entry) => {
+    if (sections.length === 1) {
+      const resolved = referenceForSection(entry, sectionNumber);
+
+      return resolved === undefined ? [] : [resolved];
+    }
+
+    const listed = listedCodeSections(entry);
+
+    return listed.length === sections.length &&
+      listed.every((value) => sections.includes(value.toUpperCase()))
+      ? [entry]
+      : [];
+  });
+
+  const parents = candidates.flatMap((entry) =>
+    [...new Set([linkedSection(entry), ...listedCodeSections(entry)])].flatMap((parent) => {
+      if (
+        sections.length !== 1 ||
+        parent === undefined ||
+        !section.startsWith(`${parent.toLowerCase()}.`)
+      )
+        return [];
+      const resolved = referenceForSection(entry, parent);
+
+      return resolved === undefined ? [] : [{ entry: resolved, length: parent.length }];
+    }),
+  );
+
+  const deepest = Math.max(0, ...parents.map((parent) => parent.length));
+
+  const matches =
+    exact.length > 0
+      ? exact
+      : parents.flatMap((parent) => (parent.length === deepest ? [parent.entry] : []));
+
+  const [first] = matches;
+
+  // One section listed under two topics is still one link; different links stay ambiguous.
+  return matches.every((entry) => entry.url === first?.url) ? first : undefined;
+}
+
 /** Rank index entries for a reviewer's query by section numbers, then title, topic and check words. */
 export function searchCodeReferences(
   index: ReadonlyArray<CodeReference>,

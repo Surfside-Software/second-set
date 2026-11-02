@@ -86,7 +86,7 @@
     "heroCase": "docs/fixtures/hero-case.md",
     "primaryDemoPlatform": "linux-x64",
     "promptInstructions": {
-      "version": "moke-packet-review-v7",
+      "version": "moke-packet-review-v8",
       "source": "https://github.com/sc-frederick/skills/tree/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review",
       "provenance": "backend/review/prompts/provenance.json",
       "scope": "Whole supplied packet or selected discipline with explicit coverage, governing sources, findings and offline HTML report",
@@ -120,7 +120,7 @@
       "migration": "migrations/0011_firm_checklist.sql"
     },
     "codeIndex": {
-      "version": "florida-code-index-v1",
+      "version": "florida-code-index-v2",
       "module": "backend/review/code-index/code-index.ts",
       "provenance": "backend/review/code-index/provenance.json",
       "tool": "search_code",

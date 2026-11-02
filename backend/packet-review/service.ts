@@ -74,6 +74,7 @@ import {
 import { openReviewJournal, journalFormat } from "../inference/journal.ts";
 import { ResponseReceipt } from "../inference/response.ts";
 import {
+  browserCitationGuidance,
   packetReviewPrompt,
   packetPromptVersion,
   reviewInstructionRevision,
@@ -100,7 +101,9 @@ import {
   codeIndexVersion,
   codeReference,
   floridaCodeIndex,
+  resolveCodeReference,
   searchCodeReferences,
+  selectedCodeReference,
 } from "../review/code-index/code-index.ts";
 import {
   initializePacketCoverage,
@@ -1544,7 +1547,7 @@ export class PacketReviews extends Context.Service<
               async (_task, input) => ({
                 index: codeIndexVersion,
                 results: searchCodeReferences(floridaCodeIndex, input.query, input.limit ?? 8),
-                note: "Each result's access says how to read its text. read_source: retrieve the link with read_source and quote it to verify the citation. open_in_browser: ICC Digital Codes and Florida rule text cannot be retrieved here, so record the citation as unverified with codeReferenceId; the engineer opens the link to confirm the section. A result is a pointer: confirm applicability, exceptions and the governing edition.",
+                note: "Each result's access says how to read its text. read_source: retrieve the link with read_source and quote it to verify the citation. open_in_browser: record the citation as unverified with codeReferenceId, an empty quote and no note about access; the engineer opens the link to confirm the section. A result is a pointer: confirm applicability, exceptions and the governing edition.",
               }),
             ),
             tool(
@@ -1749,17 +1752,25 @@ export class PacketReviews extends Context.Service<
             ),
             tool(
               "record_citation",
-              "Log a printed or governing citation and its edition, exact section, quote and applicability. Verified requires matching retrieved official document and edition, plus a substantive clause inside the claimed section or table. Missing or ambiguous section structure stays unverified. Pass codeReferenceId from search_code to attach the section's link.",
+              `Log a printed or governing citation and its edition, exact section, quote and applicability. Verified requires matching retrieved official document and edition, plus a substantive clause inside the claimed section or table. Missing or ambiguous section structure stays unverified. Pass codeReferenceId from search_code to attach the section's link. ${browserCitationGuidance}`,
               CitationInput,
               async (task, { codeReferenceId, ...fields }) => {
-                const indexed =
-                  codeReferenceId === undefined ? undefined : codeReference(codeReferenceId);
+                // A citation that names no search result still links to its indexed section.
+                const selected =
+                  codeReferenceId === undefined
+                    ? resolveCodeReference(floridaCodeIndex, fields)
+                    : codeReference(codeReferenceId);
 
-                if (codeReferenceId !== undefined && indexed === undefined)
+                if (codeReferenceId !== undefined && selected === undefined)
                   throw error(
                     "input",
                     "Unknown code reference. Use an id returned by search_code.",
                   );
+
+                const indexed =
+                  codeReferenceId === undefined || selected === undefined
+                    ? selected
+                    : selectedCodeReference(selected, fields.section);
 
                 const input =
                   indexed === undefined
@@ -1771,6 +1782,7 @@ export class PacketReviews extends Context.Service<
                           document: indexed.document,
                           edition: indexed.edition,
                           title: indexed.title,
+                          check: indexed.check,
                           url: indexed.url,
                           access: indexed.access,
                         },

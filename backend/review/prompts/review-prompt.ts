@@ -73,7 +73,7 @@ export function selectedReviewPrompt(context: typeof ExecutionReviewContext.Type
 }
 
 /** Version of the project-first system prompt used for new packet reviews. */
-export const packetPromptVersion = "moke-packet-review-v7";
+export const packetPromptVersion = "moke-packet-review-v8";
 
 /**
  * A review runs as one reviewer, or as a coordinator plus one reviewer per sheet. Large packets
@@ -87,8 +87,11 @@ const imageGuidance = {
   meta: "Rendered pages and crops stay in your conversation. Render the full assigned page first, then focused crops at legible scale for dense notes, schedules, tables and details. Render a detail again before relying on a reading you are unsure of.",
 } as const;
 
-const codeGuidance =
-  "For Florida Building Code sections, Florida Statutes and Florida Administrative Code rules, call search_code first. It returns the exact section, a plan review note and the section's link; cite a result with record_citation and its id as codeReferenceId. ICC Digital Codes blocks automated retrieval, so do not read_source codes.iccsafe.org links: record those citations as unverified with the section and codeReferenceId, and the engineer opens the link to confirm it. Statute links can be retrieved with read_source and verified against their text. read_source also extracts text from PDF sources such as county amendments and agency checklists; add #page=N to a PDF link to start at that page. A url this review already retrieved returns its saved copy; reread a saved source with read_source and its sourceId.";
+/** Shared instructions for citations whose text must be confirmed in a browser. */
+export const browserCitationGuidance =
+  "For open_in_browser citations (ICC Digital Codes and Florida rule pages), you have not read the governing text: leave quote empty and do not paraphrase it from memory. Leave note empty unless recording a project-specific fact, such as an edition conflict printed on a sheet. Do not write that a link could not be read, was blocked or needs opening; the workbench and report already explain access. The access limit is the reason required by REVIEW_METHOD.md and the host records it.";
+
+const codeGuidance = `For Florida Building Code sections, Florida Statutes and Florida Administrative Code rules, call search_code first. It returns the exact section, a plan review note and the section's link; cite a result with record_citation and its id as codeReferenceId. ICC Digital Codes blocks automated retrieval, so do not read_source codes.iccsafe.org links: record those citations as unverified with the section and codeReferenceId, and the engineer opens the link to confirm it. ${browserCitationGuidance} Statute links can be retrieved with read_source and verified against their text. read_source also extracts text from PDF sources such as county amendments and agency checklists; add #page=N to a PDF link to start at that page. A url this review already retrieved returns its saved copy; reread a saved source with read_source and its sourceId.`;
 
 const sourceGuidance = {
   baseten: `${codeGuidance} Use search_sources and read_source for other governing sources; record exact citations and applicability.`,

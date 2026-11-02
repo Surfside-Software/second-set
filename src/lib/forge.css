@@ -547,7 +547,40 @@ kbd {
   letter-spacing: var(--tracking-wide);
 }
 
+/* Live work: an Ember sheen sweeps the text while the model is working. */
+.thinking-text {
+  background: linear-gradient(
+    100deg,
+    var(--color-bone) 32%,
+    var(--color-spark) 46%,
+    var(--color-ember) 50%,
+    var(--color-spark) 54%,
+    var(--color-bone) 68%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: forge-thinking 2.4s linear infinite;
+}
+
+@keyframes forge-thinking {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .thinking-text {
+    background: none;
+    color: var(--color-ember);
+    animation: none;
+  }
+
   *,
   *::before,
   *::after {

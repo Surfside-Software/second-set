@@ -197,3 +197,115 @@ export function configurationLabel(name: string): string {
 
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
+
+const urgency = ["issue", "needs_input", "unreviewed", "checked", "not_applicable"] as const;
+
+/** The displayed status treats an unexplained exclusion as a request for input. */
+export const packetCoverageStatus = (row: typeof PacketCoverage.Type) =>
+  row.status === "not_applicable" && row.note.trim().length === 0 ? "needs_input" : row.status;
+
+/**
+ * The one status a sheet and discipline shows at a glance: its most urgent pass. Not applicable
+ * without a reason is an open question, so it reads as needing input.
+ */
+export function packetCoverageRollup(
+  rows: ReadonlyArray<typeof PacketCoverage.Type>,
+): (typeof urgency)[number] {
+  const statuses = new Set(rows.map(packetCoverageStatus));
+
+  return urgency.find((status) => statuses.has(status)) ?? "unreviewed";
+}
+
+/** One sheet and discipline's passes, with the status and counts it shows at a glance. */
+export interface PacketCoverageCell {
+  readonly rows: ReadonlyArray<typeof PacketCoverage.Type>;
+  readonly status: ReturnType<typeof packetCoverageRollup>;
+  readonly counts: PacketCoverageCounts;
+}
+
+/** The key of one sheet and discipline in `indexPacketCoverageCells`. */
+export const packetCoverageCellKey = (sheetId: string, discipline: string) =>
+  `${sheetId}:${discipline}`;
+
+/** Group coverage records into one cell per sheet and discipline, in one pass. */
+export function indexPacketCoverageCells(
+  rows: ReadonlyArray<typeof PacketCoverage.Type>,
+): ReadonlyMap<string, PacketCoverageCell> {
+  const grouped = new Map<string, Array<typeof PacketCoverage.Type>>();
+
+  for (const row of rows) {
+    const key = packetCoverageCellKey(row.sheetId, row.discipline);
+    const cell = grouped.get(key);
+
+    if (cell) cell.push(row);
+    else grouped.set(key, [row]);
+  }
+
+  return new Map(
+    [...grouped].map(([key, cellRows]) => [
+      key,
+      {
+        rows: cellRows,
+        status: packetCoverageRollup(cellRows),
+        counts: countPacketCoverage(
+          cellRows.map((row) => ({ ...row, status: packetCoverageStatus(row) })),
+        ),
+      },
+    ]),
+  );
+}
+
+/** One project fact, shortened for a single row. */
+export interface PacketProjectFact {
+  readonly key: string;
+  readonly label: string;
+  readonly needsInput: boolean;
+  /** Fits the row. */
+  readonly value: string;
+  /** The rest of the saved text, for a disclosure; empty when the value says everything. */
+  readonly detail: string;
+}
+
+const factLength = 72;
+
+/**
+ * Project configuration values are free text from the review, often a paragraph. A row shows
+ * "Needs input" or the value's first clause; the full saved text stays one click away.
+ */
+export function packetProjectFacts(
+  configuration: Readonly<Record<string, string>>,
+): ReadonlyArray<PacketProjectFact> {
+  return Object.entries(configuration).map(([key, raw]): PacketProjectFact => {
+    const text = raw.trim();
+    const label = configurationLabel(key);
+    const missing = /^needs input\b[\s:;,.–—-]*/i.exec(text);
+
+    if (missing)
+      return {
+        key,
+        label,
+        needsInput: true,
+        value: "Needs input",
+        detail: text.slice(missing[0].length),
+      };
+
+    if (text.length <= factLength) {
+      const value = text.replace(/[.;:]+$/, "");
+
+      return { key, label, needsInput: false, value, detail: value === text ? "" : text };
+    }
+
+    const clause = /^.+?[.;:](?=\s)/.exec(text)?.[0];
+
+    return {
+      key,
+      label,
+      needsInput: false,
+      value:
+        clause !== undefined && clause.length <= factLength
+          ? clause.replace(/[.;:]+$/, "")
+          : `${text.slice(0, factLength - 1).trimEnd()}…`,
+      detail: text,
+    };
+  });
+}

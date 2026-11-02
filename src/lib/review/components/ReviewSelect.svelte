@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tip } from "#lib/review/tooltip.ts";
   import ReviewIcon from "./ReviewIcon.svelte";
 
   let {
@@ -6,6 +7,7 @@
     value,
     options,
     disabled = false,
+    hint,
     onChange,
   }: {
     label: string;
@@ -17,6 +19,8 @@
       disabled?: boolean;
     }>;
     disabled?: boolean;
+    /** Hover text explaining what this choice does. */
+    hint?: string;
     onChange: (value: string) => void;
   } = $props();
 
@@ -98,6 +102,7 @@
   aria-controls={id}
   bind:this={trigger}
   popovertarget={id}
+  {...hint ? tip(hint) : {}}
   onclick={(event) => {
     event.preventDefault();
     if (menu?.matches(":popover-open")) close();

@@ -4,8 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  indexPacketCoverageCells,
   initializePacketCoverage,
+  packetCoverageCellKey,
   packetCoverageProgress,
+  packetCoverageRollup,
+  packetProjectFacts,
   samePacketSheetSource,
 } from "#lib/review/packet-coverage.ts";
 import { Region } from "#lib/review/contracts.ts";
@@ -248,3 +252,85 @@ test.each([
   },
   120000,
 );
+
+test("a coverage cell shows its most urgent pass and counts the rest", () => {
+  const row = (status: (typeof PacketCoverage.Type)["status"], note = "") => ({
+    sheetId: sheet.id,
+    discipline: "general" as const,
+    pass: "completeness" as const,
+    status,
+    note,
+  });
+
+  const rollup = (...rows: ReadonlyArray<typeof PacketCoverage.Type>) => packetCoverageRollup(rows);
+
+  expect(rollup(row("checked"), row("issue"), row("needs_input"))).toBe("issue");
+  expect(rollup(row("checked"), row("unreviewed"))).toBe("unreviewed");
+  expect(rollup(row("checked"), row("not_applicable", "No prior comments."))).toBe("checked");
+  expect(rollup(row("not_applicable", "No prior comments."))).toBe("not_applicable");
+  // Not applicable with no reason is still an open question.
+  expect(rollup(row("checked"), row("not_applicable"))).toBe("needs_input");
+
+  const cells = indexPacketCoverageCells([
+    row("checked"),
+    row("issue"),
+    { ...row("unreviewed"), discipline: "civil" },
+  ]);
+
+  expect(cells.size).toBe(2);
+  const general = cells.get(packetCoverageCellKey(sheet.id, "general"));
+  expect(general?.status).toBe("issue");
+  expect(general?.counts).toMatchObject({ total: 2, checked: 1, issues: 1 });
+  expect(cells.get(packetCoverageCellKey(sheet.id, "civil"))?.status).toBe("unreviewed");
+
+  const unexplained = indexPacketCoverageCells([row("not_applicable")]).get(
+    packetCoverageCellKey(sheet.id, "general"),
+  );
+
+  expect(unexplained?.status).toBe("needs_input");
+  expect(unexplained?.counts).toMatchObject({ needsInput: 1, notApplicable: 0 });
+});
+
+test("project facts fit one row and keep the review's full text behind it", () => {
+  const paragraph =
+    "Needs input — no cover sheet, permit application, title block jurisdiction, address or parcel appears on any of the 8 supplied pages.";
+
+  const clause =
+    "Group B business on the first floor; the second floor is a single dwelling unit with separate egress and no shared assembly space.";
+
+  const [jurisdiction, permit, occupancy, phrase] = packetProjectFacts({
+    jurisdiction: paragraph,
+    permitStage: "needs input",
+    occupancy: "Group B",
+    constructionType: clause,
+  });
+
+  expect(jurisdiction).toMatchObject({
+    label: "Jurisdiction",
+    needsInput: true,
+    value: "Needs input",
+    detail:
+      "no cover sheet, permit application, title block jurisdiction, address or parcel appears on any of the 8 supplied pages.",
+  });
+  expect(permit).toMatchObject({ label: "Permit stage", needsInput: true, detail: "" });
+  expect(occupancy).toMatchObject({ value: "Group B", needsInput: false, detail: "" });
+  expect(phrase).toMatchObject({
+    label: "Construction type",
+    value: "Group B business on the first floor",
+    detail: clause,
+  });
+});
+
+test("short project clauses drop trailing punctuation while retaining the full saved text", () => {
+  for (const punctuation of [";", ":", "."]) {
+    const text = `Type V-B per the partial code note on A-1${punctuation} ${"Full context. ".repeat(8)}`;
+    const [fact] = packetProjectFacts({ constructionType: text });
+    expect(fact?.value).toBe("Type V-B per the partial code note on A-1");
+    expect(fact?.detail).toBe(text.trim());
+    const short = `Type V-B${punctuation}`;
+    expect(packetProjectFacts({ constructionType: short })[0]).toMatchObject({
+      value: "Type V-B",
+      detail: short,
+    });
+  }
+});

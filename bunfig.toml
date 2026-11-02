@@ -6,6 +6,7 @@ shell = "bun"
 exact = true
 
 [test]
+preload = ["./scripts/pinned-bun.ts"]
 root = "./tests/smoke"
 
 [fmt]

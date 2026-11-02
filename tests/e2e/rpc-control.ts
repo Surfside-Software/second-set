@@ -35,14 +35,17 @@ declare global {
  * replies or stream chunks, and answer chosen requests locally so they never reach a provider.
  * Install before reloading the page so the client's port is wrapped from the start.
  */
-export async function installRpcControl(page: Page) {
+export async function installRpcControl(
+  page: Page,
+  initialAnswers: ReadonlyArray<{ tag: string; exit: Wire }> = [],
+) {
   await page.getByTestId("review-workbench").waitFor();
-  await page.addInitScript(() => {
+  await page.addInitScript((initialAnswers) => {
     const tags = new Map<string, string>();
     const holds: Array<{ tag: string; kind: string }> = [];
     const held: Array<{ tag: string; requestId: string; deliver: () => void }> = [];
     const blocked = new Map<string, Array<() => void>>();
-    const answers: Array<{ tag: string; exit: Wire }> = [];
+    const answers: Array<{ tag: string; exit: Wire }> = [...initialAnswers];
     const created: string[] = [];
     const revoked: string[] = [];
     const createObjectURL = URL.createObjectURL.bind(URL);
@@ -169,7 +172,7 @@ export async function installRpcControl(page: Page) {
         options,
       );
     };
-  });
+  }, initialAnswers);
 }
 
 /** Requests the renderer sent with this tag, in order. */

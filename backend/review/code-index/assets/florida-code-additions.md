@@ -95,3 +95,11 @@ Base: [Florida Building Commission code resources](https://www.floridabuilding.o
 - **2024 Supplement 3** - Check whether this supplement changes a cited 8th Edition section. [Link](https://codes.iccsafe.org/content/FLCSUPP32024P1)
 - **2024 Supplement 4** - Check whether this supplement changes a cited 8th Edition section. [Link](https://codes.iccsafe.org/content/FLCSUPP42024P1)
 - **2024 Supplement 5** - Check whether this supplement changes a cited 8th Edition section. [Link](https://codes.iccsafe.org/content/FLCSUPP52024P1)
+
+## FBC Building (Commercial) - 2023 8th Edition
+
+### High-Velocity Hurricane Zone
+
+- **2118 HVHZ - Masonry** - Verify each material chapter's HVHZ section governs design/QA within the zone. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-21-masonry#FLBC2023P2_Ch21_Sec2118)
+- **2214 HVHZ - Steel** - Verify each material chapter's HVHZ section governs design/QA within the zone. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-22-steel#FLBC2023P2_Ch22_Sec2214)
+- **2314 HVHZ - Wood** - Verify each material chapter's HVHZ section governs design/QA within the zone. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-23-wood#FLBC2023P2_Ch23_Sec2314)

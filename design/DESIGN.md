@@ -35,7 +35,15 @@ layout. Components use the tokens directly; there is no second UI system.
   `src/lib/review/icons.ts` copies the official paths, and
   `tests/smoke/icons.test.ts` fails if any path drifts from `@tabler/icons`.
   Disclosure rows and select menus draw the Tabler chevron in CSS instead of the
-  platform triangle. See `TABLER-LICENSE`.
+  platform triangle. Sheet rotation uses the paired `rotate-2` and
+  `rotate-clockwise-2` icons at 20px. See `TABLER-LICENSE`.
+- **Tooltips.** Explanations belong in tooltips, not subtext. `tip()` in
+  `src/lib/review/tooltip.ts` marks an element and `ReviewTooltips` shows one
+  Slate panel with a hairline, 8px radius and the floating shadow, on hover and
+  keyboard focus. Use a title when a control's label needs explaining.
+- **Live work.** While the model works, `.thinking-text` sweeps an Ember sheen
+  across its label. The review card adds a slow Ember breath and a scanning
+  progress line. Reduced motion shows steady Ember instead.
 
 ## Desktop adaptations
 

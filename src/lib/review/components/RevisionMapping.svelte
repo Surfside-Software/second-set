@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Revision, RevisionCorrespondence, Sheet } from "#lib/review/contracts.ts";
+  import { tip } from "#lib/review/tooltip.ts";
   import ReviewIcon from "./ReviewIcon.svelte";
   import SheetThumbnail from "./SheetThumbnail.svelte";
 
@@ -121,14 +122,9 @@
       <h3>
         <span>{previous.name}</span><ReviewIcon name="arrow-right" /><span>{latest.name}</span>
       </h3>
-      <p>
-        Compare each original sheet with its replacement. Confirm retained sheets, mark removed
-        sheets, or leave them unresolved for later review.
-      </p>
     </header>
     {#if latest.sha256 === previous.sha256}<p class="hint">
-        The PDFs are byte-identical. Page matches are proposed below; confirm them before reusing
-        evidence.
+        Identical PDFs. Confirm the proposed page matches.
       </p>{/if}
     <div class="column-headings" aria-hidden="true">
       <span>Previous revision</span><span></span><span>New revision</span><span
@@ -252,12 +248,13 @@
                   />{choice.content === "removed"
                     ? "I confirmed this sheet was removed"
                     : "Sheet correspondence confirmed"}</label
-                >{:else}<p class="unresolved">Unresolved</p>{/if}
-              {#if persisted?.content === "unresolved"}<small
-                  >Saved as unresolved. Original evidence requires fresh review.</small
-                >{:else if choice.content === "unresolved"}<small
-                  >Original evidence stays with the previous revision.</small
-                >{/if}
+                >{:else}<p
+                  class="unresolved"
+                  {...tip("Original evidence stays with the previous revision until you decide.")}
+                >
+                  Unresolved
+                </p>{/if}
+              {#if persisted?.content === "unresolved"}<small>Saved as unresolved</small>{/if}
             {/if}
           </div>
         </li>
@@ -265,12 +262,15 @@
     </ul>
     {#if added.length > 0}
       <section class="added-sheets" aria-label="New pages in this revision">
-        <h4>{openPrior === 0 ? "Added in this revision" : "New or unmatched pages"}</h4>
-        <p class="hint">
-          {openPrior === 0
-            ? "Every earlier sheet has a saved decision, so these pages have no predecessor."
-            : `${openPrior} earlier ${openPrior === 1 ? "sheet is" : "sheets are"} not yet saved as matched or removed, so these pages may still be replacements. Apply the decisions above to settle them.`}
-        </p>
+        <h4
+          {...tip(
+            openPrior === 0
+              ? "Every earlier sheet has a saved decision, so these pages have no predecessor."
+              : `${openPrior} earlier ${openPrior === 1 ? "sheet is" : "sheets are"} still undecided, so these pages may be replacements.`,
+          )}
+        >
+          {openPrior === 0 ? "Added in this revision" : "New or unmatched pages"}
+        </h4>
         <ul class="mapping-list">
           {#each added as sheet (sheet.id)}
             <li class="added-row" data-testid={`revision-added-${sheet.id}`}>
@@ -298,9 +298,14 @@
       disabled={busy || !hasDecision || !valid || pending.length === 0}
       onclick={() => onApply(latest.id, pending)}>Apply revision correspondence</button
     >
-    {#if saved.length > 0}<p class="saved" role="status">
-        Saved revision decisions are shown above. Confirmed associations are immutable; changed,
-        removed and unresolved sources require fresh evidence.
+    {#if saved.length > 0}<p
+        class="saved"
+        role="status"
+        {...tip(
+          "Confirmed matches can't change. Changed, removed and unresolved sheets need fresh evidence.",
+        )}
+      >
+        Saved revision decisions
       </p>{/if}
   </section>
   <dialog
@@ -349,10 +354,7 @@
     {/if}
   </dialog>
 {:else}
-  <p>
-    Import the next revision, then map sheet correspondence. Earlier sources and review history are
-    preserved.
-  </p>
+  <p class="hint">No revision to compare yet.</p>
 {/if}
 
 <style>

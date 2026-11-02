@@ -313,7 +313,21 @@ it. Queue messages use JSON to preserve millisecond expiry times through the SDK
 
 ## Validation
 
-Protocol 3 is deployed from `d7ba4f874` as `moke-review-engine:d7ba4f874`.
+The current worker is `moke-review-engine:4cc8c03`, image
+`im-01M6DBQX7M1HEP05AA68MHBW7R`, with protocol 5, packet prompt v8 and code index
+v2. `moke-review-engine:latest` resolves to the same image. On 2026-11-02 it passed
+strict identity, migration-hash, PDF worker and blocked-network checks in a fresh
+sandbox. One bounded cloud packet review of the authored schematic then ran on
+Muse Spark 1.3, returned automatically and imported, with no sandbox left running.
+Its citations to indexed ICC sections recorded no quote or access note, and the
+statute it read came back verified.
+
+The previous image is `moke-review-engine:v0.2.0`,
+`im-01M6D10NCS3MSF4WYCNCYJGYJS`, with packet prompt v7 and code index v1. A v0.2.0
+desktop fails the identity probe against `latest`, before any transfer, so it must
+select that immutable tag in its private operator configuration.
+
+Protocol 3 was deployed from `d7ba4f874` as `moke-review-engine:d7ba4f874`.
 That immutable tag, `moke-review-engine:latest` and this checkout's private
 operator selection resolve to `im-01M630XTWWQWB3FM0K4NY8NR0D`.
 The published image passed strict identity, migration-hash and native PDF
@@ -387,7 +401,7 @@ are fenced while the cloud owns the workspace.
 
 New reviews are admitted only to a protocol-5 worker whose identity matches this
 build exactly: package engine `review-pi-1.4.0-v1`, count prompt
-`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v7`, and the
+`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v8`, and the
 current instruction revision and code index version. Every new ownership receipt
 records `workerProtocol: 5`. An image with a different identity fails the
 identity probe before transfer. Migrations are not part of the identity: a worker
@@ -398,14 +412,14 @@ prompts, migrations or the code index change.
 
 Recovery only observes work already `dispatching` or `running`; it never
 redispatches or restarts a model. Earlier identities must still match the current
-engine, count prompt and instruction revision, and omit the code index:
+engine, count prompt and instruction revision. Protocols 2 to 4 omit the code index; earlier protocol-5 workers use index v1:
 
-| Receipt `workerProtocol`                  | Progress accepted while dispatched           |
-| ----------------------------------------- | -------------------------------------------- |
-| Absent, saved by protocol-2 or 3 desktops | Protocol 2 or 3 with packet prompts v1 to v3 |
-| `3`                                       | Protocol 3 with packet prompts v1 to v3      |
-| `4`                                       | Protocol 4 with packet prompts v3 to v5      |
-| `5`                                       | Protocol 5 with packet prompt v6 or v7       |
+| Receipt `workerProtocol`                  | Progress accepted while dispatched             |
+| ----------------------------------------- | ---------------------------------------------- |
+| Absent, saved by protocol-2 or 3 desktops | Protocol 2 or 3 with packet prompts v1 to v3   |
+| `3`                                       | Protocol 3 with packet prompts v1 to v3        |
+| `4`                                       | Protocol 4 with packet prompts v3 to v5        |
+| `5`                                       | Protocol 5 with v8/index v2, or v6/v7/index v1 |
 
 Receipts in every other phase accept only current progress.
 
@@ -438,6 +452,8 @@ tool list and builds every sheet reviewer's opening from a saved setup snapshot.
 Publish a new worker image with `bun run modal:image` before sending v7 reviews;
 a v6 image fails the identity probe before transfer. Jobs already sent to a v6
 worker stay readable.
+
+Packet prompt `moke-packet-review-v8` removes access boilerplate and paraphrases of unread code text. It ships with `florida-code-index-v2` and requires a newly published worker image. Protocol remains 5; dispatched v6/v7 jobs with index v1 stay readable, but those identities cannot admit new work.
 
 The protocol-3 handshake required support for explicit revision, selected-sheet
 and persisted-discipline scope, and includes both packet and count prompt versions.

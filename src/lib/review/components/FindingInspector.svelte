@@ -134,7 +134,6 @@
   {#if proposals.length > 0}
     <section aria-label="Proposed observations">
       <h3>Suggested counts</h3>
-      <p class="meta">Check the highlighted area before accepting a count.</p>
       {#each proposals as proposal (proposal.id)}
         <p>
           <strong

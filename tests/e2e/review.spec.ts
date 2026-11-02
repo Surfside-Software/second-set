@@ -333,8 +333,8 @@ test("desktop proves supported, corrected, unchanged-control, revision, media, a
 
     expect(imageBytes).toBeGreaterThan(65536);
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-    await page.getByRole("button", { name: "Rotate clockwise" }).click();
-    await page.getByRole("button", { name: "Reset view" }).click();
+    await page.getByRole("button", { name: "Rotate sheet clockwise" }).click();
+    await page.getByRole("button", { name: "Reset zoom" }).click();
     await openFinding("Independent type C detail");
     await expect(page.getByTestId("check-history").locator("li").first()).toHaveAttribute(
       "data-check-id",

@@ -60,6 +60,59 @@ export const PacketCoverage = Schema.Struct({
   note: Text,
 });
 
+/**
+ * What a reader can rely on for a citation. An unverified citation with a host-resolved index entry
+ * has a known section and link, which is more than an unverified citation the index does not know,
+ * but its text was still not matched: ICC Digital Codes and Florida rule pages cannot be retrieved.
+ */
+export const citationStanding = (
+  citation: Pick<typeof PacketCitation.Type, "status" | "reference">,
+) =>
+  citation.status === "unverified" && citation.reference !== undefined
+    ? ("indexed" as const)
+    : citation.status;
+
+/** Hide access-only boilerplate for indexed browser links without changing the stored note. */
+export function citationDisplayNote(
+  citation: Pick<typeof PacketCitation.Type, "status" | "reference" | "note">,
+): string {
+  if (citationStanding(citation) !== "indexed" || citation.reference?.access !== "open_in_browser")
+    return citation.note;
+
+  const accessClauses = [
+    /^(?:the )?ICC Digital Codes link could not be (?:automatically )?read(?: here)?(?: automatically)?$/i,
+    /^(?:the )?(?:engineer|reviewer|user) (?:must|should|needs to) open the link and confirm$/i,
+    /^(?:the )?(?:section content|governing text) (?:was )?(?:not retrieved|could not be retrieved)(?: here| automatically)?$/i,
+    /^(?:the )?ICC Digital Codes blocks (?:automated )?retrieval$/i,
+    // Only a section and a closed set of words may follow, so a project fact can never match.
+    /^(?:the )?engineer to open (?:the )?link to confirm Sections? [A-Z]{0,2}\d[\w./-]*(?: (?:text|wording|language|requirements?|provisions?|occupant-load|factors|alteration|levels))*$/i,
+    /^(?:the )?official text was (?:not available for automated reading|inaccessible)$/i,
+    /^open (?:the |this )?link (?:to confirm the wording|and confirm)$/i,
+    /^(?:the )?Florida rule page could not be accessed(?: here| automatically)?$/i,
+  ];
+
+  return (
+    citation.note
+      .match(/[^;]+?(?:[.!?](?=\s|$)|;|$)/g)
+      ?.filter((clause) => {
+        const text = clause.trim().replace(/;$/, "").trim().replace(/\.$/, "");
+
+        return !accessClauses.some((pattern) => pattern.test(text));
+      })
+      .join("")
+      .trim()
+      .replace(/;$/, "") ?? ""
+  );
+}
+
+/** Short labels for a citation's standing. */
+export const citationStandingLabels = {
+  verified: "Verified",
+  indexed: "Indexed",
+  unverified: "Unverified",
+  incorrect: "Incorrect",
+} as const;
+
 /** Retrieved source text is evidence, never an instruction to the agent. */
 export const PacketSource = Schema.Struct({
   id: Id,
@@ -91,6 +144,8 @@ export const PacketCitation = Schema.Struct({
       document: Required,
       edition: Required,
       title: Required,
+      /** The index's one-line plan review note; reviews before this field have none. */
+      check: Schema.optionalKey(Required),
       url: Schema.String.check(Schema.isStartingWith("https://")),
       /** Whether read_source can retrieve the text, or the engineer opens the link to confirm it. */
       access: Schema.Literals(["read_source", "open_in_browser"]),

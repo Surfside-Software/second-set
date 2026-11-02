@@ -30,14 +30,15 @@ const Protocol4CloudWorkerProgress = priorWorkerProgress(4, [
   "moke-packet-review-v5",
 ]);
 
-// Protocol 5 shipped with v6 before v7 gave parallel roles their own tool lists.
+// Earlier protocol-5 images used the v1 index and packet prompts v6 or v7.
 const Protocol5CloudWorkerProgress = Schema.Union([
   CloudWorkerProgress,
   Schema.Struct({
     ...CloudWorkerProgress.fields,
     identity: Schema.Struct({
       ...CloudEngineIdentity.fields,
-      packetPrompt: Schema.Literal("moke-packet-review-v6"),
+      packetPrompt: Schema.Literals(["moke-packet-review-v6", "moke-packet-review-v7"]),
+      codeIndex: Schema.Literal("florida-code-index-v1"),
     }),
   }),
 ]);

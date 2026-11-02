@@ -32,6 +32,9 @@ after its revised deliverable is inspected in the current review.
 Source access and review coverage stay explicit. Inaccessible official text,
 unknown governing editions and absent project inputs remain Needs input. A
 successful download does not establish applicability of a code requirement.
+A citation tied to the Florida code index reads as Indexed: its section and link
+are known, and its wording stays unconfirmed until the engineer opens the link.
+Its stored status remains unverified.
 Calculations retain formulas, input values and declared units; units are not
 automatically reconciled. Model findings are review results, not professional
 approval. Sequential discipline passes are supported; the app does not claim to
@@ -39,6 +42,9 @@ launch parallel reviewers.
 
 The conversation presents a short review summary with compact findings. Opening
 a finding shows readable details and source evidence in the central canvas.
+Coverage reads as a grid of sheets by discipline, with each pass one click away.
+Explanations live in hover tooltips; a line of help text appears only when
+something blocks the next action.
 Saved self-contained HTML reports retain focused evidence, project configuration,
 coverage, source status, findings, calculations and prior-comment follow-up.
 Completed checkboxes track user corrections separately from finding status and
@@ -82,7 +88,8 @@ verification. Explicit scopes take precedence over request wording. User request
 bubbles, followed by elapsed progress and MOKE's saved response. A note is saved
 without starting inference. Active reviews accept durable follow-up instructions
 from the composer and show their delivery state. Findings open their source
-evidence in a central canvas with zoom, pan and a return to the conversation.
+evidence in a central canvas with zoom (including Ctrl+scroll and trackpad pinch),
+pan, rotation in both directions and a return to the conversation.
 Reviewers can select source areas visually and expand technical controls when needed.
 
 Until a revised set arrives, an **Initial Review** button sits above the composer.

@@ -4,6 +4,7 @@
     type PacketFinding,
     type PacketFindingVerdict,
   } from "#lib/review/packet.ts";
+  import { tip } from "#lib/review/tooltip.ts";
   import ReviewSelect from "./ReviewSelect.svelte";
 
   type Verdict = typeof PacketFindingVerdict.Type;
@@ -39,9 +40,10 @@
 </script>
 
 <fieldset class="finding-decision" data-testid="finding-decision">
-  <legend>Your decision</legend>
+  <legend class="sr-only">Your decision</legend>
   <ReviewSelect
     label="Decision"
+    hint="Your call on this finding. Follow-up reviews read it before raising the issue again."
     value={verdict}
     {options}
     {disabled}
@@ -51,9 +53,7 @@
       id={`${id}-reason`}
       rows="3"
       maxlength="2000"
-      placeholder={verdict === "valid"
-        ? "Optional note"
-        : "Why? Follow-up reviews read this before raising the issue again."}
+      placeholder={verdict === "valid" ? "Optional note" : "Why?"}
       {disabled}
       bind:value={reason}></textarea>{/if}
   <div class="decision-actions">
@@ -64,8 +64,9 @@
       onclick={() => onSave(verdict === "" ? null : { verdict, reason: reason.trim() })}
       >Save decision</button
     >
-    {#if decision && !changed}<span class="muted"
-        >Saved {new Date(decision.decidedAt).toLocaleString()}</span
+    {#if decision && !changed}<span
+        class="muted"
+        {...tip(new Date(decision.decidedAt).toLocaleString())}>Saved</span
       >{/if}
   </div>
 </fieldset>
@@ -78,15 +79,6 @@
     padding: var(--space-sm) 0 0;
     border: 0;
     border-top: 1px solid var(--color-border);
-  }
-  legend {
-    padding: 0;
-    color: var(--color-text-muted);
-    font-family: var(--font-mono);
-    font-size: var(--text-label-sm);
-    font-weight: 500;
-    letter-spacing: var(--tracking-wider);
-    text-transform: uppercase;
   }
   .finding-decision > :global(.picker) {
     justify-self: start;
