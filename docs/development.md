@@ -109,3 +109,5 @@ Reference source stays outside application distributions.
 SAM and adaptive-review commands are separate research tools. Their recipes and
 captured results live under `experiments/`; generated runs and private PDFs are
 ignored. See [the experiment documentation](README.md#drawing-experiments).
+
+Tests and backend builds require an exact match to .bun-version and stop with a version message when Bun differs.

@@ -11,6 +11,7 @@ import {
   PacketReview,
   PacketSource,
 } from "#lib/review/packet.ts";
+import { citationHasSourceSupport } from "../../backend/packet-review/citations.ts";
 import { createHeroPdf } from "../fixtures/hero-case.ts";
 import {
   decodeRequest,
@@ -473,3 +474,22 @@ test.each([
   },
   120000,
 );
+
+test("unread browser citations accept empty quote and note without becoming verified evidence", () => {
+  const citation = Schema.decodeUnknownSync(PacketCitation)({
+    id: id(),
+    sourceId: null,
+    jurisdiction: "Florida",
+    document: "FBC Mechanical",
+    edition: "2023 8th Edition",
+    section: "803",
+    quote: "",
+    note: "",
+    application: "Vent sizing on M-101.",
+    status: "unverified",
+  });
+
+  expect(citation.quote).toBe("");
+  expect(citation.note).toBe("");
+  expect(citationHasSourceSupport(citation, undefined)).toBe(false);
+});

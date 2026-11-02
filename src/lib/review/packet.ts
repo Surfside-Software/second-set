@@ -72,6 +72,31 @@ export const citationStanding = (
     ? ("indexed" as const)
     : citation.status;
 
+/** Hide access-only boilerplate for indexed browser links without changing the stored note. */
+export function citationDisplayNote(
+  citation: Pick<typeof PacketCitation.Type, "status" | "reference" | "note">,
+): string {
+  if (citationStanding(citation) !== "indexed" || citation.reference?.access !== "open_in_browser")
+    return citation.note;
+
+  return (
+    citation.note
+      .match(/[^;]+?(?:[.!?](?=\s|$)|;|$)/g)
+      ?.filter(
+        (clause) =>
+          !/^(?:(?:the )?(?:engineer|reviewer|user) (?:must|should|needs to) open\b|open (?:the |this )?(?:link|section|page)\b)/i.test(
+            clause.trim(),
+          ) &&
+          !/^(?:the )?(?:ICC Digital Codes|Florida rule(?:s| pages?)?|rule[- ]page|section(?: content)?|source(?: text)?|governing text|official text|link|text)\b.*(?:\b(?:could not|cannot|can't|not|unable to)\s+(?:be\s+)?(?:read|retriev\w*|access\w*|open\w*|fetch\w*|load\w*|available for automated reading)\b|\bblock\w*\s+(?:reading|retrieval|access|opening|fetching|loading)\b|\b(?:inaccessible|unavailable for automated reading)\b)/i.test(
+            clause.trim(),
+          ),
+      )
+      .join("")
+      .trim()
+      .replace(/;$/, "") ?? ""
+  );
+}
+
 /** Short labels for a citation's standing. */
 export const citationStandingLabels = {
   verified: "Verified",

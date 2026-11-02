@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Schema } from "effect";
   import {
+    citationDisplayNote,
     citationStanding,
     citationStandingLabels,
     type PacketCitation,
@@ -17,6 +18,7 @@
     onOpen: (url: string) => void;
   } = $props();
 
+  const note = $derived(citationDisplayNote(citation));
   const standing = $derived(citationStanding(citation));
   const reference = $derived(citation.reference);
   const name = $derived(reference?.title ?? citation.section);
@@ -76,7 +78,7 @@
       {#if reference?.check}<p>{reference.check}</p>{/if}
       {#if citation.application}<p>{citation.application}</p>{/if}
       {#if showQuote}<blockquote>{citation.quote}</blockquote>{/if}
-      {#if citation.note}<p class="note">{citation.note}</p>{/if}
+      {#if note}<p class="note">{note}</p>{/if}
     </div>
   </details>
   {#if openable}<button

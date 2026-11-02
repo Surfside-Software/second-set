@@ -16,6 +16,7 @@ import type { CloudSandboxPort } from "../../backend/cloud/sandbox-port.ts";
 import {
   cloudEngineIdentity,
   CloudWorkerProgress,
+  CloudEngineIdentity,
   CloudWorkerRequest,
   WarmSandboxMessage,
   type CloudReviewRecord,
@@ -838,6 +839,7 @@ test("dispatched protocol-4 results survive the protocol 5 upgrade without admit
       };
 
       expect(Schema.is(CloudWorkerProgress)(prior)).toBe(false);
+      expect(Schema.is(CloudEngineIdentity)(prior.identity)).toBe(false);
       expect(() =>
         Schema.decodeUnknownSync(WarmSandboxMessage)(
           JSON.stringify({
@@ -879,56 +881,60 @@ test("dispatched protocol-4 results survive the protocol 5 upgrade without admit
   }
 });
 
-test("dispatched protocol-5 jobs on packet prompt v6 stay readable after the v7 upgrade", async () => {
-  const session = await fixture();
-  const runtime = session.open();
+test.each(["moke-packet-review-v6", "moke-packet-review-v7"])(
+  "dispatched protocol-5 jobs stay readable after the v8 upgrade: %s",
+  async (packetPrompt) => {
+    const session = await fixture();
+    const runtime = session.open();
 
-  try {
-    const cloud = await runtime.runPromise(CloudReviews);
-    await runtime.runPromise(cloud.start(request()));
+    try {
+      const cloud = await runtime.runPromise(CloudReviews);
+      await runtime.runPromise(cloud.start(request()));
 
-    const recorded = (
-      await Effect.runPromise(readCloudState(join(session.directory, "state.json")))
-    )[0];
+      const recorded = (
+        await Effect.runPromise(readCloudState(join(session.directory, "state.json")))
+      )[0];
 
-    if (recorded === undefined) throw new Error("Missing admitted receipt");
+      if (recorded === undefined) throw new Error("Missing admitted receipt");
 
-    const prior = {
-      id: recorded.id,
-      identity: { ...cloudEngineIdentity, packetPrompt: "moke-packet-review-v6" },
-      phase: "ready",
-      execution: null,
-      message: "Saved result from a v6 worker",
-    };
+      const prior = {
+        id: recorded.id,
+        identity: { ...cloudEngineIdentity, packetPrompt, codeIndex: "florida-code-index-v1" },
+        phase: "ready",
+        execution: null,
+        message: "Saved result from a v6 worker",
+      };
 
-    expect(Schema.is(CloudWorkerProgress)(prior)).toBe(false);
+      expect(Schema.is(CloudWorkerProgress)(prior)).toBe(false);
+      expect(Schema.is(CloudEngineIdentity)(prior.identity)).toBe(false);
 
-    for (const phase of ["dispatching", "running"] as const)
-      expect(
-        (
-          await Effect.runPromise(
-            parseCloudWorkerProgress({ ...recorded, phase }, JSON.stringify(prior)),
-          )
-        ).identity.packetPrompt,
-      ).toBe("moke-packet-review-v6");
+      for (const phase of ["dispatching", "running"] as const)
+        expect(
+          (
+            await Effect.runPromise(
+              parseCloudWorkerProgress({ ...recorded, phase }, JSON.stringify(prior)),
+            )
+          ).identity.packetPrompt,
+        ).toBe(packetPrompt);
 
-    for (const receipt of [
-      { ...recorded, phase: "preparing" as const },
-      { ...recorded, phase: "ready" as const },
-      { ...recorded, phase: "running" as const, workerProtocol: 4 as const },
-    ])
-      expect(
-        (
-          await Effect.runPromise(
-            parseCloudWorkerProgress(receipt, JSON.stringify(prior)).pipe(Effect.flip),
-          )
-        ).reason,
-      ).toBe("incompatible");
-  } finally {
-    await runtime.dispose();
-    await session.dispose();
-  }
-});
+      for (const receipt of [
+        { ...recorded, phase: "preparing" as const },
+        { ...recorded, phase: "ready" as const },
+        { ...recorded, phase: "running" as const, workerProtocol: 4 as const },
+      ])
+        expect(
+          (
+            await Effect.runPromise(
+              parseCloudWorkerProgress(receipt, JSON.stringify(prior)).pipe(Effect.flip),
+            )
+          ).reason,
+        ).toBe("incompatible");
+    } finally {
+      await runtime.dispose();
+      await session.dispose();
+    }
+  },
+);
 
 test("cloud setup validates remote prerequisites and failed preflight never creates an owner", async () => {
   const session = await fixture();
@@ -1019,6 +1025,7 @@ test("already-dispatched packet prompt v1 jobs remain recoverable without admitt
     };
 
     expect(Schema.is(CloudWorkerProgress)(prior)).toBe(false);
+    expect(Schema.is(CloudEngineIdentity)(prior.identity)).toBe(false);
     expect(
       (await Effect.runPromise(parseCloudWorkerProgress(protocol3, JSON.stringify(prior)))).identity
         .packetPrompt,

@@ -387,7 +387,7 @@ are fenced while the cloud owns the workspace.
 
 New reviews are admitted only to a protocol-5 worker whose identity matches this
 build exactly: package engine `review-pi-1.4.0-v1`, count prompt
-`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v7`, and the
+`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v8`, and the
 current instruction revision and code index version. Every new ownership receipt
 records `workerProtocol: 5`. An image with a different identity fails the
 identity probe before transfer. Migrations are not part of the identity: a worker
@@ -398,14 +398,14 @@ prompts, migrations or the code index change.
 
 Recovery only observes work already `dispatching` or `running`; it never
 redispatches or restarts a model. Earlier identities must still match the current
-engine, count prompt and instruction revision, and omit the code index:
+engine, count prompt and instruction revision. Protocols 2 to 4 omit the code index; earlier protocol-5 workers use index v1:
 
-| Receipt `workerProtocol`                  | Progress accepted while dispatched           |
-| ----------------------------------------- | -------------------------------------------- |
-| Absent, saved by protocol-2 or 3 desktops | Protocol 2 or 3 with packet prompts v1 to v3 |
-| `3`                                       | Protocol 3 with packet prompts v1 to v3      |
-| `4`                                       | Protocol 4 with packet prompts v3 to v5      |
-| `5`                                       | Protocol 5 with packet prompt v6 or v7       |
+| Receipt `workerProtocol`                  | Progress accepted while dispatched             |
+| ----------------------------------------- | ---------------------------------------------- |
+| Absent, saved by protocol-2 or 3 desktops | Protocol 2 or 3 with packet prompts v1 to v3   |
+| `3`                                       | Protocol 3 with packet prompts v1 to v3        |
+| `4`                                       | Protocol 4 with packet prompts v3 to v5        |
+| `5`                                       | Protocol 5 with v8/index v2, or v6/v7/index v1 |
 
 Receipts in every other phase accept only current progress.
 
@@ -438,6 +438,8 @@ tool list and builds every sheet reviewer's opening from a saved setup snapshot.
 Publish a new worker image with `bun run modal:image` before sending v7 reviews;
 a v6 image fails the identity probe before transfer. Jobs already sent to a v6
 worker stay readable.
+
+Packet prompt `moke-packet-review-v8` removes access boilerplate and paraphrases of unread code text. It ships with `florida-code-index-v2` and requires a newly published worker image. Protocol remains 5; dispatched v6/v7 jobs with index v1 stay readable, but those identities cannot admit new work.
 
 The protocol-3 handshake required support for explicit revision, selected-sheet
 and persisted-discipline scope, and includes both packet and count prompt versions.

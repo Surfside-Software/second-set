@@ -6,7 +6,7 @@ the upstream paths and SHA-256 hashes. Read the original skill repository to
 update them; this application does not edit that source repository.
 
 `review-prompt.ts` imports the files with Bun's text loader, embedding them in the
-compiled backend. Packet review version `moke-packet-review-v7` supplies the full
+compiled backend. Packet review version `moke-packet-review-v8` supplies the full
 master AGENTS.md and REVIEW_METHOD.md, including Report and release, as Pi
 Durable's conversation `agent.instructions`. The reviewer request and document
 inventory are separate input data. Each run records the prompt version and
@@ -123,3 +123,5 @@ lose `record_project` and report a different project fact in their notes. The
 coordinator's guidance describes setup's sheet and request limits, and
 `read_source` can reread a saved source by `sourceId`. See
 [docs/review-runtime.md](../../../docs/review-runtime.md#parallel-packet-reviews).
+
+Packet review `moke-packet-review-v8` leaves quotes empty for unread ICC and Florida rule text, and notes empty except for project-specific facts. The host records the access limit required by REVIEW_METHOD.md.

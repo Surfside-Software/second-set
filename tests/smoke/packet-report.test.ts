@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Schema } from "effect";
 import { renderPacketReport } from "../../backend/packet-review/report.ts";
-import { PacketReview, PacketScope } from "#lib/review/packet.ts";
+import { citationDisplayNote, PacketReview, PacketScope } from "#lib/review/packet.ts";
 import { initializePacketCoverage } from "#lib/review/packet-coverage.ts";
 
 const identifiers = {
@@ -483,4 +483,110 @@ test("discipline reports cannot borrow General coverage and do not inherit unrel
   const html = renderPacketReport(scoped, new Map());
   expect(html).toContain("Requested review recorded");
   expect(html).toContain("An earlier General check still needs its source.");
+});
+
+test("indexed report citations show their standing and check without presenting unread paraphrases", () => {
+  const base = review();
+  const citation = base.citations[0];
+
+  if (!citation) throw new Error("Missing citation fixture");
+
+  const reference = {
+    id: "index-entry",
+    document: "FBC Mechanical",
+    edition: "2023 8th Edition",
+    title: "802/803 Vents & Connectors",
+    check: "Check vent sizing.",
+    url: "https://codes.iccsafe.org/content/FLMC2023P2/chapter-8#FLMC2023P2_Ch08_Sec803",
+    access: "open_in_browser" as const,
+  };
+
+  const quote =
+    "Requires vents to be sized (section content not retrieved; ICC Digital Codes blocks retrieval).";
+
+  const note =
+    "ICC Digital Codes link could not be read here; the engineer must open the link and confirm.";
+
+  const indexed = { ...citation, reference, quote, note };
+  const html = renderPacketReport(review({ citations: [indexed] }), new Map());
+  expect(html).toContain(">Indexed</span>");
+  expect(html).toContain(reference.url);
+  expect(html).toContain(reference.check);
+  expect(html).toContain("its wording has not been confirmed");
+  expect(html).not.toContain(quote);
+  expect(html).not.toContain("could not be read here");
+
+  const citationLog = (report: string) =>
+    report.split('<section aria-labelledby="citations">')[1]?.split("</section>")[0] ?? "";
+
+  expect(citationLog(html)).not.toContain("Not recorded.");
+  expect(
+    citationLog(renderPacketReport(review({ citations: [{ ...indexed, note: "" }] }), new Map())),
+  ).not.toContain("Not recorded.");
+  expect(
+    citationLog(renderPacketReport(review({ citations: [{ ...citation, note: "" }] }), new Map())),
+  ).toContain("Not recorded.");
+  expect(html).not.toContain("<h4>Governing text</h4>");
+  expect(html).toContain("1 of 1 citations remain unverified or incorrect.");
+
+  const unresolved = renderPacketReport(review({ citations: [{ ...citation, quote }] }), new Map());
+  expect(unresolved).toContain(">Unverified</span>");
+  expect(unresolved).toContain(quote);
+  expect(unresolved).toContain("<h4>Governing text</h4>");
+});
+
+test("citation display notes remove only browser access clauses and preserve project facts", () => {
+  const citation = review().citations[0];
+
+  if (!citation) throw new Error("Missing citation fixture");
+
+  const reference = {
+    id: "index-entry",
+    document: "FBC Mechanical",
+    edition: "2023",
+    title: "803 Vents",
+    check: "Check sizing.",
+    url: "https://codes.iccsafe.org/",
+    access: "open_in_browser" as const,
+  };
+
+  const boilerplate =
+    "ICC Digital Codes link could not be read here; the engineer must open the link and confirm.";
+
+  const fact = "Sheet cites the 2020 edition; 2023 governs.";
+
+  const facts = [
+    "Section 1004 does not apply because the space is unoccupied.",
+    "Section 803 not applicable to this project.",
+    "The section was not adopted by this jurisdiction.",
+    "Source text on sheet M-2 cannot be reconciled with the schedule.",
+    "Link on sheet G-1 cites the wrong chapter, not 803.",
+    "Text on A-101 is not legible at this scale.",
+    fact,
+  ];
+
+  const accessNotes = [
+    boilerplate,
+    "Section content not retrieved; ICC Digital Codes blocks retrieval.",
+    "Official text was not available for automated reading.",
+    "Official text was inaccessible.",
+    "Open the link to confirm the wording.",
+    "Florida rule page could not be accessed. Open the link and confirm.",
+  ];
+
+  const samples = [
+    ...facts.map((note) => [note, note]),
+    ...accessNotes.map((note) => [note, ""]),
+    ...accessNotes.map((note) => [`${note}; ${fact}`, fact]),
+    [
+      "Sheet cites the 2020 edition; ICC Digital Codes link could not be read here.",
+      "Sheet cites the 2020 edition",
+    ],
+  ];
+
+  for (const [note = "", expected = ""] of samples) {
+    expect(citationDisplayNote({ ...citation, reference, note })).toBe(expected);
+    expect(citationDisplayNote({ ...citation, note })).toBe(note);
+    expect(citationDisplayNote({ ...citation, reference, status: "verified", note })).toBe(note);
+  }
 });

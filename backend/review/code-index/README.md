@@ -27,7 +27,7 @@ Each entry's `access` says how a reviewer reads the text it points to.
 
 A citation that names no `search_code` result still gets its link when its
 document, edition and section identify one index entry. A subsection falls back
-to its indexed parent section, and another edition never matches. The workbench
+to its deepest indexed parent section, including sections explicitly listed in a multi-section title. Same-chapter ICC anchors are retargeted to the cited section; cross-chapter links are never guessed. Explicit search result IDs use the same resolution. Another edition never matches. The workbench
 shows an unverified citation with a link as Indexed, because its section is known
 and only its wording is unconfirmed.
 

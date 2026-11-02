@@ -155,9 +155,68 @@ const volumeName = (document: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-// Titles can mention several sections or another standard. Only the link's actual target is safe
-// for automatic single-section resolution; an exact title section set can also resolve.
-// search_code still returns the complete, unmodified index entry.
+/** Sections explicitly starting slash-separated title segments or a leading section range. */
+export function listedCodeSections(entry: CodeReference): ReadonlyArray<string> {
+  const leading = /^([A-Z]{0,2}\d{3,4}(?:\.\d+)*)(?=\s|\/|$)/;
+
+  const range = /^([A-Z]{0,2}\d{3,4}(?:\.\d+)*)-([A-Z]{0,2}\d{3,4}(?:\.\d+)*)(?=\s|$)/.exec(
+    entry.title,
+  );
+
+  const sections = range
+    ? [range[1] ?? "", range[2] ?? ""]
+    : entry.title.split("/").flatMap((part) => {
+        const section = leading.exec(part.trim())?.[1];
+
+        return section === undefined ? [] : [section];
+      });
+
+  return sections.length > 1 ? sections : [];
+}
+
+const sectionChapter = (section: string) => {
+  const digits = /^[A-Z]*(\d{3,4})/i.exec(section)?.[1];
+
+  return digits === undefined ? undefined : Number(digits.slice(0, -2));
+};
+
+const referenceForSection = (entry: CodeReference, section: string) => {
+  if (linkedSection(entry) === section.toLowerCase()) return entry;
+
+  if (!listedCodeSections(entry).some((listed) => listed.toLowerCase() === section.toLowerCase()))
+    return undefined;
+  const url = new URL(entry.url);
+  const chapter = /_Ch(\d+)(?:_SubCh\d+)?_Sec[A-Z]{0,2}\d+(?:\.\d+)*$/i.exec(url.hash)?.[1];
+
+  if (
+    url.hostname !== "codes.iccsafe.org" ||
+    chapter === undefined ||
+    Number(chapter) !== sectionChapter(section)
+  )
+    return undefined;
+  url.hash = url.hash.replace(/_Sec[A-Z]{0,2}\d+(?:\.\d+)*$/i, `_Sec${section.toUpperCase()}`);
+
+  return new CodeReference(Struct.assign(entry, { url: url.href }));
+};
+
+/** Preserve an explicit selection, retargeting only one listed section or its subsection. */
+export function selectedCodeReference(entry: CodeReference, section: string): CodeReference {
+  const sections = [...new Set(section.toUpperCase().match(sectionPattern) ?? [])];
+  const [number] = sections;
+
+  if (sections.length !== 1 || number === undefined) return entry;
+
+  const listed = listedCodeSections(entry).filter(
+    (value) => number === value.toUpperCase() || number.startsWith(`${value.toUpperCase()}.`),
+  );
+
+  const [target] = listed;
+
+  return listed.length === 1 && target !== undefined
+    ? (referenceForSection(entry, target) ?? entry)
+    : entry;
+}
+
 const linkedSection = (entry: CodeReference) => {
   const url = new URL(entry.url);
 
@@ -197,20 +256,34 @@ export function resolveCodeReference(
       editions.every((edition) => entry.edition.toLowerCase().includes(edition)),
   );
 
-  const exact = candidates.filter((entry) =>
-    sections.length === 1
-      ? linkedSection(entry) === section
-      : entry.sections.length === sections.length &&
-        entry.sections.every((value) => sections.includes(value.toUpperCase())),
-  );
+  const exact = candidates.flatMap((entry) => {
+    if (sections.length === 1) {
+      const resolved = referenceForSection(entry, sectionNumber);
 
-  const parents = candidates.flatMap((entry) => {
-    const parent = linkedSection(entry);
+      return resolved === undefined ? [] : [resolved];
+    }
 
-    return sections.length === 1 && parent !== undefined && section.startsWith(`${parent}.`)
-      ? [{ entry, length: parent.length }]
+    const listed = listedCodeSections(entry);
+
+    return listed.length === sections.length &&
+      listed.every((value) => sections.includes(value.toUpperCase()))
+      ? [entry]
       : [];
   });
+
+  const parents = candidates.flatMap((entry) =>
+    [...new Set([linkedSection(entry), ...listedCodeSections(entry)])].flatMap((parent) => {
+      if (
+        sections.length !== 1 ||
+        parent === undefined ||
+        !section.startsWith(`${parent.toLowerCase()}.`)
+      )
+        return [];
+      const resolved = referenceForSection(entry, parent);
+
+      return resolved === undefined ? [] : [{ entry: resolved, length: parent.length }];
+    }),
+  );
 
   const deepest = Math.max(0, ...parents.map((parent) => parent.length));
 

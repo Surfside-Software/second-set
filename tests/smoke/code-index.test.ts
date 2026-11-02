@@ -9,6 +9,7 @@ import {
   CodeReference,
   codeReference,
   floridaCodeIndex,
+  listedCodeSections,
   parseCodeReferences,
   resolveCodeReference,
   searchCodeReferences,
@@ -90,7 +91,7 @@ test("a citation that names no search result resolves to its one indexed section
   // A subsection falls back to the section the link actually opens.
   expect(resolve("FBC Building", "2023 8th Edition", "1004.5")).toBe("1004 Occupant Load");
   expect(resolve("FBC Mechanical", "2023 8th Edition", "802")).toBe("802/803 Vents & Connectors");
-  expect(resolve("FBC Mechanical", "2023 8th Edition", "803")).toBeUndefined();
+  expect(resolve("FBC Mechanical", "2023 8th Edition", "803")).toBe("802/803 Vents & Connectors");
   // Existing Building is a different volume from Building, despite the shared word.
   expect(resolve("FBC Existing Building", "2023 8th Edition", "301.3")).toBe(
     "301.3 Compliance path election",
@@ -110,7 +111,7 @@ test("automatic citation links follow URL sections, reject ambiguity and respect
   const resolve = (document: string, section: string, edition = "2023 8th Edition") =>
     resolveCodeReference(floridaCodeIndex, { document, edition, section });
 
-  expect(resolve("FBC Building", "303")).toBeUndefined();
+  expect(resolve("FBC Building", "303")?.url).toEndWith("_Sec303");
   expect(resolve("FBC Building", "304")?.url).toEndWith("_Sec304");
   expect(resolve("FBC Building", "318")).toBeUndefined();
   expect(resolve("FBC Mechanical", "1004")?.url).toContain("FLMC2023P2");
@@ -141,7 +142,7 @@ test("multi-section citations resolve only a complete title set at one unambiguo
     );
   }
 
-  for (const section of ["803", "802, 803, 804", "802 and 1105", "802.1/803"]) {
+  for (const section of ["802, 803, 804", "802 and 1105", "802.1/803"]) {
     expect(resolveCodeReference(floridaCodeIndex, { ...citation, section })).toBeUndefined();
   }
 
@@ -169,77 +170,183 @@ test("multi-section citations resolve only a complete title set at one unambiguo
   ).toBeUndefined();
 });
 
-test("a citation names a search_code result and the host attaches its link", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-code-citation-"));
-
-  const SearchOutput = Schema.Struct({
-    index: Schema.String,
-    results: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
-  });
-
-  const citationId = id();
-  let resultId: string | undefined;
-  let rejected = false;
-  let step = 0;
-
-  const citation = (codeReferenceId: string) => ({
-    id: citationId,
-    sourceId: null,
-    jurisdiction: "Florida",
+test.each([
+  {
+    section: "1004",
     document: "Florida Building Code, Building",
     edition: "2023 8th Edition",
-    section: "1004",
-    quote: "",
-    application: "Occupant load posted on the life safety plan.",
-    status: "verified",
-    note: "",
-    codeReferenceId,
-  });
+    target: "1004",
+  },
+  { section: "803", document: "FBC Mechanical", edition: "2023 8th Edition", target: "803" },
+  { section: "803.1", document: "FBC Mechanical", edition: "2023 8th Edition", target: "803" },
+  { section: "802/803", document: "FBC Mechanical", edition: "2023 8th Edition", target: "802" },
+  { section: "803", document: "Florida Mechanical Code", edition: "2023", target: "803" },
+  { section: "802", document: "FBC Mechanical Code", edition: "2023", target: "802" },
+  { section: "803", document: "FBC Mechanical", edition: "2020 7th Edition", target: "803" },
+  { section: "Chapter 8", document: "FBC Mechanical", edition: "2023", target: "802" },
+  { section: "803", document: "", edition: "", target: "803" },
+])(
+  "a citation names a search_code result and the host attaches its link: %s",
+  async ({ section, document, edition, target }) => {
+    const directory = await mkdtemp(join(tmpdir(), "moke-code-citation-"));
 
-  const session = await open(directory, async (_url, init) => {
-    const request = decodeRequest(init);
-
-    switch (step++) {
-      case 0:
-        return response([{ name: "search_code", arguments: { query: "occupant load", limit: 2 } }]);
-      case 1:
-        resultId = outputs(SearchOutput, request).at(-1)?.results[0]?.id;
-
-        return response([{ name: "record_citation", arguments: citation("not-an-index-id") }]);
-      case 2:
-        rejected = JSON.stringify(request).includes("Unknown code reference");
-
-        return response([{ name: "record_citation", arguments: citation(resultId ?? "") }]);
-      default:
-        return response([], "Code citation fixture finished.");
-    }
-  });
-
-  try {
-    const started = await session.run(
-      session.packets.start(await session.request("Check the occupant load requirement.")),
-    );
-
-    const finished = await until(session, started.id, "failed");
-    const recorded = finished.citations.find((entry) => entry.id === citationId);
-    const indexed = codeReference(resultId ?? "");
-
-    expect(indexed?.title).toBe("1004 Occupant Load");
-    expect(rejected).toBe(true);
-    expect(Schema.is(PacketCitation)(recorded)).toBe(true);
-    expect(recorded?.reference).toEqual({
-      id: indexed?.id ?? "",
-      document: "FBC Building (Commercial)",
-      edition: "2023 8th Edition",
-      title: "1004 Occupant Load",
-      check: indexed?.check ?? "",
-      url: indexed?.url ?? "",
-      access: "open_in_browser",
+    const SearchOutput = Schema.Struct({
+      index: Schema.String,
+      results: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
     });
-    // A pointer is not retrieved text, so a verified claim without a source stays unverified.
-    expect(recorded?.status).toBe("unverified");
-  } finally {
-    await session.dispose();
-    await rm(directory, { recursive: true, force: true });
+
+    const citationId = id();
+    let resultId: string | undefined;
+    let rejected = false;
+    let step = 0;
+
+    const citation = (codeReferenceId: string) => ({
+      id: citationId,
+      sourceId: null,
+      jurisdiction: "Florida",
+      document,
+      edition,
+      section,
+      quote: "",
+      application: "Occupant load posted on the life safety plan.",
+      status: "unverified",
+      note: "",
+      codeReferenceId,
+    });
+
+    const session = await open(directory, async (_url, init) => {
+      const request = decodeRequest(init);
+
+      switch (step++) {
+        case 0:
+          return response([
+            {
+              name: "search_code",
+              arguments: {
+                query: section === "1004" ? "occupant load" : "802 803 vents connectors",
+                limit: 2,
+              },
+            },
+          ]);
+        case 1:
+          resultId = outputs(SearchOutput, request).at(-1)?.results[0]?.id;
+
+          return response([{ name: "record_citation", arguments: citation("not-an-index-id") }]);
+        case 2:
+          rejected = JSON.stringify(request).includes("Unknown code reference");
+
+          return response([{ name: "record_citation", arguments: citation(resultId ?? "") }]);
+        default:
+          return response([], "Code citation fixture finished.");
+      }
+    });
+
+    try {
+      const started = await session.run(
+        session.packets.start(await session.request("Check the occupant load requirement.")),
+      );
+
+      const finished = await until(session, started.id, "failed");
+      const recorded = finished.citations.find((entry) => entry.id === citationId);
+      const indexed = codeReference(resultId ?? "");
+
+      expect(indexed?.title).toBe(
+        section === "1004" ? "1004 Occupant Load" : "802/803 Vents & Connectors",
+      );
+      expect(rejected).toBe(true);
+      expect(Schema.is(PacketCitation)(recorded)).toBe(true);
+      expect(recorded?.reference).toEqual({
+        id: indexed?.id ?? "",
+        document: indexed?.document ?? "",
+        edition: "2023 8th Edition",
+        title: indexed?.title ?? "",
+        check: indexed?.check ?? "",
+        url:
+          target === "803"
+            ? (indexed?.url.replace("_Sec802", "_Sec803") ?? "")
+            : (indexed?.url ?? ""),
+        access: "open_in_browser",
+      });
+      // A pointer is not retrieved text, so a verified claim without a source stays unverified.
+      expect(recorded?.status).toBe("unverified");
+      expect(recorded?.quote).toBe("");
+      expect(recorded?.note).toBe("");
+    } finally {
+      await session.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  120000,
+);
+
+test("every explicitly listed section resolves within its chapter", () => {
+  for (const entry of floridaCodeIndex) {
+    for (const section of listedCodeSections(entry)) {
+      const resolved = resolveCodeReference(floridaCodeIndex, {
+        document: entry.document,
+        edition: entry.edition,
+        section,
+      });
+
+      expect(resolved, `${entry.title}: ${section}`).toBeDefined();
+      const chapter = /_Ch(\d+)/.exec(new URL(resolved?.url ?? entry.url).hash)?.[1];
+      const digits = section.replace(/^[A-Z]+/, "").split(".")[0] ?? "";
+      expect(Number(chapter)).toBe(Number(digits.slice(0, -2)));
+    }
   }
-}, 120000);
+});
+
+test("listed sections retarget explicit entries, preserve identity and fall back to deepest parents", () => {
+  const entry = floridaCodeIndex.find((entry) => entry.title === "802/803 Vents & Connectors");
+
+  if (!entry) throw new Error("Missing vents entry");
+
+  for (const section of ["803", "803.1"]) {
+    const resolved = resolveCodeReference([entry], {
+      document: entry.document,
+      edition: entry.edition,
+      section,
+    });
+
+    expect(resolved?.url).toEndWith("_Sec803");
+    expect(resolved?.id).toBe(entry.id);
+    expect(resolved?.title).toBe(entry.title);
+  }
+
+  expect(entry.url).toEndWith("_Sec802");
+
+  for (const [document, section] of [
+    ["FBC Building", "318"],
+    ["Florida Administrative Code", "101"],
+    ["Florida Administrative Code", "2021"],
+    ["Florida Building Code", "2024"],
+  ])
+    expect(
+      resolveCodeReference(floridaCodeIndex, {
+        document: document ?? "",
+        section: section ?? "",
+        edition: "",
+      }),
+    ).toBeUndefined();
+});
+
+test("listed sections never guess missing or cross-chapter anchors", () => {
+  const entry = floridaCodeIndex.find((entry) => entry.title === "802/803 Vents & Connectors");
+
+  if (!entry) throw new Error("Missing vents entry");
+
+  for (const url of [
+    "https://codes.iccsafe.org/content/FLMC2023P2/chapter-8",
+    "https://codes.iccsafe.org/content/FLMC2023P2/chapter-8#FLMC2023P2_Sec802",
+    "https://codes.iccsafe.org/content/FLMC2023P2/chapter-7#FLMC2023P2_Ch07_Sec802",
+  ]) {
+    const changed = new CodeReference(Struct.assign(entry, { url }));
+    expect(
+      resolveCodeReference([changed], {
+        document: entry.document,
+        edition: entry.edition,
+        section: "803",
+      }),
+    ).toBeUndefined();
+  }
+});

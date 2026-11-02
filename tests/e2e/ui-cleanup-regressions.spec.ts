@@ -182,7 +182,8 @@ test("coverage keeps unexplained exclusions in Needs input and clears details hi
       "Florida Building Code, Building · 2020 7th Edition · 1006.2",
     );
     await expect(citations.first()).toContainText("1006.2");
-    await expect(citations.first()).toContainText("Official text was inaccessible");
+    await expect(citations.first()).not.toContainText("Official text was inaccessible");
+    await expect(citations.first()).toContainText("Confirm the adopted subsection.");
     await citations.nth(1).evaluate((row) => {
       row.style.width = "330px";
     });
