@@ -1,3 +1,4 @@
+import type { ReviewProvider } from "#lib/review/models.ts";
 import { Option, Predicate, Redacted, Schema } from "effect";
 import { createHash } from "node:crypto";
 
@@ -14,7 +15,9 @@ export interface RateLimits {
 export const reportedRateLimits = {
   meta: { requestsPerMinute: 3000, tokensPerMinute: 4_000_000 },
   baseten: { requestsPerMinute: 100, tokensPerMinute: 2_000_000 },
-} as const satisfies Record<"meta" | "baseten", RateLimits>;
+  // Go publishes dollar allowances, not per-minute limits; this is a cautious starting point.
+  "opencode-go": { requestsPerMinute: 300, tokensPerMinute: 4_000_000 },
+} as const satisfies Record<typeof ReviewProvider.Type, RateLimits>;
 
 /** Monotonic time and timers; tests supply a manual clock. */
 export interface PacerClock {
@@ -354,7 +357,10 @@ const shared = new Map<string, RequestPacer>();
  * One pacer per provider credential in this process, so every review, sheet reviewer and count
  * check on the same key shares its limits. The key is identified by a digest, never stored.
  */
-export function sharedPacer(provider: "meta" | "baseten", apiKey: Redacted.Redacted<string>) {
+export function sharedPacer(
+  provider: typeof ReviewProvider.Type,
+  apiKey: Redacted.Redacted<string>,
+) {
   const id = `${provider}:${createHash("sha256").update(Redacted.value(apiKey)).digest("hex").slice(0, 32)}`;
   const known = shared.get(id);
 

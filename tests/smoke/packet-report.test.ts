@@ -485,6 +485,62 @@ test("discipline reports cannot borrow General coverage and do not inherit unrel
   expect(html).toContain("An earlier General check still needs its source.");
 });
 
+test("a citation's retrieved source is the id of a source this review holds, or Not available", () => {
+  const fixture = review();
+  const [citation] = fixture.citations;
+  const [unavailable] = fixture.sources;
+
+  if (citation === undefined || unavailable === undefined) throw new Error("Missing fixture");
+
+  const line = (html: string) => /<dt>Retrieved source<\/dt><dd>([^<]*)<\/dd>/.exec(html)?.[1];
+
+  // A failed read and the model's placeholder are stored on old rows; neither was retrieved.
+  expect(line(renderPacketReport(fixture, new Map()))).toBe("Not available");
+
+  for (const sourceId of ["00000000-0000-0000-0000-000000000000", null])
+    expect(
+      line(renderPacketReport(review({ citations: [{ ...citation, sourceId }] }), new Map())),
+    ).toBe("Not available");
+
+  const available = { ...unavailable, status: "available" as const, sha256: "a".repeat(64) };
+
+  expect(line(renderPacketReport(review({ sources: [available] }), new Map()))).toBe(
+    identifiers.source,
+  );
+});
+
+test("a finding names a prior comment only when this review holds it", () => {
+  const fixture = review();
+  const [finding] = fixture.findings;
+
+  if (finding === undefined) throw new Error("Missing finding fixture");
+
+  // Every finding of two real reviews stored this placeholder, with no prior comments at all.
+  const placeholder = "00000000-0000-0000-0000-000000000000";
+
+  const html = renderPacketReport(
+    review({ findings: [{ ...finding, priorCommentId: placeholder }] }),
+    new Map(),
+  );
+
+  expect(html).not.toContain(`Prior comment ${placeholder}`);
+
+  // A citation id with no stored row is not a supporting citation either.
+  expect(
+    renderPacketReport(
+      review({ findings: [{ ...finding, citationIds: [placeholder] }] }),
+      new Map(),
+    ),
+  ).not.toContain(`Citation ${placeholder}`);
+
+  const real = renderPacketReport(
+    review({ findings: [{ ...finding, priorCommentId: identifiers.prior }] }),
+    new Map(),
+  );
+
+  expect(real).toContain(`Prior comment ${identifiers.prior}`);
+});
+
 test("indexed report citations show their standing and check without presenting unread paraphrases", () => {
   const base = review();
   const citation = base.citations[0];

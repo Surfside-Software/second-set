@@ -1,24 +1,52 @@
 # Inference setup
 
-For development, copy `.env.example` to `.env` and fill in either or both keys:
+For development, copy `.env.example` to `.env` and fill in the keys you use:
 
 ```dotenv
 MODEL_API_KEY=
 BASETEN_API_KEY=
+OPENCODE_API_KEY=
 ```
 
 Bun loads the root `.env` when `bun run dev` starts. Restart after changing it.
-Both configured providers are available together in the Model menu. Keep each
+Configured providers are available together in the Model menu, except that a Go
+key makes Go the only chat choice; see [OpenCode Go](#opencode-go). Keep each
 key with its own provider and endpoint; keys never enter renderer code or logs.
 The repository ignores `.env` and `.env.*` except the blank `.env.example`.
 
 ## Models and routes
 
-| Model                              | Provider | Canonical endpoint                | Credential        |
-| ---------------------------------- | -------- | --------------------------------- | ----------------- |
-| `muse-spark-1.3`                   | Meta     | `https://api.meta.ai/v1`          | `MODEL_API_KEY`   |
-| `muse-wonder-1.0`                  | Meta     | `https://api.meta.ai/v1`          | `MODEL_API_KEY`   |
-| `meta-models/muse-spark-open-1026` | Baseten  | `https://inference.baseten.co/v1` | `BASETEN_API_KEY` |
+| Model                                            | Provider    | Canonical endpoint                    | Credential         |
+| ------------------------------------------------ | ----------- | ------------------------------------- | ------------------ |
+| `muse-spark-1.3`                                 | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
+| `muse-wonder-1.0`                                | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
+| `meta-models/muse-spark-open-1026`               | Baseten     | `https://inference.baseten.co/v1`     | `BASETEN_API_KEY`  |
+| `muse-spark-1.3-contributor`                     | OpenCode Go | `https://opencode.ai/inference/go/v1` | `OPENCODE_API_KEY` |
+| `mimo-v2.6-flash`, `glm-5.3-flash`, `gpt-6-luna` | OpenCode Go | `https://opencode.ai/inference/go/v1` | `OPENCODE_API_KEY` |
+
+## OpenCode Go
+
+The **Initial Review** button uses Muse Spark 1.3 Contributor when OpenCode Go is connected, and
+Meta's Muse Spark 1.3 otherwise. Go is a subscription with monthly dollar allowances, a 5-hour cap of
+20% and a weekly cap of 50%; see its [pricing](https://opencode.ai/docs/go/).
+
+**Muse Spark Contributor trains on your drawings.** Go sells it at a discount in exchange for using
+prompts and completions to train Meta's models, and it is not zero-retention. An owner must turn on
+**Allow paid endpoints that train on request data** in the workspace's Settings > Privacy, or Go
+refuses it. The other three Go models here do not train: MiMo-V2.6-Flash and GLM-5.3-Flash keep
+nothing, and GPT-6 Luna keeps abuse logs for 30 days. They have not been tried on drawings.
+
+- **Traffic.** Go is designed for coding agents and monitors traffic for abuse. Parallel drawing
+  reviews are not typical coding traffic. Moke identifies itself as `moke-review/1.0`, sends a session
+  ID per prompt prefix and runs 16 sheet reviewers at a time.
+- **Images.** Go has no Files API, so images travel inline. Reviews keep the eight-image window Baseten
+  uses, so a reviewer inspects a batch before requesting the next.
+- **The only chat route once connected.** With a Go key present, the model menu and the Initial Review
+  button offer only Go models, so a review cannot spend Meta or Baseten credits by accident.
+- **What stays on Meta.** SAM runs only on Meta, so object counting needs `MODEL_API_KEY`. Selected
+  count checks run on Meta or Baseten, because their table admits only those two; a check started while
+  a Go model is selected uses that default route.
+- **Search.** There is no built-in web search; reviewers use `search_sources` and `read_source`.
 
 Keep the `-1026` suffix for the supplied Baseten hackathon key. Public examples
 use `meta-models/muse-spark-open`, which is a different configured model ID. SAM
@@ -28,7 +56,8 @@ key is configured, packet reviews use it with either chat provider; see
 
 `MOKE_PROVIDER` chooses the preferred startup provider, with `meta` as the
 default. Each review saves the model selected in the workbench. Changing the menu
-does not change an existing run or silently substitute another provider. The
+does not change an existing run. When Go is connected, a follow-up whose earlier
+model the menu no longer offers moves to the first Go model. The
 other endpoint and model variables in `.env.example` support experiment scripts;
 they do not override the desktop's canonical routes.
 

@@ -30,7 +30,7 @@ const Protocol4CloudWorkerProgress = priorWorkerProgress(4, [
   "moke-packet-review-v5",
 ]);
 
-// Earlier protocol-5 images used the v1 index and packet prompts v6 or v7.
+// Earlier protocol-5 images used packet prompts v6 or v7 with the v1 index, then v8 with v2.
 const Protocol5CloudWorkerProgress = Schema.Union([
   CloudWorkerProgress,
   Schema.Struct({
@@ -39,6 +39,14 @@ const Protocol5CloudWorkerProgress = Schema.Union([
       ...CloudEngineIdentity.fields,
       packetPrompt: Schema.Literals(["moke-packet-review-v6", "moke-packet-review-v7"]),
       codeIndex: Schema.Literal("florida-code-index-v1"),
+    }),
+  }),
+  Schema.Struct({
+    ...CloudWorkerProgress.fields,
+    identity: Schema.Struct({
+      ...CloudEngineIdentity.fields,
+      packetPrompt: Schema.Literal("moke-packet-review-v8"),
+      codeIndex: Schema.Literal("florida-code-index-v2"),
     }),
   }),
 ]);

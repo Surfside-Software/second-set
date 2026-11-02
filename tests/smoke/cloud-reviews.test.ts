@@ -881,9 +881,13 @@ test("dispatched protocol-4 results survive the protocol 5 upgrade without admit
   }
 });
 
-test.each(["moke-packet-review-v6", "moke-packet-review-v7"])(
-  "dispatched protocol-5 jobs stay readable after the v8 upgrade: %s",
-  async (packetPrompt) => {
+test.each([
+  ["moke-packet-review-v6", "florida-code-index-v1"],
+  ["moke-packet-review-v7", "florida-code-index-v1"],
+  ["moke-packet-review-v8", "florida-code-index-v2"],
+] as const)(
+  "dispatched protocol-5 jobs stay readable after a worker upgrade: %s with %s",
+  async (packetPrompt, codeIndex) => {
     const session = await fixture();
     const runtime = session.open();
 
@@ -899,10 +903,10 @@ test.each(["moke-packet-review-v6", "moke-packet-review-v7"])(
 
       const prior = {
         id: recorded.id,
-        identity: { ...cloudEngineIdentity, packetPrompt, codeIndex: "florida-code-index-v1" },
+        identity: { ...cloudEngineIdentity, packetPrompt, codeIndex },
         phase: "ready",
         execution: null,
-        message: "Saved result from a v6 worker",
+        message: "Saved result from an earlier worker",
       };
 
       expect(Schema.is(CloudWorkerProgress)(prior)).toBe(false);

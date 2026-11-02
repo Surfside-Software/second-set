@@ -58,6 +58,7 @@ test("document QA needs no count check and persisted findings support evidence, 
         "MOKE_SESSION_CREDENTIAL_FILE",
         "MODEL_API_KEY",
         "BASETEN_API_KEY",
+        "OPENCODE_API_KEY",
         "MODAL_TOKEN_ID",
         "MODAL_TOKEN_SECRET",
         "MOKE_MODAL_CONFIG",
@@ -129,6 +130,7 @@ test("document QA needs no count check and persisted findings support evidence, 
     await page.getByRole("button", { name: "Review settings", exact: true }).click();
     const settings = page.getByRole("dialog", { name: "Review settings", exact: true });
     await expect(settings).toContainText("Baseten Connected");
+    await expect(settings).toContainText("OpenCode Go Not connected");
     await expect(
       settings.getByRole("button", { name: /^Maximum calls per inspection:/ }),
     ).toHaveCount(0);

@@ -1,3 +1,4 @@
+import { offeredReviewModels, reviewModels } from "#lib/review/models.ts";
 import { expect, test } from "bun:test";
 import { Redacted } from "effect";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -100,6 +101,19 @@ test("explicit session credentials reject shared Unix permissions and accept a p
   }
 });
 
+test("connecting OpenCode Go makes it the only chat route on offer", () => {
+  const offered = (connected: ReadonlyArray<string>) =>
+    offeredReviewModels(
+      reviewModels.map((model) => ({ ...model, available: connected.includes(model.provider) })),
+    ).map((model) => model.provider);
+
+  // Meta stays connected for SAM and count checks, without appearing as a chat choice.
+  expect(new Set(offered(["meta", "opencode-go"]))).toEqual(new Set(["opencode-go"]));
+  expect(new Set(offered(["meta", "baseten"]))).toEqual(
+    new Set(["meta", "baseten", "opencode-go"]),
+  );
+});
+
 test("accepted trailing-slash routes are saved in the canonical form cloud dispatch requires", async () => {
   const directory = await mkdtemp(join(tmpdir(), "moke-credential-routes-"));
   const source = join(directory, "providers.json");
@@ -110,6 +124,11 @@ test("accepted trailing-slash routes are saved in the canonical form cloud dispa
       provider: "baseten",
       baseUrl: "https://inference.baseten.co/v1",
       model: "meta-models/muse-spark-open-1026",
+    },
+    {
+      provider: "opencode-go",
+      baseUrl: "https://opencode.ai/inference/go/v1",
+      model: "muse-spark-1.3-contributor",
     },
   ];
 
@@ -124,7 +143,9 @@ test("accepted trailing-slash routes are saved in the canonical form cloud dispa
       await writeFile(source, JSON.stringify({ providers }), { mode: 0o600 });
 
       expect(
-        (await readProviderConfigurations(source, true)).map((provider) => provider.baseUrl),
+        (await readProviderConfigurations(source, true)).map(
+          (provider): string => provider.baseUrl,
+        ),
       ).toEqual(routes.map((route) => route.baseUrl));
     }
   } finally {

@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 import { ReviewFilesRpc, ReviewRpc } from "./review/contracts.ts";
+import { ReviewProvider } from "./review/models.ts";
 import { PacketReviewRpc } from "./review/packet.ts";
 import { ExecutionRpc } from "./review/execution.ts";
 import { ReviewPackageFilesRpc } from "./review/packages.ts";
@@ -39,7 +40,7 @@ const ProcessingConfiguration = Schema.Struct({
 
 /** Credentials cross the startup pipe only; application exports never contain them. */
 export const InferenceConfiguration = Schema.Struct({
-  provider: Schema.Literals(["meta", "baseten"]),
+  provider: ReviewProvider,
   apiKey: Schema.RedactedFromValue(Schema.NonEmptyString),
   baseUrl: Schema.String.check(Schema.isPattern(/^https:\/\/[^\s]+$/)),
   model: Schema.NonEmptyString,

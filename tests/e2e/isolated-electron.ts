@@ -50,6 +50,7 @@ export const electron = {
               "ELECTRON_RUN_AS_NODE",
               "MODEL_API_KEY",
               "BASETEN_API_KEY",
+              "OPENCODE_API_KEY",
               "MOKE_SESSION_CREDENTIAL_FILE",
               "MODAL_TOKEN_ID",
               "MODAL_TOKEN_SECRET",

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Effect, Match, Schema } from "effect";
+import { Effect, Match, Schema, Struct } from "effect";
 import { SqlClient } from "effect/sql";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -474,6 +474,241 @@ test.each([
   },
   120000,
 );
+
+test("a citation records a source only when this review retrieved it", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-citation-source-"));
+  let step = 0;
+
+  const placeholder = {
+    id: id(),
+    // The model fills the required field with an all-zeros UUID when it read nothing.
+    sourceId: "00000000-0000-0000-0000-000000000000",
+    jurisdiction: "Florida",
+    document: "FBC Mechanical",
+    edition: "2023 8th Edition",
+    section: "803",
+    quote: "",
+    note: "",
+    application: "Vent connectors on M-101.",
+    status: "unverified",
+  };
+
+  const failedRead = Schema.decodeUnknownSync(PacketSource)({
+    id: id(),
+    url: "https://example.gov/code/2023/803",
+    title: "Florida Mechanical Code",
+    retrievedAt: "2026-11-02T00:00:00.000Z",
+    status: "unavailable",
+    official: true,
+    sha256: null,
+    text: "The source could not be read.",
+  });
+
+  const session = await open(directory, async () => {
+    switch (step++) {
+      case 0:
+        await session.database(
+          Effect.gen(function* () {
+            const sql = yield* SqlClient.SqlClient;
+
+            const rows = yield* Schema.decodeUnknownEffect(
+              Schema.Array(Schema.Struct({ payload: Schema.fromJsonString(PacketReview) })),
+            )(yield* sql`SELECT payload FROM packet_reviews ORDER BY rowid DESC LIMIT 1`);
+
+            const current = rows[0]?.payload;
+
+            if (!current) throw new Error("Missing real review row");
+            const seeded = new PacketReview({ ...current, sources: [failedRead] });
+            yield* sql`UPDATE packet_reviews SET payload=${JSON.stringify(seeded)} WHERE id=${current.id}`;
+          }),
+        );
+
+        return response([
+          { name: "record_citation", arguments: placeholder },
+          {
+            name: "record_citation",
+            arguments: { ...placeholder, id: id(), section: "802", sourceId: failedRead.id },
+          },
+          // An empty string and an omitted field were refused, costing the model a turn each.
+          {
+            name: "record_citation",
+            arguments: { ...placeholder, id: id(), section: "804", sourceId: "" },
+          },
+          {
+            name: "record_citation",
+            arguments: Struct.omit({ ...placeholder, id: id(), section: "805" }, ["sourceId"]),
+          },
+        ]);
+      default:
+        return response([], "Citation source fixture finished.");
+    }
+  });
+
+  try {
+    const started = await session.run(
+      session.packets.start(await session.request("Check the connector requirement.")),
+    );
+
+    const finished = await until(session, started.id, "failed");
+
+    expect(finished.citations.map((citation) => citation.sourceId)).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
+test("a follow-up that leaves a finding's lists empty keeps what the finding held", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-finding-follow-up-"));
+  const findingId = id();
+  const citationId = id();
+  const laterComment = id();
+  let step = 0;
+
+  const finding = {
+    id: findingId,
+    title: "Sprinkler basis conflicts within the code analysis",
+    discipline: "life_safety",
+    severity: "Major",
+    status: "Needs input",
+    classification: "Code",
+    locations: [],
+    observed: "The code analysis uses non-sprinklered limits and requires sprinklers.",
+    correction: "State one sprinkler basis and revise the dependent notes to match it.",
+    evidenceNote: "The notes are legible on the supplied cover sheet.",
+  };
+
+  const session = await open(directory, async () => {
+    switch (step++) {
+      case 0:
+        return response([
+          {
+            name: "record_citation",
+            arguments: {
+              id: citationId,
+              jurisdiction: "Florida",
+              document: "FBC Building (Commercial)",
+              edition: "2023 8th Edition",
+              section: "903",
+              quote: "",
+              note: "",
+              application: "Sprinkler requirement on the cover.",
+              status: "unverified",
+            },
+          },
+          {
+            name: "record_finding",
+            arguments: { ...finding, citationIds: [citationId], priorCommentId: laterComment },
+          },
+        ]);
+      case 1:
+        // What the coordinator can send: it never sees the sheet finding's lists.
+        return response([
+          { name: "record_finding", arguments: { ...finding, title: "Updated", citationIds: [] } },
+        ]);
+      default:
+        return response([], "Follow-up fixture finished.");
+    }
+  });
+
+  try {
+    const started = await session.run(
+      session.packets.start(await session.request("Check the code analysis.")),
+    );
+
+    const finished = await until(session, started.id, "failed");
+    const [updated] = finished.findings;
+
+    expect(finished.findings).toHaveLength(1);
+    expect(updated?.title).toBe("Updated");
+    expect(updated?.citationIds).toEqual([citationId]);
+    // A prior comment can be recorded after the finding that names it.
+    expect(updated?.priorCommentId).toBe(laterComment);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
+test("a finding that drops its evidence and citation lists is still recorded", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-finding-defaults-"));
+  let step = 0;
+
+  const finding = {
+    discipline: "life_safety",
+    severity: "Major",
+    status: "Needs input",
+    classification: "Code",
+    locations: [],
+    observed: "The code analysis uses non-sprinklered limits and requires sprinklers.",
+    correction: "State one sprinkler basis and revise the dependent notes to match it.",
+    evidenceNote: "The notes are legible on the supplied cover sheet.",
+  };
+
+  // A real reviewer dropped these on its retry, then stopped recording findings. Refusing such
+  // values cost 66 of about 160 calls in each of two reviews of a real set.
+  const session = await open(directory, async () =>
+    step++ === 0
+      ? response([
+          { name: "record_finding", arguments: { ...finding, title: "Dropped lists" } },
+          {
+            name: "record_finding",
+            arguments: {
+              ...finding,
+              title: "Blank lists",
+              evidenceIds: "",
+              citationIds: "",
+              calculationIds: "",
+              priorCommentId: "",
+            },
+          },
+          // What the model sent most often, and what it invented once that was refused.
+          {
+            name: "record_finding",
+            arguments: { ...finding, title: "Text null", priorCommentId: "null" },
+          },
+          {
+            name: "record_finding",
+            arguments: {
+              ...finding,
+              title: "Placeholder comment",
+              priorCommentId: "00000000-0000-0000-0000-000000000000",
+            },
+          },
+        ])
+      : response([], "Finding defaults fixture finished."),
+  );
+
+  try {
+    const started = await session.run(
+      session.packets.start(await session.request("Check the code analysis.")),
+    );
+
+    const finished = await until(session, started.id, "failed");
+
+    expect(finished.findings.map((recorded) => recorded.title).toSorted()).toEqual([
+      "Blank lists",
+      "Dropped lists",
+      "Placeholder comment",
+      "Text null",
+    ]);
+
+    for (const recorded of finished.findings) {
+      expect(recorded.evidenceIds).toEqual([]);
+      expect(recorded.citationIds).toEqual([]);
+      expect(recorded.calculationIds).toEqual([]);
+      expect(recorded.priorCommentId).toBeNull();
+    }
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
 
 test("unread browser citations accept empty quote and note without becoming verified evidence", () => {
   const citation = Schema.decodeUnknownSync(PacketCitation)({

@@ -57,6 +57,12 @@ source ID, a `#page=N` selector reads a different source, and `read_source` with
 rereads a saved source. A failed or unavailable read can be tried again. A source saved by an
 earlier review is never reused for a new read.
 
+Models choose citation IDs, and they number them, so two reviewers can pick the same one. A sheet
+reviewer's citation is stored under an ID derived from its sheet and the ID it chose. The reviewer
+only ever sees and uses the ID it chose, and no reviewer overwrites another's citation. A citation
+records a source only when this review retrieved that source's text; any other ID, such as a failed
+read or the all-zeros placeholder models send when they read nothing, is stored as no source.
+
 Each submission has a stable request ID, and each sheet's conversation number is saved in the
 review. A restart rejoins the work of the current stage. An explicit resume continues unfinished
 sheets in their own conversations. When a review pauses, sheets without notes stay queued.

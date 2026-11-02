@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 import { CommandId, ConversationId, FindingId, ProjectId } from "./contracts.ts";
-import { ReviewModelId, ReviewModelOption } from "./models.ts";
+import { ReviewModelId, ReviewModelOption, ReviewProvider } from "./models.ts";
 
 import { ReviewDiscipline, ReviewDisciplineSelection } from "./disciplines.ts";
 
@@ -58,7 +58,7 @@ export const ExecutionReviewContext = Schema.Struct({
 /** Renderer-safe setup contains no credentials or credential locations. */
 export class ExecutionSetup extends Schema.Class<ExecutionSetup>("ExecutionSetup")({
   configured: Schema.Boolean,
-  provider: Schema.NullOr(Schema.Literals(["meta", "baseten"])),
+  provider: Schema.NullOr(ReviewProvider),
   model: Schema.NullOr(Schema.String),
   segmentation: Schema.Boolean,
   promptVersion: Schema.String,

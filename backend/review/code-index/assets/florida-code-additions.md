@@ -100,6 +100,42 @@ Base: [Florida Building Commission code resources](https://www.floridabuilding.o
 
 ### High-Velocity Hurricane Zone
 
-- **2118 HVHZ - Masonry** - Verify each material chapter's HVHZ section governs design/QA within the zone. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-21-masonry#FLBC2023P2_Ch21_Sec2118)
+- **2118 HVHZ - Design (Reserved)** - Reserved in the 8th Edition, so it holds no requirement. Cite 2119, 2121 or 2122 for high-velocity masonry. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-21-masonry#FLBC2023P2_Ch21_Sec2118)
+- **2119 HVHZ - Masonry Quality, Tests and Approvals** - Check that masonry units within the zone carry the required approvals and tests. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-21-masonry#FLBC2023P2_Ch21_Sec2119)
+- **2121 HVHZ - Masonry Construction Details** - Check tie columns, beams and other masonry construction details within the zone. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-21-masonry#FLBC2023P2_Ch21_Sec2121)
+- **2122 HVHZ - Reinforced Unit Masonry** - Check reinforced unit masonry design and detailing within the zone. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-21-masonry#FLBC2023P2_Ch21_Sec2122)
 - **2214 HVHZ - Steel** - Verify each material chapter's HVHZ section governs design/QA within the zone. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-22-steel#FLBC2023P2_Ch22_Sec2214)
 - **2314 HVHZ - Wood** - Verify each material chapter's HVHZ section governs design/QA within the zone. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-23-wood#FLBC2023P2_Ch23_Sec2314)
+
+### Reserved sections
+
+- **2308 Conventional Light-Frame Construction (Reserved)** - Reserved in the 8th Edition, so it holds no requirement. Check conventional light-frame work against 2304. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-23-wood#FLBC2023P2_Ch23_Sec2308)
+
+### Sections the plan review reference omits
+
+- **601 General and Table 601 Fire-Resistance Ratings** - Check the required fire-resistance rating of each building element for the construction type. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-6-types-of-construction#FLBC2023P2_Ch06_Sec601)
+- **714 Penetrations** - Check that penetrations of rated assemblies are protected by a listed system. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-7-fire-and-smoke-protection-features#FLBC2023P2_Ch07_Sec714)
+
+## FBC Existing Building - 2023 8th Edition
+
+### Reserved sections
+
+- **608 Relocated Buildings (Reserved)** - Reserved in the 8th Edition, so it holds no requirement. Check relocated buildings against Chapter 13. [Link](https://codes.iccsafe.org/content/FLEBC2023P2/chapter-6-classification-of-work#FLEBC2023P2_Ch06_Sec608)
+
+## FBC Mechanical - 2023 8th Edition
+
+### Reserved sections
+
+- **102 Applicability (Reserved)** - Reserved in the 8th Edition, so it holds no requirement. Check the volume's scope against 101. [Link](https://codes.iccsafe.org/content/FLMC2023P2/chapter-1-scope-and-administration#FLMC2023P2_Ch01_SubCh01_Sec102)
+
+## FBC Plumbing - 2023 8th Edition
+
+### Reserved sections
+
+- **102 Applicability (Reserved)** - Reserved in the 8th Edition, so it holds no requirement. Check the volume's scope against 101. [Link](https://codes.iccsafe.org/content/FLPC2023P2/chapter-1-scope-and-administration#FLPC2023P2_Ch01_SubCh01_Sec102)
+
+## FBC Fuel Gas - 2023 8th Edition
+
+### Reserved sections
+
+- **102 Applicability (Reserved)** - Reserved in the 8th Edition, so it holds no requirement. Check the volume's scope against 101. [Link](https://codes.iccsafe.org/content/FLFGC2023P1/chapter-1-scope-and-administration#FLFGC2023P1_Ch01_SubCh01_Sec102)

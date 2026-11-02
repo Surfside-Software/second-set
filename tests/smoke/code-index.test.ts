@@ -13,6 +13,7 @@ import {
   parseCodeReferences,
   resolveCodeReference,
   searchCodeReferences,
+  selectedCodeReference,
 } from "../../backend/review/code-index/code-index.ts";
 import provenance from "../../backend/review/code-index/provenance.json";
 import { decodeRequest, id, open, outputs, response, until } from "../fixtures/packet-review.ts";
@@ -278,6 +279,112 @@ test.each([
   },
   120000,
 );
+
+test("swapping a section number rebuilds the owner's own link for every anchored section", async () => {
+  const owner = parseCodeReferences(
+    await readFile(join(assets, "assets/FBC_2023_plan_review_reference.md"), "utf8"),
+  );
+
+  // A link written by hand stands in for the one the host would derive from another entry.
+  const anchored = owner.flatMap((entry) => {
+    const url = new URL(entry.url);
+    const section = /_Sec([A-Z]{0,2}\d{3,4}(?:\.\d+)*)$/.exec(url.hash)?.[1];
+
+    return section === undefined
+      ? []
+      : [
+          {
+            entry,
+            section,
+            prefix: `${url.pathname}${url.hash.replace(/_Sec[^_]+$/, "")}`,
+          },
+        ];
+  });
+
+  let compared = 0;
+
+  for (const target of anchored) {
+    const other = anchored.find(
+      (candidate) => candidate.prefix === target.prefix && candidate.section !== target.section,
+    );
+
+    if (other === undefined) continue;
+    compared++;
+
+    const listing = new CodeReference({
+      ...other.entry,
+      title: `${other.section} One / ${target.section} Two`,
+      sections: [other.section, target.section],
+    });
+
+    const resolved = resolveCodeReference([listing], {
+      document: other.entry.document,
+      edition: other.entry.edition,
+      section: target.section,
+    });
+
+    expect(resolved?.url, `${other.section} to ${target.section}`).toBe(target.entry.url);
+  }
+
+  expect(compared).toBeGreaterThan(200);
+});
+
+test.each([
+  { document: "FBC Building (Commercial)", section: "2118", replacement: "2119" },
+  { document: "FBC Building (Commercial)", section: "2308", replacement: "2304" },
+  { document: "FBC Existing Building", section: "608", replacement: "Chapter 13" },
+  { document: "FBC Mechanical", section: "102", replacement: "101" },
+  { document: "FBC Plumbing", section: "102", replacement: "101" },
+  { document: "FBC Fuel Gas", section: "102", replacement: "101" },
+])(
+  "a citation to reserved section $section of $document says so and names what to cite",
+  ({ document, section, replacement }) => {
+    const citation = { document, edition: "2023 8th Edition", section };
+    const resolved = resolveCodeReference(floridaCodeIndex, citation);
+
+    expect(resolved?.title).toContain("(Reserved)");
+    expect(resolved?.check).toContain(replacement);
+    expect(resolved?.url.endsWith(`_Sec${section}`)).toBe(true);
+
+    // Naming the owner's combined entry reaches the same reserved section, not its combined title.
+    const combined = floridaCodeIndex.find(
+      (entry) =>
+        entry.document === document &&
+        listedCodeSections(entry).includes(section) &&
+        !entry.title.includes("(Reserved)"),
+    );
+
+    if (combined !== undefined)
+      expect(selectedCodeReference(combined, section).title).toBe(resolved?.title ?? "");
+  },
+);
+
+test("the real high-velocity masonry sections are indexed beside the reserved one", () => {
+  for (const section of ["2119", "2121", "2122"]) {
+    const resolved = resolveCodeReference(floridaCodeIndex, {
+      document: "FBC Building (Commercial)",
+      edition: "2023 8th Edition",
+      section,
+    });
+
+    expect(resolved?.url).toBe(
+      `https://codes.iccsafe.org/content/FLBC2023P2/chapter-21-masonry#FLBC2023P2_Ch21_Sec${section}`,
+    );
+  }
+});
+
+test.each([
+  { section: "Section 714 - Penetrations", anchor: "FLBC2023P2_Ch07_Sec714" },
+  { section: "Section 601 / Table 601 Fire-resistance ratings", anchor: "FLBC2023P2_Ch06_Sec601" },
+])("a citation a real review wrote links to its section: $section", ({ section, anchor }) => {
+  const resolved = resolveCodeReference(floridaCodeIndex, {
+    document: "FBC Building (Commercial)",
+    edition: "2023 8th Edition",
+    section,
+  });
+
+  expect(new URL(resolved?.url ?? "https://missing.example").hash).toBe(`#${anchor}`);
+});
 
 test("every explicitly listed section resolves within its chapter", () => {
   for (const entry of floridaCodeIndex) {

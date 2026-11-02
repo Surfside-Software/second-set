@@ -20,7 +20,7 @@ import {
   type Session,
 } from "../fixtures/packet-review.ts";
 
-const parallel = { minSheets: 2, concurrency: { meta: 4, baseten: 2 } } as const;
+const parallel = { minSheets: 2, concurrency: { meta: 4, baseten: 2, "opencode-go": 2 } } as const;
 
 const SheetInput = Schema.Struct({
   stage: Schema.Literal("sheet"),
@@ -932,7 +932,7 @@ test("a sheet reviewer cannot record, adopt or segment another sheet's findings 
     return coordinate(request);
   };
 
-  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1 } };
+  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1, "opencode-go": 1 } };
   const session = await open(directory, transport, true, undefined, "observe", sequential);
 
   try {
@@ -955,6 +955,138 @@ test("a sheet reviewer cannot record, adopt or segment another sheet's findings 
     );
     expect(finished.findings[0]?.summary?.sheetId).toBeNull();
     expect(finished.segmentedSheetIds ?? []).toEqual([]);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
+test("sheet reviewers choosing one citation id keep their own citations and findings", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-citation-"));
+  // Models number their citations, so every reviewer's first citation can carry this id.
+  const shared = "11111111-1111-1111-8111-111111111111";
+  const later = "22222222-2222-2222-8222-222222222222";
+  let sheetPrompt = "";
+
+  const citation = (section: string, application: string) => ({
+    id: shared,
+    sourceId: null,
+    jurisdiction: "Florida",
+    document: "FBC Mechanical",
+    edition: "2023 8th Edition",
+    section,
+    quote: "",
+    application,
+    status: "unverified",
+    note: "",
+  });
+
+  const transport: ProviderTransport = async (_url, init) => {
+    const request = decodeRequest(init);
+    const made = calls(request.input);
+
+    if (systemPrompt(request).includes("## Parallel review: sheet reviewer")) {
+      sheetPrompt = systemPrompt(request);
+      const input = outputs(SheetInput, request).at(0);
+
+      if (!input) throw new Error("Sheet reviewer input is missing its sheet");
+      const own = input.sheet.id;
+      const rendered = outputs(Rendered, request).find((result) => result.artifact.sheetId === own);
+
+      if (!rendered) return response([{ name: "render_sheet", arguments: { sheetId: own } }]);
+
+      if (!made.includes("record_citation"))
+        return response([
+          { name: "record_citation", arguments: citation("803", `Connector on ${own}.`) },
+        ]);
+
+      // The finding also cites a citation this reviewer has not recorded yet.
+      if (!made.includes("record_finding"))
+        return response([
+          {
+            name: "record_finding",
+            arguments: {
+              ...findingOn([own], [rendered.artifact.id]),
+              title: `Connector on ${own}`,
+              citationIds: [shared, later],
+            },
+          },
+        ]);
+
+      if (made.filter((name) => name === "record_citation").length === 1) {
+        const returned = outputs(
+          Schema.Struct({ id: Schema.String, section: Schema.String }),
+          request,
+        )
+          .filter((result) => result.section === "803")
+          .at(-1);
+
+        if (returned?.id !== shared) throw new Error("The tool did not return the chosen id");
+
+        return response([
+          {
+            name: "record_citation",
+            arguments: citation("803", `Revised connector on ${own}.`),
+          },
+          {
+            name: "record_citation",
+            arguments: { ...citation("804", `Later on ${own}.`), id: later },
+          },
+        ]);
+      }
+
+      return reviewOwnSheet(request, own);
+    }
+
+    const stage = outputs(CoordinatorInput, request).at(-1)?.stage;
+
+    if (stage === "setup") {
+      if (!made.includes("record_citation"))
+        return response([{ name: "record_citation", arguments: citation("802", "Whole set.") }]);
+
+      return response([], "Project configuration recorded.");
+    }
+
+    return coordinate(request);
+  };
+
+  const session = await open(directory, transport, true, undefined, "observe", parallel);
+
+  try {
+    const sheets = (await session.snapshot()).sheets;
+
+    const started = await session.run(
+      session.packets.start(await session.request("Review the whole drawing set.")),
+    );
+
+    const finished = await until(session, started.id, "completed");
+    const applications = finished.citations.map((entry) => entry.application).toSorted();
+
+    // A real review recorded no sheet citations until the sheet role was told to log them.
+    expect(sheetPrompt).toContain("a sheet prints a code or standard citation");
+    expect(sheetPrompt).toContain("list its id in the finding's citationIds");
+
+    // The coordinator's citation and two per sheet, the first revised in place: none overwritten.
+    expect(applications).toEqual(
+      [
+        ...sheets.flatMap((sheet) => [
+          `Revised connector on ${sheet.id}.`,
+          `Later on ${sheet.id}.`,
+        ]),
+        "Whole set.",
+      ].toSorted(),
+    );
+    expect(new Set(finished.citations.map((entry) => entry.id)).size).toBe(sheets.length * 2 + 1);
+
+    for (const sheet of sheets) {
+      const finding = finished.findings.find((entry) => entry.title === `Connector on ${sheet.id}`);
+
+      const cited = finding?.citationIds.map(
+        (citationId) => finished.citations.find((entry) => entry.id === citationId)?.application,
+      );
+
+      expect(cited).toEqual([`Revised connector on ${sheet.id}.`, `Later on ${sheet.id}.`]);
+    }
   } finally {
     await session.dispose();
     await rm(directory, { recursive: true, force: true });
@@ -1147,7 +1279,7 @@ test("every sheet reviewer opens from the setup snapshot after a peer adds a sou
   };
 
   // One sheet at a time, so the second reviewer opens after the first has finished.
-  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1 } };
+  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1, "opencode-go": 1 } };
   let session = await open(directory, transport, true, undefined, "observe", sequential, sources);
 
   try {

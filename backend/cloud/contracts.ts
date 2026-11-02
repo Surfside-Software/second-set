@@ -1,3 +1,4 @@
+import { reviewProviderRoutes } from "#lib/review/models.ts";
 import { Effect, Schema } from "effect";
 import { InferenceConfiguration } from "#lib/backend-rpc.ts";
 import {
@@ -104,8 +105,9 @@ export const CloudProvider = InferenceConfiguration;
 
 /** Cloud outbound policy admits exactly these provider routes. */
 export const cloudProviderEndpoints = {
-  meta: "https://api.meta.ai/v1",
-  baseten: "https://inference.baseten.co/v1",
+  meta: reviewProviderRoutes.meta.endpoint,
+  baseten: reviewProviderRoutes.baseten.endpoint,
+  "opencode-go": reviewProviderRoutes["opencode-go"].endpoint,
 } as const;
 
 /** The chosen chat connection plus optional tool-provider connections contain placeholder keys only. */

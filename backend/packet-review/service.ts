@@ -59,7 +59,7 @@ import {
   type PacketActivityTool,
   type PacketActivityStage,
 } from "#lib/review/packet.ts";
-import { reviewModels } from "#lib/review/models.ts";
+import { ReviewProvider, reviewModels } from "#lib/review/models.ts";
 import { initialReview } from "#lib/review/initial-review.ts";
 import type { DataDirectoryOwnership } from "../ownership.ts";
 import type { createReviewOperations } from "../review/operations.ts";
@@ -68,6 +68,7 @@ import { executionPersistence } from "../review/execution-store.ts";
 import {
   createAdmittedModels,
   promptCacheKey,
+  packetReasoning,
   reviewModelCapabilities,
   type ProviderConfiguration,
 } from "../inference/provider.ts";
@@ -122,7 +123,7 @@ const promptVersion = packetPromptVersion;
  */
 export const defaultParallel = {
   minSheets: 4,
-  concurrency: { meta: 32, baseten: 16 },
+  concurrency: { meta: 32, baseten: 16, "opencode-go": 16 },
   setup: defaultSetupLimits,
 } as const;
 
@@ -375,9 +376,22 @@ const requireAbsenceSupport = (
 };
 
 const CitationInput = Schema.Struct({
-  ...PacketCitation.mapFields(Struct.omit(["reference"])).fields,
+  ...PacketCitation.mapFields(Struct.omit(["reference", "sourceId"])).fields,
+  // Optional and unchecked: a required UUID made models invent one when they had read nothing.
+  sourceId: Schema.optionalKey(Schema.NullOr(Schema.String)),
   codeReferenceId: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(500))),
 });
+
+/** The UUID models invent when a schema requires an id they do not have. */
+const placeholderId = "00000000-0000-0000-0000-000000000000";
+
+/** A finding's list, or what it already held when an update leaves the list empty. */
+const orHeld = <T>(given: ReadonlyArray<T>, held: ReadonlyArray<T> | undefined) =>
+  given.length > 0 ? given : (held ?? []);
+
+/** A finding's optional link field, which a model may leave out or send as an empty string. */
+const orBlank = <S extends Schema.Top>(field: S) =>
+  Schema.optionalKey(Schema.Union([field, Schema.Literal("")]));
 
 type Runtime = {
   harness: Harness;
@@ -403,7 +417,7 @@ interface Configuration {
   /** Packets with at least minSheets sheets review each sheet in its own conversation. */
   readonly parallel?: {
     readonly minSheets: number;
-    readonly concurrency: Readonly<Record<"meta" | "baseten", number>>;
+    readonly concurrency: Readonly<Record<typeof ReviewProvider.Type, number>>;
     /** Coordinator setup's sheet and request limits; defaults to `defaultSetupLimits`. */
     readonly setup?: SetupLimits;
   };
@@ -824,6 +838,13 @@ export class PacketReviews extends Context.Service<
           // Images rendered since each conversation's latest model request.
           const imageCounts = new Map<number, number>();
           const nudged = new Set<number>();
+
+          /** The id a sheet reviewer's citation is stored under, so a peer's cannot overwrite it. */
+          const sheetCitationId = (row: Row, conversationId: number, id: string) => {
+            const sheetId = assignments.sheets.get(conversationId);
+
+            return sheetId === undefined ? id : stableId(row.id, 0, `citation:${sheetId}:${id}`);
+          };
 
           const outsideSheet = (
             conversationId: number,
@@ -1442,12 +1463,12 @@ export class PacketReviews extends Context.Service<
                   assertSetupSheet(current, input.sheetId, setupLimits);
 
                 if (
-                  row.payload.provider === "baseten" &&
+                  row.payload.provider !== "meta" &&
                   (imageCounts.get(api.conversationId) ?? 0) >= 8
                 )
                   throw error(
                     "input",
-                    "The current source batch already contains eight images. Inspect those results before requesting more pages or details; Muse Spark Open accepts eight images per request.",
+                    "The current source batch already contains eight images. Inspect those results before requesting more pages or details; this model route accepts eight images per request.",
                   );
 
                 const sheet = row.payload.sheets.find((item) => item.id === input.sheetId);
@@ -1754,7 +1775,7 @@ export class PacketReviews extends Context.Service<
               "record_citation",
               `Log a printed or governing citation and its edition, exact section, quote and applicability. Verified requires matching retrieved official document and edition, plus a substantive clause inside the claimed section or table. Missing or ambiguous section structure stays unverified. Pass codeReferenceId from search_code to attach the section's link. ${browserCitationGuidance}`,
               CitationInput,
-              async (task, { codeReferenceId, ...fields }) => {
+              async (task, { codeReferenceId, ...fields }, api) => {
                 // A citation that names no search result still links to its indexed section.
                 const selected =
                   codeReferenceId === undefined
@@ -1789,23 +1810,34 @@ export class PacketReviews extends Context.Service<
                       };
 
                 const current = await run(get(row.project_id, row.id));
-                const source = current.sources.find((entry) => entry.id === input.sourceId);
+
+                const source = current.sources.find(
+                  (entry) => entry.id === input.sourceId && entry.status === "available",
+                );
+
+                // Models fill the required ids with placeholders, so the host owns what they mean:
+                // a source is one this review retrieved, and each sheet numbers its own citations.
+                const recorded = {
+                  ...input,
+                  id: sheetCitationId(row, api.conversationId, input.id),
+                  sourceId: source?.id ?? null,
+                };
 
                 const citation =
-                  input.status === "verified" && !citationHasSourceSupport(input, source)
+                  recorded.status === "verified" && !citationHasSourceSupport(recorded, source)
                     ? {
-                        ...input,
+                        ...recorded,
                         status: "unverified" as const,
                         // Note text must stay trimmed; an empty note previously left a trailing space.
                         note: [
                           "Retrieved official text does not support the claimed document, edition and substantive quote within that section.",
-                          input.note,
+                          recorded.note,
                         ]
                           .filter((part) => part.length > 0)
                           .join(" ")
                           .slice(0, 32000),
                       }
-                    : input;
+                    : recorded;
 
                 return await recordTool(
                   row,
@@ -1817,19 +1849,42 @@ export class PacketReviews extends Context.Service<
                       citations: upsert(review.citations, citation),
                     });
                   },
-                  citation,
+                  // The model keeps using the id it chose; only the host sees the stored one.
+                  { ...citation, id: input.id },
                 );
               },
             ),
             tool(
               "record_finding",
-              "Save the complete source-specific technical finding, including necessary values, qualifications and evidence. Do not shorten or omit technical facts to fit a display limit. Give each location the tight PDF region of the problem area; when SAM is available the host renders a zoom of the first region under half its sheet and segments it for the reviewer. Reuse an existing issue ID for follow-up. The result includes the host-owned summary state and revision; if Pending, use record_finding_summary. Completed and the reviewer's decision are user-owned and cannot be set by this tool.",
+              "Save the complete source-specific technical finding, including necessary values, qualifications and evidence. Do not shorten or omit technical facts to fit a display limit. Give each location the tight PDF region of the problem area; when SAM is available the host renders a zoom of the first region under half its sheet and segments it for the reviewer. Reuse an existing issue ID for follow-up; an empty evidence, citation or calculation list keeps what the finding holds, and only a replacement list changes it. The result includes the host-owned summary state and revision; if Pending, use record_finding_summary. Completed and the reviewer's decision are user-owned and cannot be set by this tool.",
               Schema.Struct({
-                ...Struct.omit(PacketFinding.fields, ["summary", "decision", "focus"]),
+                ...Struct.omit(PacketFinding.fields, [
+                  "summary",
+                  "decision",
+                  "focus",
+                  "evidenceIds",
+                  "citationIds",
+                  "calculationIds",
+                  "priorCommentId",
+                ]),
                 id: Schema.optionalKey(Id),
                 completed: Schema.optionalKey(Schema.Boolean),
+                // Models omit these or send "" when they have none, and send "null" as the prior
+                // comment. Refusing that cost 66 of about 160 calls on a real set, a paid turn each,
+                // and models then invented an all-zeros prior comment to get past the check.
+                evidenceIds: orBlank(PacketFinding.fields.evidenceIds),
+                citationIds: orBlank(PacketFinding.fields.citationIds),
+                calculationIds: orBlank(PacketFinding.fields.calculationIds),
+                priorCommentId: Schema.optionalKey(Schema.NullOr(Schema.String)),
               }),
-              async (task, input, api) => {
+              async (task, given, api) => {
+                const input = {
+                  ...given,
+                  evidenceIds: given.evidenceIds || [],
+                  citationIds: given.citationIds || [],
+                  calculationIds: given.calculationIds || [],
+                };
+
                 if (input.absenceCheck && assignments.sheets.has(api.conversationId))
                   throw error(
                     "input",
@@ -1892,9 +1947,32 @@ export class PacketReviews extends Context.Service<
                         ? { focus: existing.focus }
                         : {};
 
+                    // A reviewer cites by the id it chose: its own citation, recorded now or later,
+                    // or else a citation the coordinator recorded under that id.
+                    const citationIds = input.citationIds.map((cited) => {
+                      const own = sheetCitationId(row, api.conversationId, cited);
+                      const stored = (id: string) => review.citations.some((c) => c.id === id);
+
+                      return stored(cited) && !stored(own) ? cited : own;
+                    });
+
+                    // A comment can be recorded after its finding, so any real id is kept; the report
+                    // names only comments this review holds.
+                    const priorCommentId = Schema.is(Id)(input.priorCommentId)
+                      ? input.priorCommentId !== placeholderId
+                        ? input.priorCommentId
+                        : (existing?.priorCommentId ?? null)
+                      : (existing?.priorCommentId ?? null);
+
+                    // The coordinator updates sheet findings without seeing their lists; an update
+                    // that leaves one empty keeps what the finding held.
                     const recorded = {
                       ...input,
                       ...kept,
+                      evidenceIds: orHeld(input.evidenceIds, existing?.evidenceIds),
+                      citationIds: orHeld(citationIds, existing?.citationIds),
+                      calculationIds: orHeld(input.calculationIds, existing?.calculationIds),
+                      priorCommentId,
                       id,
                       summary,
                       completed: existing?.completed ?? false,
@@ -3050,7 +3128,7 @@ export class PacketReviews extends Context.Service<
               throw cause;
             }
 
-            const thinkingLevel = row.payload.provider === "meta" ? "xhigh" : "high";
+            const thinkingLevel = packetReasoning(row.payload.model);
 
             // A parallel coordinator starts with setup's tools; coordination widens them once.
             const root = await harness.root(BACKGROUND_CONTEXT, {

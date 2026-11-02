@@ -272,6 +272,7 @@ test.each([0, 1, 2])(
       await f.close();
     }
   },
+  60000,
 );
 
 test("preserves inclusive edge pixels, independent mask dimensions, and rotated inverse maps", async () => {

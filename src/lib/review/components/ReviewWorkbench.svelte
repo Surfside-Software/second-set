@@ -53,6 +53,7 @@
   import {
     inInitialReviewPhase,
     initialReview,
+    initialReviewModelFor,
     initialReviewRequest,
   } from "#lib/review/initial-review.ts";
   import { followPacketReviews } from "#lib/review/packet-subscription.ts";
@@ -63,7 +64,14 @@
   import ReviewSelect from "./ReviewSelect.svelte";
   import ReviewTooltips from "./ReviewTooltips.svelte";
   import { tip } from "#lib/review/tooltip.ts";
-  import { ReviewModelId, reviewModels } from "#lib/review/models.ts";
+  import {
+    offeredReviewModels,
+    ReviewModelId,
+    ReviewModelOption,
+    reviewModels,
+    reviewProviderRoutes,
+    trainsOnDrawings,
+  } from "#lib/review/models.ts";
   import {
     findingSubtitle,
     formatOutcome,
@@ -351,19 +359,27 @@
   );
 
   const modelOptions = $derived(
-    (
+    offeredReviewModels<typeof ReviewModelOption.Type>(
       setup?.models ??
-      reviewModels.map((model) => ({
-        ...model,
-        available: setup?.configured && setup.provider === model.provider,
-      }))
+        reviewModels.map((model) => ({
+          ...model,
+          available: Boolean(setup?.configured) && setup?.provider === model.provider,
+        })),
     ).map((model) => ({
       value: model.id,
       label: model.label,
-      description: `${model.provider === "meta" ? "Meta" : "Baseten"}${model.available ? "" : " · add a connection in settings"}`,
+      description: `${reviewProviderRoutes[model.provider].label}${model.available ? "" : " · add a connection in settings"}`,
       disabled: !model.available,
     })),
   );
+
+  // A draft or earlier review can name a model the menu no longer offers; use the first it does.
+  $effect(() => {
+    const first = modelOptions.find((model) => !model.disabled)?.value;
+
+    if (first !== undefined && !modelOptions.some((model) => model.value === selectedModel))
+      selectedModel = first;
+  });
 
   const selectedModelAvailable = $derived(
     modelOptions.some((model) => model.value === selectedModel && !model.disabled),
@@ -377,7 +393,11 @@
           (executionStatus.unresolvedAttempts > 0 && !executionStatus.uncertaintyAcknowledged))),
   );
 
-  const initialReviewModel = initialReviewRequest.model;
+  const initialReviewModel = $derived(
+    initialReviewModelFor((id) =>
+      modelOptions.some((model) => model.value === id && !model.disabled),
+    ),
+  );
 
   // Shown until a revised set arrives; a first set made of several PDFs keeps it.
   const initialReviewVisible = $derived(
@@ -419,7 +439,7 @@
     if (sheets.length === 0) return "Waiting for the imported sheets.";
 
     if (!modelOptions.some((model) => model.value === initialReviewModel && !model.disabled))
-      return "Connect Meta in Review settings to run the initial review.";
+      return "Connect OpenCode Go or Meta in Review settings to run the initial review.";
 
     if (cloudSetup?.configured && estimatingWorkspace) return "Measuring the workspace for cloud…";
 
@@ -436,7 +456,11 @@
     }`,
   );
 
-  const initialReviewPlacementLabel = $derived(`Runs ${initialReviewPlacement.label}`);
+  const initialReviewPlacementLabel = $derived(
+    `Runs ${initialReviewPlacement.label}${
+      trainsOnDrawings(initialReviewModel) ? " · Trains on your drawings" : ""
+    }`,
+  );
 
   const initialReviewRunning = $derived(
     activePacketReview?.state === "running" && activePacketReview.preset === initialReview.id,
@@ -1271,7 +1295,7 @@
     location = initialReviewPlacement.location;
     await startDrawingReview(
       command,
-      initialReviewRequest,
+      { ...initialReviewRequest, model: initialReviewModel },
       initialReviewPlacement.location,
       () => undefined,
     );
@@ -1632,7 +1656,7 @@
     selectedModel =
       saved?.model ??
       previousReview?.model ??
-      setup?.models?.find((model) => model.available)?.id ??
+      offeredReviewModels(setup?.models ?? []).find((model) => model.available)?.id ??
       selectedModel;
     modelChosen = saved?.model !== undefined;
     location = saved?.location ?? "local";
@@ -2242,6 +2266,13 @@
         <p>
           Baseten <span class="connection-state"
             >{setup?.models?.some((model) => model.provider === "baseten" && model.available)
+              ? "Connected"
+              : "Not connected"}</span
+          >
+        </p>
+        <p>
+          OpenCode Go <span class="connection-state"
+            >{setup?.models?.some((model) => model.provider === "opencode-go" && model.available)
               ? "Connected"
               : "Not connected"}</span
           >

@@ -1,20 +1,19 @@
 import { Redacted, Schema } from "effect";
 import { open } from "node:fs/promises";
 import { InferenceConfiguration } from "../src/lib/backend-rpc.ts";
-import { reviewModels } from "../src/lib/review/models.ts";
+import { reviewModels, reviewProviderRoutes } from "../src/lib/review/models.ts";
 
 /** A configuration-file failure that never includes its contents or private path. */
 export class CredentialError extends Schema.TaggedError<CredentialError>()("CredentialError", {
   message: Schema.String,
 }) {}
 
-/** Parse only the two explicitly selected, canonical provider routes. */
+/** Parse only the explicitly selected, canonical provider routes. */
 export function parseProviderConfiguration(text: string) {
   try {
     const config = Schema.decodeUnknownSync(Schema.fromJsonString(InferenceConfiguration))(text);
 
-    const endpoint =
-      config.provider === "meta" ? "https://api.meta.ai/v1" : "https://inference.baseten.co/v1";
+    const endpoint = reviewProviderRoutes[config.provider].endpoint;
 
     if (
       config.baseUrl.replace(/\/+$/, "") !== endpoint ||

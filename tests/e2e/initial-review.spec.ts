@@ -48,6 +48,7 @@ test("Initial Review stays through a split first set and leaves once a revision 
         "MOKE_SESSION_CREDENTIAL_FILE",
         "MODEL_API_KEY",
         "BASETEN_API_KEY",
+        "OPENCODE_API_KEY",
         "MODAL_TOKEN_ID",
         "MODAL_TOKEN_SECRET",
         "MOKE_MODAL_CONFIG",
@@ -124,6 +125,109 @@ test("Initial Review stays through a split first set and leaves once a revision 
     await expect(page.getByLabel("Message", { exact: true })).toBeVisible();
     await expect(initial).toHaveCount(0);
     expect(rendererErrors).toEqual([]);
+  } finally {
+    await app.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("With OpenCode Go connected, Go models are the only chat choice while Meta stays connected for SAM", async () => {
+  test.setTimeout(90000);
+  const directory = await mkdtemp(join(tmpdir(), "moke-opencode-go-"));
+  const fixture = join(directory, "First set.pdf");
+  const credentialFile = join(directory, "offline-provider-config.json");
+  await writeFile(fixture, createHeroPdf("A"));
+  await writeFile(
+    credentialFile,
+    JSON.stringify({
+      providers: [
+        {
+          provider: "opencode-go",
+          apiKey: "offline-ui-test-never-dispatched",
+          baseUrl: "https://opencode.ai/inference/go/v1",
+          model: "muse-spark-1.3-contributor",
+        },
+        {
+          provider: "meta",
+          apiKey: "offline-ui-test-never-dispatched",
+          baseUrl: "https://api.meta.ai/v1",
+          model: "muse-spark-1.3",
+        },
+      ],
+    }),
+    { mode: 0o600 },
+  );
+
+  const environment = Object.fromEntries(
+    Object.entries(process.env).flatMap(([key, value]) =>
+      value === undefined ||
+      [
+        "ELECTRON_RUN_AS_NODE",
+        "MOKE_SESSION_CREDENTIAL_FILE",
+        "MODEL_API_KEY",
+        "BASETEN_API_KEY",
+        "OPENCODE_API_KEY",
+        "MODAL_TOKEN_ID",
+        "MODAL_TOKEN_SECRET",
+        "MOKE_MODAL_CONFIG",
+      ].includes(key)
+        ? []
+        : [[key, value]],
+    ),
+  );
+
+  const options: Parameters<typeof electron.launch>[0] = {
+    args: [".", `--user-data-dir=${join(directory, "profile")}`],
+    env: {
+      ...environment,
+      PROJECT_KIT_DATA_DIRECTORY: directory,
+      MOKE_SESSION_CREDENTIAL_FILE: credentialFile,
+    },
+  };
+
+  if (process.env.PROJECT_KIT_EXECUTABLE !== undefined) {
+    options.executablePath = process.env.PROJECT_KIT_EXECUTABLE;
+    options.args = [`--user-data-dir=${join(directory, "profile")}`];
+    options.cwd = directory;
+  }
+
+  const app = await electron.launch(options);
+
+  try {
+    const page = await app.firstWindow();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole("button", { name: "Create a project", exact: true }).click();
+    await page.getByTestId("project-name-input").fill("OpenCode Go routing");
+    await page.getByTestId("create-project-button").click();
+
+    await app.evaluate(({ dialog }, source) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [source] });
+    }, fixture);
+    await page.getByTestId("import-pdf").click();
+    await page.getByRole("button", { name: "Choose PDF…", exact: true }).click();
+    await expect(page.getByTestId(/^confirm-sheet-/)).toHaveCount(2);
+    await page.getByRole("button", { name: "Close source panel", exact: true }).click();
+
+    await expect(page.getByRole("button", { name: "Initial Review", exact: true })).toHaveAttribute(
+      "data-tip",
+      "Whole set · all disciplines · four passes · Muse Spark 1.3 Contributor (trains on drawings)",
+    );
+    await expect(page.locator("#initial-review-summary")).toHaveText(
+      "Runs on this computer · Trains on your drawings",
+    );
+
+    const model = page.getByRole("button", { name: /^Model:/ });
+    await expect(model).toContainText("Muse Spark 1.3 Contributor (trains on drawings)");
+    await model.click();
+    await expect(page.getByRole("option")).toHaveCount(4);
+    await expect(page.getByRole("option", { name: /Muse Wonder|Muse Spark Open/ })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Review settings", exact: true }).click();
+    const settings = page.getByRole("dialog", { name: "Review settings", exact: true });
+    await expect(settings).toContainText("Meta Connected");
+    await expect(settings).toContainText("OpenCode Go Connected");
+    await expect(settings).toContainText("Baseten Not connected");
   } finally {
     await app.close();
     await rm(directory, { recursive: true, force: true });

@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { InferenceConfiguration } from "../src/lib/backend-rpc.ts";
+import { reviewProviderRoutes } from "../src/lib/review/models.ts";
 import {
   CredentialError,
   parseProviderConfigurations,
@@ -59,13 +60,20 @@ export async function readInferenceConfigurations(directory: string, packaged: b
   }
 
   if (packaged) return [];
-  const provider = process.env.MOKE_PROVIDER === "baseten" ? "baseten" : "meta";
 
-  const order =
-    provider === "meta" ? (["meta", "baseten"] as const) : (["baseten", "meta"] as const);
+  const keys = {
+    meta: process.env.MODEL_API_KEY,
+    baseten: process.env.BASETEN_API_KEY,
+    "opencode-go": process.env.OPENCODE_API_KEY,
+  };
+
+  const order = (["meta", "baseten", "opencode-go"] as const).toSorted(
+    (left, right) =>
+      Number(right === process.env.MOKE_PROVIDER) - Number(left === process.env.MOKE_PROVIDER),
+  );
 
   return order.flatMap((entry) => {
-    const apiKey = entry === "meta" ? process.env.MODEL_API_KEY : process.env.BASETEN_API_KEY;
+    const apiKey = keys[entry];
 
     if (!apiKey?.trim()) return [];
 
@@ -73,8 +81,8 @@ export async function readInferenceConfigurations(directory: string, packaged: b
       JSON.stringify({
         provider: entry,
         apiKey,
-        baseUrl: entry === "meta" ? "https://api.meta.ai/v1" : "https://inference.baseten.co/v1",
-        model: entry === "meta" ? "muse-spark-1.3" : "meta-models/muse-spark-open-1026",
+        baseUrl: reviewProviderRoutes[entry].endpoint,
+        model: reviewProviderRoutes[entry].model,
       }),
     );
   });

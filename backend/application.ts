@@ -200,20 +200,20 @@ export class Application extends Context.Service<
 
         const executionOptions = { owner, queries: operations, port, runPromise: entry.runPromise };
 
+        // Count checks stay on Meta or Baseten; see the guard in ReviewExecution.
+        const countProvider = providers.find((provider) => provider.provider !== "opencode-go");
+
+        const connected = {
+          ...executionOptions,
+          providers: providers.map((provider) => ({ ...provider, route: "live" as const })),
+        };
+
         const executionLayer = ReviewExecution.layer(
-          inference === undefined
-            ? executionOptions
-            : {
-                ...executionOptions,
-                providers: providers.map((provider) => ({ ...provider, route: "live" as const })),
-                provider: {
-                  provider: inference.provider,
-                  apiKey: inference.apiKey,
-                  baseUrl: inference.baseUrl,
-                  model: inference.model,
-                  route: "live",
-                },
-              },
+          countProvider === undefined
+            ? inference === undefined
+              ? executionOptions
+              : connected
+            : { ...connected, provider: { ...countProvider, route: "live" as const } },
         );
 
         const execution = yield* ReviewExecution.pipe(

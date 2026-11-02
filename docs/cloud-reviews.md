@@ -18,8 +18,8 @@ or incoming HTTP tunnel.
 Configure the existing model connection first; see [inference setup](inference.md).
 Create a named Secret in the [Modal Secrets dashboard](https://modal.com/secrets)
 with the key `MOKE_API_KEY` holding that provider's API key. Its name is
-`<appName>-<provider>-api`: the defaults are `moke-reviews-meta-api` and
-`moke-reviews-baseten-api`. The current JS SDK can reference named Secrets but
+`<appName>-<provider>-api`: the defaults are `moke-reviews-meta-api`,
+`moke-reviews-baseten-api` and `moke-reviews-opencode-go-api`. The current JS SDK can reference named Secrets but
 cannot create them; use the dashboard or Modal's admin CLI for that one-time step.
 The application and sandbox workloads remain TypeScript on Bun.
 
@@ -401,7 +401,7 @@ are fenced while the cloud owns the workspace.
 
 New reviews are admitted only to a protocol-5 worker whose identity matches this
 build exactly: package engine `review-pi-1.4.0-v1`, count prompt
-`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v8`, and the
+`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v9`, and the
 current instruction revision and code index version. Every new ownership receipt
 records `workerProtocol: 5`. An image with a different identity fails the
 identity probe before transfer. Migrations are not part of the identity: a worker
@@ -454,6 +454,8 @@ a v6 image fails the identity probe before transfer. Jobs already sent to a v6
 worker stay readable.
 
 Packet prompt `moke-packet-review-v8` removes access boilerplate and paraphrases of unread code text. It ships with `florida-code-index-v2` and requires a newly published worker image. Protocol remains 5; dispatched v6/v7 jobs with index v1 stay readable, but those identities cannot admit new work.
+
+Packet prompt `moke-packet-review-v9` tells reviewers to log the citations their findings rest on and the ones sheets print. It ships with `florida-code-index-v3`, which marks Reserved sections and adds the real high-velocity masonry sections, and with a worker that keeps each sheet reviewer's citations apart and records a citation's source only when the review retrieved it. It requires a newly published worker image. Dispatched v8 jobs with index v2 stay readable.
 
 The protocol-3 handshake required support for explicit revision, selected-sheet
 and persisted-discipline scope, and includes both packet and count prompt versions.

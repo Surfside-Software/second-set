@@ -22,6 +22,7 @@ test("project dialogs, selectors, settings, visual evidence selection, and chat 
         "ELECTRON_RUN_AS_NODE",
         "MOKE_SESSION_CREDENTIAL_FILE",
         "BASETEN_API_KEY",
+        "OPENCODE_API_KEY",
         "MODEL_API_KEY",
       ].includes(key)
         ? []

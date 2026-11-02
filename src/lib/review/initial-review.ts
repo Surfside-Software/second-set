@@ -34,6 +34,15 @@ export const initialReviewRequest = {
   "model" | "discipline" | "maxCalls" | "preset"
 >;
 
+/**
+ * The model the button uses: OpenCode Go's Muse Spark when connected, else Meta's. Contributor pricing
+ * trains on the drawings; the owner chose it, and the model menu and docs say so.
+ */
+export const initialReviewModelFor = (connected: (model: string) => boolean) =>
+  connected("muse-spark-1.3-contributor")
+    ? ("muse-spark-1.3-contributor" as const)
+    : initialReviewRequest.model;
+
 /** Recorded with a review started from a preset, beside its prompt version and instruction revision. */
 export const ReviewPreset = Schema.Literal(initialReview.id);
 
