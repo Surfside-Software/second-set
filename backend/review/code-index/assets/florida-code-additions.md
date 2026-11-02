@@ -111,6 +111,11 @@ Base: [Florida Building Commission code resources](https://www.floridabuilding.o
 
 - **2308 Conventional Light-Frame Construction (Reserved)** - Reserved in the 8th Edition, so it holds no requirement. Check conventional light-frame work against 2304. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-23-wood#FLBC2023P2_Ch23_Sec2308)
 
+### Sections the plan review reference omits
+
+- **601 General and Table 601 Fire-Resistance Ratings** - Check the required fire-resistance rating of each building element for the construction type. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-6-types-of-construction#FLBC2023P2_Ch06_Sec601)
+- **714 Penetrations** - Check that penetrations of rated assemblies are protected by a listed system. [Link](https://codes.iccsafe.org/content/FLBC2023P2/chapter-7-fire-and-smoke-protection-features#FLBC2023P2_Ch07_Sec714)
+
 ## FBC Existing Building - 2023 8th Edition
 
 ### Reserved sections

@@ -373,6 +373,19 @@ test("the real high-velocity masonry sections are indexed beside the reserved on
   }
 });
 
+test.each([
+  { section: "Section 714 - Penetrations", anchor: "FLBC2023P2_Ch07_Sec714" },
+  { section: "Section 601 / Table 601 Fire-resistance ratings", anchor: "FLBC2023P2_Ch06_Sec601" },
+])("a citation a real review wrote links to its section: $section", ({ section, anchor }) => {
+  const resolved = resolveCodeReference(floridaCodeIndex, {
+    document: "FBC Building (Commercial)",
+    edition: "2023 8th Edition",
+    section,
+  });
+
+  expect(new URL(resolved?.url ?? "https://missing.example").hash).toBe(`#${anchor}`);
+});
+
 test("every explicitly listed section resolves within its chapter", () => {
   for (const entry of floridaCodeIndex) {
     for (const section of listedCodeSections(entry)) {

@@ -375,9 +375,19 @@ const requireAbsenceSupport = (
 };
 
 const CitationInput = Schema.Struct({
-  ...PacketCitation.mapFields(Struct.omit(["reference"])).fields,
+  ...PacketCitation.mapFields(Struct.omit(["reference", "sourceId"])).fields,
+  // Optional and unchecked: a required UUID made models invent one when they had read nothing.
+  sourceId: Schema.optionalKey(Schema.NullOr(Schema.String)),
   codeReferenceId: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(500))),
 });
+
+/** What a finding without evidence, citations, calculations or a prior comment stores. */
+const findingLinkDefaults = {
+  evidenceIds: [],
+  citationIds: [],
+  calculationIds: [],
+  priorCommentId: null,
+};
 
 type Runtime = {
   harness: Harness;
@@ -1844,11 +1854,26 @@ export class PacketReviews extends Context.Service<
               "record_finding",
               "Save the complete source-specific technical finding, including necessary values, qualifications and evidence. Do not shorten or omit technical facts to fit a display limit. Give each location the tight PDF region of the problem area; when SAM is available the host renders a zoom of the first region under half its sheet and segments it for the reviewer. Reuse an existing issue ID for follow-up. The result includes the host-owned summary state and revision; if Pending, use record_finding_summary. Completed and the reviewer's decision are user-owned and cannot be set by this tool.",
               Schema.Struct({
-                ...Struct.omit(PacketFinding.fields, ["summary", "decision", "focus"]),
+                ...Struct.omit(PacketFinding.fields, [
+                  "summary",
+                  "decision",
+                  "focus",
+                  "evidenceIds",
+                  "citationIds",
+                  "calculationIds",
+                  "priorCommentId",
+                ]),
                 id: Schema.optionalKey(Id),
                 completed: Schema.optionalKey(Schema.Boolean),
+                // A long conversation can drop these; refusing the finding loses more than they hold.
+                evidenceIds: Schema.optionalKey(PacketFinding.fields.evidenceIds),
+                citationIds: Schema.optionalKey(PacketFinding.fields.citationIds),
+                calculationIds: Schema.optionalKey(PacketFinding.fields.calculationIds),
+                priorCommentId: Schema.optionalKey(PacketFinding.fields.priorCommentId),
               }),
-              async (task, input, api) => {
+              async (task, given, api) => {
+                const input = { ...findingLinkDefaults, ...given };
+
                 if (input.absenceCheck && assignments.sheets.has(api.conversationId))
                   throw error(
                     "input",

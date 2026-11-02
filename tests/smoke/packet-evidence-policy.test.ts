@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Effect, Match, Schema } from "effect";
+import { Effect, Match, Schema, Struct } from "effect";
 import { SqlClient } from "effect/sql";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -529,6 +529,15 @@ test("a citation records a source only when this review retrieved it", async () 
             name: "record_citation",
             arguments: { ...placeholder, id: id(), section: "802", sourceId: failedRead.id },
           },
+          // An empty string and an omitted field were refused, costing the model a turn each.
+          {
+            name: "record_citation",
+            arguments: { ...placeholder, id: id(), section: "804", sourceId: "" },
+          },
+          {
+            name: "record_citation",
+            arguments: Struct.omit({ ...placeholder, id: id(), section: "805" }, ["sourceId"]),
+          },
         ]);
       default:
         return response([], "Citation source fixture finished.");
@@ -542,7 +551,57 @@ test("a citation records a source only when this review retrieved it", async () 
 
     const finished = await until(session, started.id, "failed");
 
-    expect(finished.citations.map((citation) => citation.sourceId)).toEqual([null, null]);
+    expect(finished.citations.map((citation) => citation.sourceId)).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
+test("a finding that drops its evidence and citation lists is still recorded", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-finding-defaults-"));
+  let step = 0;
+
+  // The fields a real reviewer dropped on its retry, after which it stopped recording findings.
+  const session = await open(directory, async () =>
+    step++ === 0
+      ? response([
+          {
+            name: "record_finding",
+            arguments: {
+              title: "Sprinkler basis conflicts within the code analysis",
+              discipline: "life_safety",
+              severity: "Major",
+              status: "Needs input",
+              classification: "Code",
+              locations: [],
+              observed: "The code analysis uses non-sprinklered limits and requires sprinklers.",
+              correction: "State one sprinkler basis and revise the dependent notes to match it.",
+              evidenceNote: "The notes are legible on the supplied cover sheet.",
+            },
+          },
+        ])
+      : response([], "Finding defaults fixture finished."),
+  );
+
+  try {
+    const started = await session.run(
+      session.packets.start(await session.request("Check the code analysis.")),
+    );
+
+    const finished = await until(session, started.id, "failed");
+    const [finding] = finished.findings;
+
+    expect(finding?.title).toBe("Sprinkler basis conflicts within the code analysis");
+    expect(finding?.evidenceIds).toEqual([]);
+    expect(finding?.citationIds).toEqual([]);
+    expect(finding?.calculationIds).toEqual([]);
+    expect(finding?.priorCommentId).toBeNull();
   } finally {
     await session.dispose();
     await rm(directory, { recursive: true, force: true });
