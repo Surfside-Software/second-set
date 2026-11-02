@@ -79,18 +79,25 @@ export function citationDisplayNote(
   if (citationStanding(citation) !== "indexed" || citation.reference?.access !== "open_in_browser")
     return citation.note;
 
+  const accessClauses = [
+    /^(?:the )?ICC Digital Codes link could not be (?:automatically )?read(?: here)?(?: automatically)?$/i,
+    /^(?:the )?(?:engineer|reviewer|user) (?:must|should|needs to) open the link and confirm$/i,
+    /^(?:the )?(?:section content|governing text) (?:was )?(?:not retrieved|could not be retrieved)(?: here| automatically)?$/i,
+    /^(?:the )?ICC Digital Codes blocks (?:automated )?retrieval$/i,
+    /^(?:the )?engineer to open (?:the )?link to confirm .+$/i,
+    /^(?:the )?official text was (?:not available for automated reading|inaccessible)$/i,
+    /^open (?:the |this )?link (?:to confirm the wording|and confirm)$/i,
+    /^(?:the )?Florida rule page could not be accessed(?: here| automatically)?$/i,
+  ];
+
   return (
     citation.note
       .match(/[^;]+?(?:[.!?](?=\s|$)|;|$)/g)
-      ?.filter(
-        (clause) =>
-          !/^(?:(?:the )?(?:engineer|reviewer|user) (?:must|should|needs to) open\b|open (?:the |this )?(?:link|section|page)\b)/i.test(
-            clause.trim(),
-          ) &&
-          !/^(?:the )?(?:ICC Digital Codes|Florida rule(?:s| pages?)?|rule[- ]page|section(?: content)?|source(?: text)?|governing text|official text|link|text)\b.*(?:\b(?:could not|cannot|can't|not|unable to)\s+(?:be\s+)?(?:read|retriev\w*|access\w*|open\w*|fetch\w*|load\w*|available for automated reading)\b|\bblock\w*\s+(?:reading|retrieval|access|opening|fetching|loading)\b|\b(?:inaccessible|unavailable for automated reading)\b)/i.test(
-            clause.trim(),
-          ),
-      )
+      ?.filter((clause) => {
+        const text = clause.trim().replace(/;$/, "").trim().replace(/\.$/, "");
+
+        return !accessClauses.some((pattern) => pattern.test(text));
+      })
       .join("")
       .trim()
       .replace(/;$/, "") ?? ""

@@ -556,6 +556,8 @@ test("citation display notes remove only browser access clauses and preserve pro
   const fact = "Sheet cites the 2020 edition; 2023 governs.";
 
   const facts = [
+    "ICC Digital Codes link could not be read here, but sheet M-2 cites the wrong edition.",
+    "Text on sheet M-2 could not be read at the supplied resolution.",
     "Section 1004 does not apply because the space is unoccupied.",
     "Section 803 not applicable to this project.",
     "The section was not adopted by this jurisdiction.",
@@ -567,6 +569,15 @@ test("citation display notes remove only browser access clauses and preserve pro
 
   const accessNotes = [
     boilerplate,
+    "ICC Digital Codes blocks automated retrieval; engineer to open link to confirm Section 1004 occupant-load factors.",
+    "ICC Digital Codes blocks automated retrieval; engineer to open link to confirm Sections 602/603/604 alteration levels.",
+    "ICC Digital Codes blocks automated retrieval; engineer to open link to confirm HVHZ masonry provision referenced as 2118.",
+    "ICC Digital Codes link could not be read here",
+    "the engineer must open the link and confirm",
+    "Section content not retrieved",
+    "ICC Digital Codes blocks retrieval",
+    "section content not retrieved",
+    "Governing text could not be retrieved",
     "Section content not retrieved; ICC Digital Codes blocks retrieval.",
     "Official text was not available for automated reading.",
     "Official text was inaccessible.",
@@ -575,9 +586,21 @@ test("citation display notes remove only browser access clauses and preserve pro
   ];
 
   const samples = [
+    [
+      "ICC Digital Codes blocks automated retrieval; engineer to open link to confirm Section 803 text. No vent/connector work in this lighting set.",
+      "No vent/connector work in this lighting set.",
+    ],
+    [
+      "ICC Digital Codes blocks automated retrieval; engineer to open link to confirm Sections 802/803. Recorded separately per request though same source section.",
+      "Recorded separately per request though same source section.",
+    ],
     ...facts.map((note) => [note, note]),
     ...accessNotes.map((note) => [note, ""]),
     ...accessNotes.map((note) => [`${note}; ${fact}`, fact]),
+    [
+      "ICC Digital Codes link could not be read here; sheet cites the 2020 edition.",
+      "sheet cites the 2020 edition.",
+    ],
     [
       "Sheet cites the 2020 edition; ICC Digital Codes link could not be read here.",
       "Sheet cites the 2020 edition",
@@ -585,7 +608,13 @@ test("citation display notes remove only browser access clauses and preserve pro
   ];
 
   for (const [note = "", expected = ""] of samples) {
-    expect(citationDisplayNote({ ...citation, reference, note })).toBe(expected);
+    const indexed = { ...citation, reference, note };
+
+    expect(citationDisplayNote(indexed)).toBe(expected);
+    expect(indexed.note).toBe(note);
+    expect(
+      citationDisplayNote({ ...indexed, reference: { ...reference, access: "read_source" } }),
+    ).toBe(note);
     expect(citationDisplayNote({ ...citation, note })).toBe(note);
     expect(citationDisplayNote({ ...citation, reference, status: "verified", note })).toBe(note);
   }
