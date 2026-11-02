@@ -1796,7 +1796,10 @@ export class PacketReviews extends Context.Service<
                       };
 
                 const current = await run(get(row.project_id, row.id));
-                const source = current.sources.find((entry) => entry.id === input.sourceId);
+
+                const source = current.sources.find(
+                  (entry) => entry.id === input.sourceId && entry.status === "available",
+                );
 
                 // Models fill the required ids with placeholders, so the host owns what they mean:
                 // a source is one this review retrieved, and each sheet numbers its own citations.
@@ -1832,7 +1835,8 @@ export class PacketReviews extends Context.Service<
                       citations: upsert(review.citations, citation),
                     });
                   },
-                  citation,
+                  // The model keeps using the id it chose; only the host sees the stored one.
+                  { ...citation, id: input.id },
                 );
               },
             ),
@@ -1907,11 +1911,13 @@ export class PacketReviews extends Context.Service<
                         ? { focus: existing.focus }
                         : {};
 
-                    // A reviewer may cite its own citation by the id it chose or the id it got back.
+                    // A reviewer cites by the id it chose: its own citation, recorded now or later,
+                    // or else a citation the coordinator recorded under that id.
                     const citationIds = input.citationIds.map((cited) => {
                       const own = sheetCitationId(row, api.conversationId, cited);
+                      const stored = (id: string) => review.citations.some((c) => c.id === id);
 
-                      return review.citations.some((entry) => entry.id === own) ? own : cited;
+                      return stored(cited) && !stored(own) ? cited : own;
                     });
 
                     const recorded = {

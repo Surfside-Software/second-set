@@ -965,6 +965,7 @@ test("sheet reviewers choosing one citation id keep their own citations and find
   const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-citation-"));
   // Models number their citations, so every reviewer's first citation can carry this id.
   const shared = "11111111-1111-1111-8111-111111111111";
+  const later = "22222222-2222-2222-8222-222222222222";
 
   const citation = (section: string, application: string) => ({
     id: shared,
@@ -997,11 +998,7 @@ test("sheet reviewers choosing one citation id keep their own citations and find
           { name: "record_citation", arguments: citation("803", `Connector on ${own}.`) },
         ]);
 
-      if (made.filter((name) => name === "record_citation").length === 1)
-        return response([
-          { name: "record_citation", arguments: citation("803", `Revised connector on ${own}.`) },
-        ]);
-
+      // The finding also cites a citation this reviewer has not recorded yet.
       if (!made.includes("record_finding"))
         return response([
           {
@@ -1009,10 +1006,32 @@ test("sheet reviewers choosing one citation id keep their own citations and find
             arguments: {
               ...findingOn([own], [rendered.artifact.id]),
               title: `Connector on ${own}`,
-              citationIds: [shared],
+              citationIds: [shared, later],
             },
           },
         ]);
+
+      if (made.filter((name) => name === "record_citation").length === 1) {
+        const returned = outputs(
+          Schema.Struct({ id: Schema.String, section: Schema.String }),
+          request,
+        )
+          .filter((result) => result.section === "803")
+          .at(-1);
+
+        if (returned?.id !== shared) throw new Error("The tool did not return the chosen id");
+
+        return response([
+          {
+            name: "record_citation",
+            arguments: citation("803", `Revised connector on ${own}.`),
+          },
+          {
+            name: "record_citation",
+            arguments: { ...citation("804", `Later on ${own}.`), id: later },
+          },
+        ]);
+      }
 
       return reviewOwnSheet(request, own);
     }
@@ -1041,17 +1060,26 @@ test("sheet reviewers choosing one citation id keep their own citations and find
     const finished = await until(session, started.id, "completed");
     const applications = finished.citations.map((entry) => entry.application).toSorted();
 
-    // The coordinator's citation and one revised citation per sheet: nothing was overwritten.
+    // The coordinator's citation and two per sheet, the first revised in place: none overwritten.
     expect(applications).toEqual(
-      [...sheets.map((sheet) => `Revised connector on ${sheet.id}.`), "Whole set."].toSorted(),
+      [
+        ...sheets.flatMap((sheet) => [
+          `Revised connector on ${sheet.id}.`,
+          `Later on ${sheet.id}.`,
+        ]),
+        "Whole set.",
+      ].toSorted(),
     );
-    expect(new Set(finished.citations.map((entry) => entry.id)).size).toBe(sheets.length + 1);
+    expect(new Set(finished.citations.map((entry) => entry.id)).size).toBe(sheets.length * 2 + 1);
 
     for (const sheet of sheets) {
       const finding = finished.findings.find((entry) => entry.title === `Connector on ${sheet.id}`);
-      const cited = finished.citations.find((entry) => entry.id === finding?.citationIds[0]);
 
-      expect(cited?.application).toBe(`Revised connector on ${sheet.id}.`);
+      const cited = finding?.citationIds.map(
+        (citationId) => finished.citations.find((entry) => entry.id === citationId)?.application,
+      );
+
+      expect(cited).toEqual([`Revised connector on ${sheet.id}.`, `Later on ${sheet.id}.`]);
     }
   } finally {
     await session.dispose();

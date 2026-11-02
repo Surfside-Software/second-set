@@ -493,11 +493,47 @@ test("a citation records a source only when this review retrieved it", async () 
     status: "unverified",
   };
 
-  const session = await open(directory, async () =>
-    step++ === 0
-      ? response([{ name: "record_citation", arguments: placeholder }])
-      : response([], "Citation source fixture finished."),
-  );
+  const failedRead = Schema.decodeUnknownSync(PacketSource)({
+    id: id(),
+    url: "https://example.gov/code/2023/803",
+    title: "Florida Mechanical Code",
+    retrievedAt: "2026-11-02T00:00:00.000Z",
+    status: "unavailable",
+    official: true,
+    sha256: null,
+    text: "The source could not be read.",
+  });
+
+  const session = await open(directory, async () => {
+    switch (step++) {
+      case 0:
+        await session.database(
+          Effect.gen(function* () {
+            const sql = yield* SqlClient.SqlClient;
+
+            const rows = yield* Schema.decodeUnknownEffect(
+              Schema.Array(Schema.Struct({ payload: Schema.fromJsonString(PacketReview) })),
+            )(yield* sql`SELECT payload FROM packet_reviews ORDER BY rowid DESC LIMIT 1`);
+
+            const current = rows[0]?.payload;
+
+            if (!current) throw new Error("Missing real review row");
+            const seeded = new PacketReview({ ...current, sources: [failedRead] });
+            yield* sql`UPDATE packet_reviews SET payload=${JSON.stringify(seeded)} WHERE id=${current.id}`;
+          }),
+        );
+
+        return response([
+          { name: "record_citation", arguments: placeholder },
+          {
+            name: "record_citation",
+            arguments: { ...placeholder, id: id(), section: "802", sourceId: failedRead.id },
+          },
+        ]);
+      default:
+        return response([], "Citation source fixture finished.");
+    }
+  });
 
   try {
     const started = await session.run(
@@ -506,8 +542,7 @@ test("a citation records a source only when this review retrieved it", async () 
 
     const finished = await until(session, started.id, "failed");
 
-    expect(finished.citations).toHaveLength(1);
-    expect(finished.citations[0]?.sourceId).toBeNull();
+    expect(finished.citations.map((citation) => citation.sourceId)).toEqual([null, null]);
   } finally {
     await session.dispose();
     await rm(directory, { recursive: true, force: true });
