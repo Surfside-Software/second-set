@@ -15,9 +15,17 @@ const StoredCredential = Schema.Struct({
   encrypted: Schema.NonEmptyString,
 });
 
-const secureStorageAvailable = async () =>
-  (await safeStorage.isAsyncEncryptionAvailable()) &&
-  (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text");
+const secureStorageAvailable = async () => {
+  if (!(await safeStorage.isAsyncEncryptionAvailable())) return false;
+
+  if (process.platform !== "linux") return true;
+
+  // With no secret service answering, Chromium still reports success and the selected backend's
+  // name, then encrypts with a publicly known key. Only the v10 tag on its output reveals this.
+  const probe = await safeStorage.encryptStringAsync("availability");
+
+  return probe.subarray(0, 3).toString() !== "v10";
+};
 
 /** Packaged launches use OS-encrypted storage or an explicitly selected session-only file. */
 export async function readInferenceConfigurations(directory: string, packaged: boolean) {

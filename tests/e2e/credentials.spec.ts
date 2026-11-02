@@ -44,7 +44,8 @@ test("importing a provider credential uses OS encryption and keeps saved provide
 
   try {
     await openWindow(app);
-    // Test sessions on Linux hide the OS secret service, leaving only refused basic_text storage.
+    // Test sessions on Linux hide the OS secret service, as on a desktop whose keyring is not
+    // running. Encryption then falls back to Chromium's public key, so the app must refuse to save.
     const secure = process.platform !== "linux";
 
     if (secure) {
