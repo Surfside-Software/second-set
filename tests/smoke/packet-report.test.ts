@@ -557,6 +557,8 @@ test("citation display notes remove only browser access clauses and preserve pro
 
   const facts = [
     "ICC Digital Codes link could not be read here, but sheet M-2 cites the wrong edition.",
+    "engineer to open link to confirm Section 803 text, but no vent/connector work in this lighting set.",
+    "engineer to open link to confirm Section 803 text and sheet M-2 omits the connector.",
     "Text on sheet M-2 could not be read at the supplied resolution.",
     "Section 1004 does not apply because the space is unoccupied.",
     "Section 803 not applicable to this project.",
