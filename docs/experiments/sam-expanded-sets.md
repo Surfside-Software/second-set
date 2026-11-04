@@ -11,7 +11,7 @@ fire alarm, sprinklers and related coordination inputs.
 
 Two source-only agent audits saved electrical/alarm and structural observations
 at 23:15:00 and 23:15:27 UTC on 2026-10-27, before those crops' first inference.
-Civil observations were recorded separately before its probes. These are
+Civil observations were recorded separately before the civil probes. These are
 AI agent observations, not a human benchmark. Annotation points,
 quantities and timing are retained in `experiments/sam/expanded/expectations.json`.
 Inference used original source images; it did not read that evaluation file.

@@ -35,7 +35,7 @@ are the committed records.
 - [Fast initial review](validation/fast-initial-review.md): measured time and cost for the Initial Review button.
 - [Parallel sheet review](validation/parallel-sheet-review.md): live results for one reviewer per sheet on Muse Spark 1.3.
 - [Citation links on a real set](validation/citation-links-real-set.md): what a public 46-sheet set showed, and how far code links are checked.
-- [Muse Spark Open reviews](validation/muse-spark-open.md): completed reviews on Meta's open-weight model, and their limits.
+- [Muse Spark Open reviews](validation/muse-spark-open.md): completed reviews on one of Meta's open-weight models, and their limits.
 - [Baseten rate limits and caching](validation/baseten-rate-limits.md): measured key limits, 429 shape, session affinity and the request pacer.
 
 ## Drawing experiments

@@ -10,7 +10,7 @@ OPENCODE_API_KEY=
 
 Bun loads the root `.env` when `bun run dev` starts. Restart after changing it.
 Configured providers are available together in the Model menu, except that a Go
-key makes Go the only chat choice; see [OpenCode Go](#opencode-go). Keep each
+key limits chat to Go and any saved custom endpoint; see [OpenCode Go](#opencode-go). Keep each
 key with its own provider and endpoint; keys never enter renderer code or logs.
 The repository ignores `.env` and `.env.*` except the blank `.env.example`.
 
@@ -274,7 +274,7 @@ in `opencode-go-credential.json`. Count checks stay on Meta and Baseten, and SAM
 
 Review settings → Model connections chooses the model the Initial Review button
 and new conversations use. Until it is set, a connected OpenCode Go key selects
-Muse Spark 1.3 Contributor, then a connected custom endpoint, then Muse Spark 1.3.
+Muse Spark 1.3 Contributor, then Muse Spark 1.3, then a connected custom endpoint.
 The choice is stored
 in the window's local storage and holds no credential. A review records the model
 it started with. Initial Review runs on this computer whenever its model's key

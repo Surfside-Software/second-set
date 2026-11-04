@@ -58,8 +58,8 @@ transcripts.
 | `evaluate(fence)`          | The application's deterministic check over accepted inputs.                                 |
 | `message(fence, text)`     | Application progress or a reviewer clarification request.                                   |
 
-The optional segmentation capability is application-owned and not exposed as a
-paid tool by this adapter. SAM has [its own adapter](sam-integration.md).
+When a Meta key is configured, the application supplies the segmentation capability
+and this adapter adds a `segment` tool. SAM has [its own adapter](sam-integration.md).
 
 Every mutation fence includes project/finding/run/journal IDs, owner generation,
 captured source/fact versions, and a stable command UUID derived from journal ID

@@ -105,7 +105,7 @@ Suggested export and restore order:
 
 `hasReviewBearingRows(filename)` opens one short read-only connection and does not take the semaphore. Call it while the semaphore is already held, before the legacy database-file restore. If it returns true, refuse that database-only restore. This package module does not replace that path.
 
-This module does not edit `application.ts`, the RPC contracts, or migrations. A second runtime is not created.
+A second runtime is not created.
 
 ## Limitations
 
