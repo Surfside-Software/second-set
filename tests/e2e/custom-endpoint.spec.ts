@@ -30,8 +30,8 @@ test("OpenCode Go and a custom endpoint are set up in Review settings and run In
     page.on("pageerror", (error) => errors.push(error.message));
 
     // Until the reviewer chooses, a connected OpenCode Go key spares Meta credits.
-    const summary = page.locator("#initial-review-summary");
-    await expect(summary).toContainText("Muse Spark 1.3 Contributor");
+    const initial = page.getByRole("button", { name: "Initial Review", exact: true });
+    await expect(initial).toHaveAttribute("data-tip", /Muse Spark 1\.3 Contributor/);
     const model = page.getByRole("button", { name: /^Model:/ });
     await expect(model).toContainText("Muse Spark 1.3 Contributor");
     await model.click();
@@ -101,11 +101,11 @@ test("OpenCode Go and a custom endpoint are set up in Review settings and run In
 
     await expect(preferred).toHaveValue("muse-spark-1.3-contributor");
     await preferred.selectOption("openai-compatible");
-    await expect(summary).toContainText("offline-coder");
+    await expect(initial).toHaveAttribute("data-tip", /Custom endpoint/);
     await preferred.selectOption("glm-5.3-flash");
-    await expect(summary).toContainText("GLM-5.3-Flash");
+    await expect(initial).toHaveAttribute("data-tip", /GLM-5\.3-Flash/);
     await preferred.selectOption("muse-spark-1.3-contributor");
-    await expect(summary).toContainText("Muse Spark 1.3 Contributor");
+    await expect(initial).toHaveAttribute("data-tip", /Muse Spark 1\.3 Contributor/);
     await settings.getByRole("button", { name: "Done", exact: true }).click();
 
     await page.evaluate(

@@ -125,8 +125,8 @@ const promptVersion = packetPromptVersion;
  * about 1.5M of Meta's 4M tokens a minute, so Meta reviews start every sheet at once. The Baseten
  * key allows 100 requests and 2M tokens a minute (2026-10-31); 16 sheet reviewers send about 40
  * requests a minute, and the shared request pacer holds any burst inside the limit. OpenCode Go
- * asks for typical coding-agent traffic, and a custom endpoint may be one self-hosted server, so
- * both start eight at a time.
+ * asks for typical coding-agent traffic, so it starts three at a time; a custom endpoint may be one
+ * self-hosted server, so it starts eight.
  */
 export const defaultParallel = {
   minSheets: 4,

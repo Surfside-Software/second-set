@@ -552,7 +552,7 @@ export class CloudReviews extends Context.Service<
                 return yield* new CloudReviewError({
                   reason: "configuration",
                   message:
-                    "A custom endpoint's key stays on this computer, so it runs reviews here only. Run this review here, or choose a Meta or Baseten model to push it to the cloud. Your workspace has not been uploaded.",
+                    "A custom endpoint's key stays on this computer, so it runs reviews here only. Run this review here, or choose a Meta, Baseten or OpenCode Go model to push it to the cloud. Your workspace has not been uploaded.",
                 });
 
               const provider =
