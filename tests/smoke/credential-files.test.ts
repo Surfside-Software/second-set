@@ -110,7 +110,11 @@ test("connecting OpenCode Go makes it the only chat route on offer", () => {
   // Meta stays connected for SAM and count checks, without appearing as a chat choice.
   expect(new Set(offered(["meta", "opencode-go"]))).toEqual(new Set(["opencode-go"]));
   expect(new Set(offered(["meta", "baseten"]))).toEqual(
-    new Set(["meta", "baseten", "opencode-go"]),
+    new Set(["meta", "baseten", "opencode-go", "openai-compatible"]),
+  );
+  // A connected custom endpoint stays on offer beside Go.
+  expect(new Set(offered(["opencode-go", "openai-compatible"]))).toEqual(
+    new Set(["opencode-go", "openai-compatible"]),
   );
 });
 

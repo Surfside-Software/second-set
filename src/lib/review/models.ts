@@ -97,7 +97,9 @@ export function offeredReviewModels<
 >(models: ReadonlyArray<Model>): ReadonlyArray<Model> {
   return models.some((model) => model.provider === "opencode-go" && model.available)
     ? models.filter(
-        (model) => model.provider === "opencode-go" || model.provider === "openai-compatible",
+        (model) =>
+          model.provider === "opencode-go" ||
+          (model.provider === "openai-compatible" && model.available),
       )
     : models;
 }
