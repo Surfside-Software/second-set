@@ -44,7 +44,7 @@ migration or recovery behavior. Read docs/deployment.md before release changes.
 
 Authentication and cloud capabilities are selected per application. Implement
 authorization at operation boundaries. Choose desktop updater delivery and access
-per project; aecPermitMonitor is a reference to evaluate for R2-hosted updates.
+per project.
 
 Scaffolding itself does not deploy resources or publish applications. Follow the
 user's requested scope when moving from local implementation to external changes.

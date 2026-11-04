@@ -58,7 +58,7 @@ only the authored schematic. This directory and credentials are excluded from gi
   compiled SIGKILL/ownership recovery, zero additional sends after uncertainty,
   pause/cancel, command/response receipts, image blocks, bounded image windows,
   journal incompatibility and persisted progress pagination.
-- `tests/smoke/review-fences.test.ts`: the real parent port and SQLite permit correction
+- `tests/smoke/review-fences.test.ts`: the real application port and SQLite permit correction
   while a response waits, reject its stale promotion and replay a committed receipt.
 - `tests/smoke/backend.test.ts`: auth/origin/process failures plus streaming HTTP
   delivery before a subscription closes.

@@ -162,7 +162,7 @@ recipes contain supplied locations, so their output cannot establish discovery
 recall. Never overwrite earlier runs to hide failures.
 
 Raw requests, image hashes, responses, result summaries, overlay SVGs and reports
-are retained in `.local/sam/iteration-3/`. Exploratory Muse scripts and Exa/Firecrawl
+are retained in `.local/sam/iteration-3/`. Exploratory Muse scripts and
 source records are there too. The study does not establish billing totals or
 production accuracy.
 

@@ -96,7 +96,8 @@ Until a revised set arrives, an **Initial Review** button sits above the compose
 One click posts the preset first-submittal request (`initial-review-v1`, in
 `src/lib/review/initial-review.ts`) as the reviewer's message and starts a review
 of every sheet in the first set, with all disciplines and the four passes, on
-Muse Spark 1.3. It runs in the cloud when cloud review is set up and can take the
+the reviewer's preferred model. The default is Muse Spark 1.3, or Muse Spark 1.3
+Contributor when OpenCode Go is connected. It runs in the cloud when cloud review is set up and can take the
 workspace, and on this computer otherwise; one line beside the button says which.
 The review records the preset's identity. The button is disabled while a review
 runs in the conversation and can run again during the initial phase, for example

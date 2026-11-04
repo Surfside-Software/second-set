@@ -17,7 +17,7 @@ Start with [Moke's README](../README.md) for the product, workflow, and screensh
 
 - [Product scope](../PRODUCT.md): what the workbench does and who it serves.
 - [Review runtime](review-runtime.md): local ownership, Pi Durable, hosted inference, and cloud review scope.
-- [Pi execution](architecture/pi-runtime.md): journals, request admission, controls, and crash recovery.
+- [Pi execution for count checks](architecture/pi-runtime.md): journals, request admission, controls, and crash recovery.
 - [Review packages](architecture/review-packages.md): complete export/restore and interrupted replacement recovery.
 - [SAM integration](architecture/sam-integration.md): image geometry, intent ledger, source fences, and proposals.
 - [Review prompt provenance](../backend/review/prompts/README.md): where the review instructions come from and how they version.
@@ -26,13 +26,16 @@ Start with [Moke's README](../README.md) for the product, workflow, and screensh
 ## Validation records
 
 These record specific live runs on the dates they state. They are not benchmarks
-for unseen drawings.
+for unseen drawings. Raw request and response receipts stayed in the ignored
+`.local/` directory of the machine that ran them; the `*-result.json` files here
+are the committed records.
 
 - [Core validation](validation/core-validation.md): recorded Meta/SAM receipts, recovery checks, and limits.
 - [Cloud validation](validation/cloud-validation.md): a live cloud review, its automatic return, and its recovery.
 - [Fast initial review](validation/fast-initial-review.md): measured time and cost for the Initial Review button.
 - [Parallel sheet review](validation/parallel-sheet-review.md): live results for one reviewer per sheet on Muse Spark 1.3.
 - [Citation links on a real set](validation/citation-links-real-set.md): what a public 46-sheet set showed, and how far code links are checked.
+- [Muse Spark Open reviews](validation/muse-spark-open.md): completed reviews on Meta's open-weight model, and their limits.
 - [Baseten rate limits and caching](validation/baseten-rate-limits.md): measured key limits, 429 shape, session affinity and the request pacer.
 
 ## Drawing experiments

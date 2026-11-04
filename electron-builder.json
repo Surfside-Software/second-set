@@ -17,6 +17,10 @@
       "to": "migrations"
     },
     {
+      "from": "src/lib/review/TABLER-LICENSE",
+      "to": "licenses/TABLER-LICENSE"
+    },
+    {
       "from": "dist/backend",
       "to": "backend",
       "filter": ["app-backend*", "pdf-worker*", "pdf-assets/**/*"]

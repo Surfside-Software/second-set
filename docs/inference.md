@@ -36,14 +36,15 @@ refuses it.
 
 - **Traffic.** Go is designed for coding agents and monitors traffic for abuse. Parallel drawing
   reviews are not typical coding traffic. Moke identifies itself as `moke/<version>`, sends a session
-  ID per conversation and runs 3 sheet reviewers at a time. See [OpenCode Go](#opencode-go).
+  ID per conversation and runs 3 sheet reviewers at a time. See [OpenCode Go](#opencode-go-1).
 - **Images.** Go has no Files API, so images travel inline. Reviews keep the eight-image window Baseten
   uses, so a reviewer inspects a batch before requesting the next.
 - **The only chat route once connected.** With a Go key present, the model menu and the Initial Review
-  button offer only Go models, so a review cannot spend Meta or Baseten credits by accident.
+  button offer only Muse Spark 1.3 Contributor and any saved custom endpoint, so a review cannot
+  spend Meta or Baseten credits by accident.
 - **What stays on Meta.** SAM runs only on Meta, so object counting needs `MODEL_API_KEY`. Selected
   count checks run on Meta or Baseten, because their table admits only those two; a check started while
-  a Go model is selected uses that default route.
+  the Go model is selected uses that default route.
 - **Search.** There is no built-in web search; reviewers use `search_sources` and `read_source`.
 
 Keep the `-1026` suffix for the supplied Baseten hackathon key. Public examples
@@ -55,7 +56,7 @@ key is configured, packet reviews use it with either chat provider; see
 `MOKE_PROVIDER` chooses the preferred startup provider, with `meta` as the
 default. Each review saves the model selected in the workbench. Changing the menu
 does not change an existing run. When Go is connected, a follow-up whose earlier
-model the menu no longer offers moves to the first Go model. The
+model the menu no longer offers moves to the first model it does. The
 other endpoint and model variables in `.env.example` support experiment scripts;
 they do not override the desktop's canonical routes.
 
@@ -260,10 +261,10 @@ least typical part of this traffic. Model images are at most 2048 pixels on thei
 long edge; OpenCode's catalog suggests 2000, so a model that receives them
 resized could place an image box up to about 2% off.
 
-Some models need Console settings first.
 Muse Spark 1.3 Contributor needs "Allow paid endpoints that train on request
 data" under Settings › Privacy. Meta may then train on those reviews' drawings and
-text. **Test and save** sends one tool-calling Chat Completions request (OpenCode
+text. Without that setting Go refuses the model; turn it on, or remove the Go
+connection to return to Meta's and Baseten's models. **Test and save** sends one tool-calling Chat Completions request (OpenCode
 translates the format for every model) and reports a refused key, a refused
 model or a usage limit. The key is stored and removed like a custom endpoint's,
 in `opencode-go-credential.json`. Count checks stay on Meta and Baseten, and SAM

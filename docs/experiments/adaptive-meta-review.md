@@ -49,7 +49,7 @@ metadata and is excluded from model-visible tool results.
 The work-area annotation write completed at 22:51:25 UTC, before the run started;
 an evaluator read at 22:51:45 also precedes the blind response at 22:51:54.
 Formatting at 22:52:13 replaced the JSON inode, so its later filesystem birth
-time is not its first-write time. The parent execution records and a controlled
+time is not its first-write time. The execution records and a controlled
 formatter reproduction are retained in `.local/sam/iteration-4/workarea-parent-chronology.json`
 and `formatter-inode-evidence.json`. Annotation timing is explicit in the fixture;
 the evaluator labels absent timing as unknown rather than inferring it.

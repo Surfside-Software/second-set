@@ -85,7 +85,7 @@
     "primaryDemoPlatform": "linux-x64",
     "promptInstructions": {
       "version": "moke-packet-review-v10",
-      "source": "https://github.com/sc-frederick/skills/tree/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review",
+      "source": "Author's private review-instruction repository at revision 8a0e2648738018631eaa6d24ee0b6ebaa239afb1",
       "provenance": "backend/review/prompts/provenance.json",
       "scope": "Whole supplied packet or selected discipline with explicit coverage, governing sources, findings and offline HTML report",
       "legacyCountVersion": "moke-selected-coordination-v2",
@@ -116,7 +116,7 @@
       "migration": "migrations/0011_firm_checklist.sql"
     },
     "codeIndex": {
-      "version": "florida-code-index-v2",
+      "version": "florida-code-index-v3",
       "module": "backend/review/code-index/code-index.ts",
       "provenance": "backend/review/code-index/provenance.json",
       "tool": "search_code",

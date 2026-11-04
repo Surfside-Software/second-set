@@ -87,7 +87,7 @@ it is not served by Meta Model API. See
 | Input                       | Text, image, video, audio                         |
 | Output                      | Text, with reasoning support                      |
 
-The organizer's supplied `image.png` is the source for the `-1026` model ID and
+Baseten's hackathon onboarding is the source for the `-1026` model ID and
 the restriction that the hackathon key works only with this model. Public
 Baseten examples use `meta-models/muse-spark-open`. Replace that public ID with
 `meta-models/muse-spark-open-1026` in every hackathon request.

@@ -122,7 +122,7 @@ ask only for project configuration and sources. Sheet fan-out began about 25 min
   [Configure HTTP clients](https://docs.baseten.co/inference/http-client-configuration#implement-retries),
   [Request lifecycle](https://docs.baseten.co/deployment/autoscaling/request-lifecycle),
   [Muse Spark Open](https://www.baseten.co/library/muse-spark-open/).
-- Client-side limiter designs found with Exa:
+- Client-side limiter designs:
   [Anvil's per-provider RPM and TPM buckets](https://github.com/esanmohammad/Anvil/blob/main/packages/agent-core/src/router/rate-limiter.ts),
   [dsh-llm-rate-limit](https://github.com/Asong6824/dsh-llm-rate-limit) (FIFO admission, shared
   cooldown, usage reconciliation) and
