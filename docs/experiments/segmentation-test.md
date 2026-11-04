@@ -54,7 +54,7 @@ at full size to inspect edges.
 
 ## Cases
 
-The editable [case list](../experiments/sam/cases.json) contains:
+The editable [case list](../../experiments/sam/cases.json) contains:
 
 | Case                      | Question                                                         |
 | ------------------------- | ---------------------------------------------------------------- |

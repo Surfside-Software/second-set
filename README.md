@@ -49,6 +49,13 @@ Regulatory findings need applicable governing sources; unavailable sources and
 unknown editions remain Needs input. SAM geometry does not establish physical
 dimensions.
 
+## Install
+
+Download the installer for Windows, macOS (Apple silicon) or Linux from
+[GitHub Releases](https://github.com/sc-frederick/moke-meta-hackathon/releases/latest).
+The installers are unsigned, so your system shows its normal prompt for unsigned
+apps. Model reviews need a provider key; see [inference setup](docs/inference.md).
+
 ## How it works
 
 | Process            | Owns                                                                                           |
@@ -125,12 +132,11 @@ migrations/   Immutable SQLite migrations
 tests/       Smoke tests, Electron end-to-end flows, and synthetic fixtures
 scripts/      Development, build, packaged checks, and opt-in model experiments
 docs/        Setup, architecture, screenshots, and validation evidence
-design/       Forge design selection, adaptation notes, and icon license
 experiments/  SAM recipes, captured proposals, and research evidence
 ```
 
 The [documentation index](docs/README.md) separates setup and architecture from
-hackathon research and drawing experiments. The [workbench design notes](design/DESIGN.md)
+validation records and drawing experiments. The [workbench design notes](docs/design.md)
 record the Forge design system, its adaptations, and third-party asset attribution.
 
 ## Hackathon provenance
@@ -138,7 +144,10 @@ record the Forge design system, its adaptations, and third-party asset attributi
 The Moke name and review prompts predate this entry. This repository implements
 a fresh application from the project-kit desktop starter, with drawing evidence,
 corrections, and revision tracking built for the hackathon. It does not reuse the
-earlier Moke application. Prompt and dependency provenance live in
+earlier Moke application. Pi Durable provides agent execution as an MIT-licensed
+dependency; the new work is the drawing-review application, evidence handling,
+corrections, revision behavior and portable review execution. Prompt and
+dependency provenance live in
 [the project manifest](.project-kit/manifest.json) and
 [the review prompt sources](backend/review/prompts/README.md).
 

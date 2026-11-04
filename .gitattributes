@@ -1,3 +1,4 @@
 * text=auto eol=lf
 
-# The standalone preview embeds generated JavaScript with significant whitespace.
+# Vendored upstream reference source stays out of GitHub's language stats.
+repos/** linguist-vendored

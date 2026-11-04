@@ -163,8 +163,8 @@ persistent historical engine marker and cannot resume their copied Pi journals;
 no model or SAM work starts on reopen. This applies to packet reviews and
 selected-count runs. Uncertain model and SAM attempts and their accounting are
 retained.
-See [package recovery](research/review-packages.md) and
-[execution safety](research/pi-runtime.md) for exact contracts and limitations.
+See [package recovery](architecture/review-packages.md) and
+[execution safety](architecture/pi-runtime.md) for exact contracts and limitations.
 
 ## Offline review reports
 

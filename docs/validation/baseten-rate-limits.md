@@ -98,7 +98,7 @@ ask only for project configuration and sources. Sheet fan-out began about 25 min
   costs more. The best alternative gains one point and removes a tenth of each request's images,
   so the window stays as it is. Baseten's 8-image limit keeps Spark Open packet reviews near
   88 to 90% cached; Meta, which keeps every image, measured 91 to 95% on the same packets
-  ([fast initial review validation](fast-initial-review-validation.md)).
+  ([fast initial review validation](fast-initial-review.md)).
 
 ## Decisions
 
@@ -129,4 +129,4 @@ ask only for project configuration and sources. Sheet fan-out began about 25 min
   [Nucleo's admission accounting](https://docs.redouble.ai/nucleo/current/harness-llm-internals.html)
   (reserve before the call, roll back only when the call never happened).
 - Repository: `backend/inference/pacing.ts`, `backend/inference/provider.ts`,
-  `backend/packet-review/service.ts`, `docs/research/audit-3-provider-timeout.md`.
+  `backend/packet-review/service.ts`.

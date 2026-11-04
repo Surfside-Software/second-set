@@ -46,7 +46,7 @@ for a section listed in a combined title. Every section the host links this way,
 the sections in the additions, was checked to exist with its title and Reserved
 status, against ICC's Eighth Edition tables of contents as returned by a search index
 and against UpCodes. The check is recorded in
-[the research note](../../../docs/research/citation-links-real-set.md). An owner's
+[the research note](../../../docs/validation/citation-links-real-set.md). An owner's
 single-section link was not checked this way, and whether a browser scrolls to an
 anchor can only be seen by opening one. A wrong anchor opens the top of the right
 chapter.

@@ -46,7 +46,7 @@ the exported package, receipts and the closed test data. The actual
 image files are `packaged-live-muse.png` and `review-workbench.png`. They contain
 only the authored schematic. This directory and credentials are excluded from git.
 
-![Packaged Meta/SAM review with completed live status](screenshots/packaged-live-review.png)
+![Packaged Meta/SAM review with completed live status](packaged-live-review.png)
 
 ## Repeatable checks
 
@@ -111,7 +111,7 @@ Provider retrieval and guaranteed remote cancellation are unavailable here;
 unknown outcomes remain explicit, with no automatic resend. A recorded possible-
 charge acknowledgement permits only a separate new run and budget.
 
-The council-fix rerun also passed all four hero outcomes. Its revision needs-evidence
+A later rerun after review fixes also passed all four hero outcomes. Its revision needs-evidence
 row cites only the still-current schedule operand; the rejected baseline plan
 operand is null. Full verification passed 198 tests and 1,309 assertions before
-that live rerun. See [the council ledger](core-council.md) for recovery and history fixes.
+that live rerun.

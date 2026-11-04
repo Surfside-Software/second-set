@@ -1,5 +1,5 @@
 // Official Tabler outline paths (MIT), copied from @tabler/icons. The icons smoke test checks
-// every entry against the installed package. See design/TABLER-LICENSE.
+// every entry against the installed package. See TABLER-LICENSE beside this file.
 export const reviewIconPaths = {
   "arrow-right": ["M5 12l14 0", "M13 18l6 -6", "M13 6l6 6"],
   "arrow-up": ["M12 5l0 14", "M18 11l-6 -6", "M6 11l6 -6"],

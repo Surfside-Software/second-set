@@ -101,10 +101,10 @@ calls. Historical scores for the 15 branches remain in `captured-locations.json`
 and `expected-metrics.json`; the test suite no longer reruns the scoring helper.
 
 Source review methods: Moke's
-[electrical](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/electrical.md),
-[structural](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/structural.md),
-[civil](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/civil.md),
-[fire alarm](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/fire_alarm.md)
-and [sprinkler](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/fire_sprinkler.md)
+[electrical](../../backend/review/prompts/assets/disciplines/electrical.md),
+[structural](../../backend/review/prompts/assets/disciplines/structural.md),
+[civil](../../backend/review/prompts/assets/disciplines/civil.md),
+[fire alarm](../../backend/review/prompts/assets/disciplines/fire_alarm.md)
+and [sprinkler](../../backend/review/prompts/assets/disciplines/fire_sprinkler.md)
 instructions. This study tests selected supporting workflows; it is not a full
 permit review or a claim of complete sheet coverage.

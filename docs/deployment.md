@@ -72,10 +72,8 @@ app. Backend code does not run in Electron's embedded Node runtime.
 
 ## Update delivery
 
-Choose the updater and download access for each application. The user often hosts
-release files on R2 and presents notices, downloads, and installation inside the
-app. Evaluate aecPermitMonitor's implementation before reusing it. The baseline
-does not hardcode a bucket, feed, public-download policy, or universal installer.
+Choose the updater and download access for each application. The baseline does
+not hardcode a bucket, feed, public-download policy, or universal installer.
 
 An updater must select the matching OS/architecture artifact, verify it before
 execution, report progress and failure, preserve data, and distinguish download,

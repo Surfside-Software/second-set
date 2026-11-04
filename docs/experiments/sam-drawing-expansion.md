@@ -4,8 +4,8 @@
 
 Can the current SAM 3.1 API help Moke count electrical devices, inspect other
 drawing objects, and review revisions? This continues the
-[plumbing study](plumbing-segmentation.md). Research used Executor with Exa
-search and Firecrawl scraping on 2026-10-27. Drawing experiments use the original
+[plumbing study](plumbing-segmentation.md). Research dates from
+2026-10-27. Drawing experiments use the original
 anonymous local PDFs, rendered directly with Poppler. No application integration
 or complete permit review is claimed.
 
@@ -17,9 +17,9 @@ The fixture pack has these relevant sheets:
 | C                       | E-2, page 7                           | E-3, page 8  | M-2 page 5; P-1/P-2 pages 1/2               |
 | B                       | No electrical sheets in supplied pack | None         | B-2 page 2, sparse residential architecture |
 
-Moke's [electrical method](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/electrical.md)
+Moke's [electrical method](../../backend/review/prompts/assets/disciplines/electrical.md)
 calls for fixture marks, circuits, controls, room use and schedule coordination.
-Its [mechanical method](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/mechanical.md)
+Its [mechanical method](../../backend/review/prompts/assets/disciplines/mechanical.md)
 calls for terminal airflow, equipment marks and system tracing. An object count
 is useful evidence for these tasks, while classification, scope and coverage
 remain separate checks.
@@ -57,7 +57,7 @@ geometric candidates a general electrical classifier: procedure false positives
 were a sink drain and the `@` in `USB@42`; exam false positives included furniture
 and other devices.
 
-The local visual audit includes an independent Sol pass. These are development
+The local visual audit includes an independent second-model pass. These are development
 experiments on a few drawings, not measured performance on a representative
 benchmark or a human timing study. Exam, pre-op lighting and resolution-control
 expectations were generated before their SAM calls. Procedure-room centers were
@@ -135,7 +135,7 @@ better geometry and source-specific checks before becoming measurements.
 
 ## Reproduce and inspect
 
-Recipes are under [experiments/sam/symbols](../experiments/sam/symbols).
+Recipes are under [experiments/sam/symbols](../../experiments/sam/symbols).
 Captured Muse proposals in `candidates.json` are denormalized crop-pixel boxes,
 converted from Muse's original 0–1000 coordinates. Original normalized integers
 remain in `.local/sam/iteration-3/grounding-<crop>-response.json` and its parsed

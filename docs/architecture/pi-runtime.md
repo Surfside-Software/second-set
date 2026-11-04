@@ -1,10 +1,9 @@
-# Selected Pi runtime slice
+# Pi runtime
 
 Implemented against installed `@earendil-works/pi-durable`, `pi-ai`, `chord`, and
 `pi-telemetry` 1.4.0, Effect 4.0.4, and TypeBox 1.3.27. Production imports use
-installed packages. The read-only preflight at `/tmp/moke-pi-preflight-RSsqwv`
-established the published SQLite facade, telemetry identity propagation,
-recovery resend behavior, and safe-tool receipt pattern. This slice uses the
+installed packages. A read-only preflight established the published SQLite facade, telemetry identity propagation,
+recovery resend behavior, and safe-tool receipt pattern. The runtime uses the
 published Harness and SQLite storage rather than replacing their internals.
 
 ## Composition contract
@@ -174,10 +173,8 @@ The final focused run passed 13 tests and 71 assertions on Bun 1.4.4, Linux x64.
 
 These establish local process-crash and admission behavior, not real provider
 acceptance, billing, retrieval, power-loss guarantees, or target-OS installed
-Electron packaging. Parent integration owns the explicit budgeted live probe,
-real domain/PDF acceptance, complete export/restore consistency, E2E, council,
-and final repository verification. Gates 0C/0D are not declared fully passed by
-this slice alone.
+Electron packaging. The [core validation](../validation/core-validation.md)
+records the live provider, packaged-app and restore checks.
 
 ## Lifecycle command receipts and explicit new attempts
 

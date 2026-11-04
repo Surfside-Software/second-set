@@ -184,7 +184,7 @@ least 90% of prompt tokens served from cache (`cacheRead / (input + cacheRead)`)
   one `x-session-affinity` value was never reused by requests with a different value,
   so each extra key would pay the full prefix again. Twelve parallel 4-turn
   conversations on one key had 91.7% of prompt tokens cached, against 88.7% with no
-  header. See [Baseten rate limits and caching](research/baseten-rate-limits.md).
+  header. See [Baseten rate limits and caching](validation/baseten-rate-limits.md).
 - **Shared fields first.** A sheet reviewer's opening message lists the request,
   scope, inventory, project configuration and sources before its own sheet, so
   peers reuse the same prefix.

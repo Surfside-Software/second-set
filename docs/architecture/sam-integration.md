@@ -161,5 +161,4 @@ malformed responses; paused/cancelled/old-owner receipt replay; uncertain intent
 reopen; correction/cancellation/revision/owner changes during inference; project,
 finding, source, journal and owner admission; shared and SAM-specific call limits;
 pre-send revalidation; concurrent delivery; and Effect abort during fetch headers
-and body consumption. No paid request runs in these tests. The parent owns live
-SAM validation, final integration, full verification, council, and publishing.
+and body consumption. No paid request runs in these tests.

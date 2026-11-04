@@ -22,13 +22,10 @@ vendored in tools/oxlint/anti-slop; preserve local customizations when updating.
 Use SvelteKit 3 configuration in vite.config.ts, Svelte 5 runes, and #lib imports.
 Use the Svelte coding skills and run their autofixer when editing components.
 
-The initial notes UI is a functional smoke example. Choose visual design during
-app design from any entry in sc-frederick/uiverse-templates, the user's private
-backup of downloaded Uiverse design systems. Forge and Aether are recent choices.
-Run project-kit designs to list the archive and project-kit design <slug> to
-import the chosen reference. Preserve its DESIGN.md, assets, and license. Keep
-reference source outside public distributions and adapt the selected design to
-the application rather than adding a second UI system.
+The workbench adapts the Forge design system; docs/design.md records how. Use the
+tokens in src/lib/forge.css rather than adding a second UI system. A licensed copy
+of the Forge pack may sit in the ignored design/reference/ directory. Its license
+forbids republishing it, so never commit it or ship it in a distribution.
 
 ## Runtime boundaries
 

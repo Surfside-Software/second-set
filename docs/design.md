@@ -1,12 +1,9 @@
 # Workbench design
 
-MOKE uses [Forge](https://design.uiverse.io), an industrial dark design system
-from Uiverse Design. `design/selection.json` pins it from
-`sc-frederick/uiverse-templates`. `project-kit design forge .` imports the
-licensed pack, with its DESIGN.md, CSS, HTML, screenshots and license intact,
-into the ignored `design/reference/forge/` directory. The pack's license allows
-adapted application use. It forbids republishing or repackaging the pack, so the
-reference source stays out of the repository and application distributions.
+MOKE adapts [Forge](https://design.uiverse.io), an industrial dark design system
+from Uiverse Design. Forge's license allows adapted application use and forbids
+republishing or repackaging the pack, so the pack itself stays out of the
+repository and application distributions. Only this adaptation ships.
 
 ## What the app takes from Forge
 
@@ -36,7 +33,7 @@ layout. Components use the tokens directly; there is no second UI system.
   `tests/smoke/icons.test.ts` fails if any path drifts from `@tabler/icons`.
   Disclosure rows and select menus draw the Tabler chevron in CSS instead of the
   platform triangle. Sheet rotation uses the paired `rotate-2` and
-  `rotate-clockwise-2` icons at 20px. See `TABLER-LICENSE`.
+  `rotate-clockwise-2` icons at 20px. See the [Tabler license](../src/lib/review/TABLER-LICENSE).
 - **Tooltips.** Explanations belong in tooltips, not subtext. `tip()` in
   `src/lib/review/tooltip.ts` marks an element and `ReviewTooltips` shows one
   Slate panel with a hairline, 8px radius and the floating shadow, on hover and

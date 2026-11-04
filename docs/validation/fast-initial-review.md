@@ -1,7 +1,6 @@
 # Fast initial review: live validation
 
-Measured 2026-10-30 on branch `feat/fast-initial-review`, against the plan in
-[fast-initial-review.md](fast-initial-review.md). Every run used Muse Spark 1.3 at
+Measured 2026-10-30 on branch `feat/fast-initial-review`. Every run used Muse Spark 1.3 at
 `xhigh` reasoning with Meta web search, started from the **Initial Review** button
 (`initial-review-v1`) in a fresh workspace. Costs use Meta's list prices ($1.25 input,
 $0.15 cached input, $4.25 output per million tokens); the keys were on free credits.
@@ -30,7 +29,7 @@ tokens cached"), and **Copy review diagnostics** reports it per sheet.
 
 ## Where cloud time goes (Brewery)
 
-| Stage                               | Before (Audit 3)               | Now                                          |
+| Stage                               | Before                         | Now                                          |
 | ----------------------------------- | ------------------------------ | -------------------------------------------- |
 | Source sync                         | at Send                        | 13 files, 22.5 MB, cached ~16 s after import |
 | Click to dispatch                   | ~5 min (506 MiB at 1.8 MiB/s)  | 5 s; 262 KB uploaded, 13 files reused        |
