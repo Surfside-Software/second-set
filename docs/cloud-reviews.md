@@ -313,9 +313,15 @@ it. Queue messages use JSON to preserve millisecond expiry times through the SDK
 
 ## Validation
 
-The current worker is `moke-review-engine:4cc8c03`, image
-`im-01M6DBQX7M1HEP05AA68MHBW7R`, with protocol 5, packet prompt v8 and code index
-v2. `moke-review-engine:latest` resolves to the same image. On 2026-11-02 it passed
+The current worker is `moke-review-engine:9f4e2fb67`, image
+`im-01M6KD1KYF0PJZMCQJXBRPKRHX`, with protocol 5, packet prompt v10 and code index
+v3. `moke-review-engine:latest` resolves to the same image. On 2026-11-04 it reported
+the expected identity in a fresh sandbox with no network; no cloud review has run on
+it yet. The `moke-reviews-opencode-go-api` Modal Secret was created the same day.
+
+The previous worker is `moke-review-engine:4cc8c03`, image
+`im-01M6DBQX7M1HEP05AA68MHBW7R`, with packet prompt v8 and code index v2, kept for
+rollback. On 2026-11-02 it passed
 strict identity, migration-hash, PDF worker and blocked-network checks in a fresh
 sandbox. One bounded cloud packet review of the authored schematic then ran on
 Muse Spark 1.3, returned automatically and imported, with no sandbox left running.
