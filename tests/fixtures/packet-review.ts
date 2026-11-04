@@ -200,6 +200,12 @@ export async function open(
                   route: "recorded",
                   transport,
                 },
+                {
+                  provider: "opencode-go",
+                  apiKey: Redacted.make("packet-opencode-go-fixture"),
+                  route: "recorded",
+                  transport,
+                },
               ],
             }),
           ),

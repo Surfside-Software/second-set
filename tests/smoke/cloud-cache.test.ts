@@ -4,11 +4,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { InferenceConfiguration, ModalConfiguration } from "#lib/backend-rpc.ts";
+import { ModalConfiguration } from "#lib/backend-rpc.ts";
 import { StartCloudReview, type CloudTransferProgress } from "#lib/review/cloud.ts";
 import { CloudReviews, CloudSandbox } from "../../backend/cloud/service.ts";
 import type { CloudCacheSeed, CloudSandboxPort } from "../../backend/cloud/sandbox-port.ts";
-import { cloudEngineIdentity } from "../../backend/cloud/contracts.ts";
+import { CloudProvider, cloudEngineIdentity } from "../../backend/cloud/contracts.ts";
 import { cloudCacheVolumeName } from "../../backend/cloud/cache.ts";
 import {
   downloadCloudPackage,
@@ -67,7 +67,7 @@ const modal = Schema.decodeUnknownSync(ModalConfiguration)({
   poolQueue: null,
 });
 
-const provider = Schema.decodeUnknownSync(InferenceConfiguration)({
+const provider = Schema.decodeUnknownSync(CloudProvider)({
   provider: "meta",
   apiKey: "test-model-secret",
   baseUrl: "https://api.meta.ai/v1",

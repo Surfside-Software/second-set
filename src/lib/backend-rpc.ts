@@ -1,11 +1,11 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
 import { ReviewFilesRpc, ReviewRpc } from "./review/contracts.ts";
-import { ReviewProvider } from "./review/models.ts";
 import { PacketReviewRpc } from "./review/packet.ts";
 import { ExecutionRpc } from "./review/execution.ts";
 import { ReviewPackageFilesRpc } from "./review/packages.ts";
 import { CloudReviewRpc } from "./review/cloud.ts";
+import { customContextWindow, ReviewProvider } from "./review/models.ts";
 
 /** A safe failure at the database file, migration, or recovery boundary. */
 export class DatabaseFileError extends Schema.TaggedError<DatabaseFileError>()(
@@ -38,12 +38,31 @@ const ProcessingConfiguration = Schema.Struct({
   nativeLibraryPath: Path,
 });
 
-/** Credentials cross the startup pipe only; application exports never contain them. */
+/**
+ * Credentials cross the startup pipe only; application exports never contain them. Plain HTTP is
+ * accepted only for a server on this computer, so a key never crosses a network unencrypted.
+ */
 export const InferenceConfiguration = Schema.Struct({
   provider: ReviewProvider,
   apiKey: Schema.RedactedFromValue(Schema.NonEmptyString),
-  baseUrl: Schema.String.check(Schema.isPattern(/^https:\/\/[^\s]+$/)),
+  baseUrl: Schema.String.check(
+    Schema.isPattern(
+      /^(?:https:\/\/[^\s]+|http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/[^\s]*)?)$/,
+    ),
+  ),
+  /** The upstream model name; for Meta and Baseten it is one of the pinned review models. */
   model: Schema.NonEmptyString,
+  /** Custom endpoint only: whether the model reads images. Absent means it does. */
+  images: Schema.optionalKey(Schema.Boolean),
+  /** Custom endpoint only: the model's context window in tokens. */
+  contextWindow: Schema.optionalKey(
+    Schema.Int.check(
+      Schema.isBetween({
+        minimum: customContextWindow.minimum,
+        maximum: customContextWindow.maximum,
+      }),
+    ),
+  ),
 });
 
 /** Modal credentials cross only the trusted startup pipe, never renderer RPC or packages. */

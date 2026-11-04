@@ -12,7 +12,7 @@ import {
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { InferenceConfiguration, ModalConfiguration } from "#lib/backend-rpc.ts";
+import type { ModalConfiguration } from "#lib/backend-rpc.ts";
 import {
   CloudReviewError,
   CloudReviewSetup,
@@ -21,9 +21,10 @@ import {
   type CloudReviewRequest,
   type CloudWorkspaceEstimate,
 } from "#lib/review/cloud.ts";
-import { reviewModels } from "#lib/review/models.ts";
+import { reviewModels, runsInCloud } from "#lib/review/models.ts";
 import {
   cloudEngineIdentity,
+  type CloudProvider,
   cloudProviderEndpoints,
   cloudWorkerMinimumTimeoutMs,
   type CloudReviewRecord,
@@ -63,8 +64,9 @@ interface WorkspaceVersions {
 export interface CloudReviewConfiguration {
   readonly directory: string;
   readonly modal?: typeof ModalConfiguration.Type;
-  readonly provider?: typeof InferenceConfiguration.Type;
-  readonly providers?: ReadonlyArray<typeof InferenceConfiguration.Type>;
+  /** Never a custom endpoint; the parent keeps its key on this computer. */
+  readonly provider?: typeof CloudProvider.Type;
+  readonly providers?: ReadonlyArray<typeof CloudProvider.Type>;
   readonly inspect: (
     request: typeof CloudReviewRequest.Type,
   ) => Effect.Effect<WorkspaceVersions, CloudReviewError>;
@@ -545,6 +547,13 @@ export class CloudReviews extends Context.Service<
                 });
 
               const model = reviewModels.find((item) => item.id === request.model);
+
+              if (model !== undefined && !runsInCloud(model.provider))
+                return yield* new CloudReviewError({
+                  reason: "configuration",
+                  message:
+                    "A custom endpoint's key stays on this computer, so it runs reviews here only. Run this review here, or choose a Meta, Baseten or OpenCode Go model to push it to the cloud. Your workspace has not been uploaded.",
+                });
 
               const provider =
                 request.model === undefined

@@ -8,10 +8,40 @@ export class CredentialError extends Schema.TaggedError<CredentialError>()("Cred
   message: Schema.String,
 }) {}
 
-/** Parse only the explicitly selected, canonical provider routes. */
+/**
+ * A custom endpoint's address without a trailing slash. It may not carry credentials, a query or a
+ * fragment, which the SDK would either drop or send with every request.
+ */
+export function customEndpointUrl(value: string) {
+  const url = new URL(value.trim());
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+
+  if (
+    (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.search !== "" ||
+    url.hash !== ""
+  )
+    throw new Error("Unsupported endpoint address");
+
+  return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+}
+
+/** Parse the canonical Meta, Baseten and OpenCode Go routes, or the reviewer's custom endpoint. */
 export function parseProviderConfiguration(text: string) {
   try {
     const config = Schema.decodeUnknownSync(Schema.fromJsonString(InferenceConfiguration))(text);
+
+    if (config.provider === "openai-compatible") {
+      if (config.model.length > 256 || Redacted.value(config.apiKey).length > 4096)
+        throw new Error("Invalid route");
+
+      return { ...config, baseUrl: customEndpointUrl(config.baseUrl) };
+    }
+
+    if (config.images !== undefined || config.contextWindow !== undefined)
+      throw new Error("Invalid route");
 
     const endpoint = reviewProviderRoutes[config.provider].endpoint;
 

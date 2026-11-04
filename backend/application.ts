@@ -37,6 +37,7 @@ import { ExecutionError } from "#lib/review/execution.ts";
 import { CloudReviewError } from "#lib/review/cloud.ts";
 import { CloudReviews, CloudSandbox, unavailableCloudSandbox } from "./cloud/service.ts";
 import { modalSandboxLayer } from "./cloud/modal.ts";
+import { isCloudProvider } from "./cloud/contracts.ts";
 import { executionPersistence } from "./review/execution-store.ts";
 import { cloudPackageLimits } from "./cloud/transfer.ts";
 import { CloudReviewSynchronization } from "./cloud/sync.ts";
@@ -201,7 +202,9 @@ export class Application extends Context.Service<
         const executionOptions = { owner, queries: operations, port, runPromise: entry.runPromise };
 
         // Count checks stay on Meta or Baseten; see the guard in ReviewExecution.
-        const countProvider = providers.find((provider) => provider.provider !== "opencode-go");
+        const countProvider = providers.find(
+          (provider) => provider.provider === "meta" || provider.provider === "baseten",
+        );
 
         const connected = {
           ...executionOptions,
@@ -393,10 +396,14 @@ export class Application extends Context.Service<
           restorePending: pendingRestore,
         };
 
+        // A custom endpoint's key stays on this computer; it never reaches the cloud.
+        const cloudProviders = providers.filter(isCloudProvider);
+        const [cloudProvider] = cloudProviders;
+
         const withProvider =
-          inference === undefined
+          cloudProvider === undefined
             ? cloudOptions
-            : { ...cloudOptions, provider: inference, providers };
+            : { ...cloudOptions, provider: cloudProvider, providers: cloudProviders };
 
         const cloud = yield* CloudReviews.pipe(
           Effect.provide(
@@ -410,7 +417,7 @@ export class Application extends Context.Service<
                   cloudSandbox ??
                     (config.modal === undefined
                       ? unavailableCloudSandbox
-                      : modalSandboxLayer(config.modal, inference?.apiKey)),
+                      : modalSandboxLayer(config.modal, cloudProvider?.apiKey)),
                 ),
               ),
             ),

@@ -1,25 +1,33 @@
-import { createModels, type Provider } from "@earendil-works/pi-ai/models";
+import { createModels, createProvider, type Provider } from "@earendil-works/pi-ai/models";
 import { metaProvider } from "@earendil-works/pi-ai/providers/meta";
 import { basetenProvider } from "@earendil-works/pi-ai/providers/baseten";
 import { opencodeGoProvider } from "@earendil-works/pi-ai/providers/opencode-go";
+import type { ClientIdentity } from "@earendil-works/pi-ai/utils/identity";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type {
   AssistantMessage,
   FetchFunction,
   Model,
   Api,
-  ProviderRequestOptions,
+  StreamOptions,
   TranscriptContext,
   SimpleStreamOptions,
   ImageContent,
 } from "@earendil-works/pi-ai";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { Effect, Option, Predicate, Redacted, Schema, Semaphore } from "effect";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { type PacerLease, type Refusal, RequestPacer, sharedPacer } from "./pacing.ts";
 import { parseResponseReceipt } from "./response.ts";
 import { createExecutionTelemetry, type RequestPhase } from "./telemetry.ts";
 import type { ProviderFailure } from "#lib/review/execution.ts";
-import { ReviewProvider, reviewModels, reviewProviderRoutes } from "#lib/review/models.ts";
+import {
+  customContextWindow,
+  ReviewProvider,
+  reviewModels,
+  reviewProviderRoutes,
+} from "#lib/review/models.ts";
+import packageInfo from "../../package.json";
 
 /** Injectable HTTP transport; Bun's optional fetch utilities are supplied by the adapter. */
 export type ProviderTransport = (
@@ -33,7 +41,12 @@ export interface ProviderConfiguration {
   readonly apiKey: Redacted.Redacted<string>;
   readonly route: "live" | "recorded";
   readonly baseUrl?: string;
+  /** The upstream model name. For a custom endpoint it comes from its settings, not the review. */
   readonly model?: string;
+  /** Custom endpoint only: whether the model reads images. Absent means it does. */
+  readonly images?: boolean;
+  /** Custom endpoint only: the model's context window in tokens. */
+  readonly contextWindow?: number;
   /** Test/recorded transport; still exercises the published SDK request path. */
   readonly transport?: ProviderTransport;
   readonly timeoutMs?: number;
@@ -49,11 +62,20 @@ export interface ProviderConfiguration {
   readonly pacer?: RequestPacer;
 }
 
+/**
+ * OpenCode Go asks each client to send its own user agent rather than an SDK's, and Pi sends the
+ * attribution name as `x-opencode-client` (OpenCode Console docs, 2026-11-01).
+ */
+const openCodeIdentity: ClientIdentity = {
+  userAgent: { custom: `moke/${packageInfo.version}` },
+  attribution: { name: "moke", url: "https://github.com/sc-frederick/moke-meta-hackathon" },
+};
+
 /** Meta serves Muse Spark 1.3 with a larger output ceiling than Pi's catalog records (checked 2026-10-29). */
 const metaOutputCeilings = new Map([["muse-spark-1.3", 256_000]]);
 
 /** Pi's implementation of each provider a review can run on. */
-const reviewProviders: Record<typeof ReviewProvider.Type, () => Provider> = {
+const reviewProviders: Record<keyof typeof reviewProviderRoutes, () => Provider> = {
   meta: metaProvider,
   baseten: basetenProvider,
   "opencode-go": opencodeGoProvider,
@@ -62,9 +84,6 @@ const reviewProviders: Record<typeof ReviewProvider.Type, () => Provider> = {
 /** Muse Spark and Wonder reason at the extra-high level Meta's console uses for them. */
 export const packetReasoning = (modelId: string) =>
   reviewModels.find((model) => model.id === modelId)?.reasoning ?? "high";
-
-/** Go asks clients to name themselves; a generic SDK name counts against traffic review. */
-const opencodeGoUserAgent = "moke-review/1.0";
 
 /** Meta runs this search server-side and returns cited text; read_source still records evidence. */
 const metaWebSearch = { type: "web_search", search_context_size: "high" } as const;
@@ -108,6 +127,23 @@ const ModelNotFound = Schema.fromJsonString(
 const refusalBudgetMs = 10 * 60_000;
 const maxRefusals = 40;
 
+/** OpenCode's own client resends a rate-limited request at most ten times; MOKE matches it. */
+const openCodeMaxRefusals = 11;
+
+const OpenCodeRefusal = Schema.fromJsonString(
+  Schema.Struct({ error: Schema.Struct({ type: Schema.String }) }),
+);
+
+/**
+ * OpenCode account caps that last until a 5-hour, weekly or monthly window resets. OpenCode's own
+ * client treats them as not retryable (`QUOTA_CODES` in its provider-error.ts, 2026-11-01).
+ */
+const openCodeAccountCaps = new Set([
+  "gousagelimiterror",
+  "budgetlimiterror",
+  "creditlimitexceeded",
+]);
+
 /** Allowances a recorded transport never reaches. */
 const unpacedLimits = { requestsPerMinute: 1e9, tokensPerMinute: 1e15 } as const;
 
@@ -134,7 +170,7 @@ function pacingEstimate(transcript: TranscriptContext) {
 
 /** A dispatch the provider refused before generating anything, kept to decide how to resend it. */
 interface RefusedDispatch {
-  readonly kind: Refusal | "model_not_found";
+  readonly kind: Refusal | "model_not_found" | "usage_limit";
   /** The wait the provider's Retry-After asked for, when valid. */
   readonly retryAfterMs: number | undefined;
   /** The shared cooldown a rate-limit or capacity refusal started; zero for a routing refusal. */
@@ -149,22 +185,8 @@ interface RefusedDispatch {
 export const isQuickGatewayRefusal = (status: number, elapsedMs: number) =>
   (status === 502 || status === 503) && elapsedMs <= 5000;
 
-/**
- * Why a response refused the request before generating anything: a rate limit (429), missing
- * serving capacity (529, or a quick gateway 502 or 503), or Meta's intermittent 404
- * `model_not_found` for a served model (about one request in eight for one team's key on
- * 2026-10-30).
- */
-async function refusalOf(
-  response: Response,
-  elapsedMs: number,
-): Promise<Refusal | "model_not_found" | undefined> {
-  if (response.status === 429) return "rate_limit";
-
-  if (response.status === 529 || isQuickGatewayRefusal(response.status, elapsedMs))
-    return "overloaded";
-
-  if (response.status !== 404) return undefined;
+/** A refusal's text up to 16 KiB, read from a clone; anything longer is not a refusal we recognize. */
+async function refusalBody(response: Response) {
   const reader = response.clone().body?.getReader();
   const chunks: Uint8Array[] = [];
   let bytes = 0;
@@ -174,7 +196,7 @@ async function refusalOf(
       for (let part = await reader.read(); !part.done; part = await reader.read()) {
         bytes += part.value.length;
 
-        if (bytes > 16384) return undefined;
+        if (bytes > 16384) return "";
         chunks.push(part.value);
       }
     } finally {
@@ -183,9 +205,35 @@ async function refusalOf(
     }
   }
 
-  return Option.isSome(
-    Schema.decodeUnknownOption(ModelNotFound)(Buffer.concat(chunks).toString("utf8")),
-  )
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/**
+ * Why a response refused the request before generating anything: a rate limit (429), an OpenCode
+ * account cap (429 with a typed body), missing serving capacity (529, or a quick gateway 502 or 503), or Meta's intermittent 404
+ * `model_not_found` for a served model (about one request in eight for one team's key on
+ * 2026-10-30).
+ */
+async function refusalOf(
+  response: Response,
+  elapsedMs: number,
+  openCodeGo: boolean,
+): Promise<Refusal | "model_not_found" | "usage_limit" | undefined> {
+  if (response.status === 429) {
+    if (!openCodeGo) return "rate_limit";
+    const refusal = Schema.decodeUnknownOption(OpenCodeRefusal)(await refusalBody(response));
+
+    return Option.isSome(refusal) && openCodeAccountCaps.has(refusal.value.error.type.toLowerCase())
+      ? "usage_limit"
+      : "rate_limit";
+  }
+
+  if (response.status === 529 || isQuickGatewayRefusal(response.status, elapsedMs))
+    return "overloaded";
+
+  if (response.status !== 404) return undefined;
+
+  return Option.isSome(Schema.decodeUnknownOption(ModelNotFound)(await refusalBody(response)))
     ? "model_not_found"
     : undefined;
 }
@@ -208,10 +256,30 @@ export function promptCacheKey(role: string, ...prefix: ReadonlyArray<string>) {
   return `moke-${role}-${digest.slice(0, 32)}`;
 }
 
-/** Catalog capability for a pinned review model; Open's separate serving output maximum is unpublished. */
-export function reviewModelCapabilities(modelId: string) {
+/**
+ * The upstream model a review's request names. A custom endpoint keeps the model name from its
+ * settings; a pinned model is named by the review.
+ */
+export function routeModel(provider: ProviderConfiguration, modelId: string) {
+  return provider.provider === "openai-compatible" ? (provider.model ?? modelId) : modelId;
+}
+
+/**
+ * Catalog capability for a pinned review model; Open's separate serving output maximum is
+ * unpublished. A custom endpoint declares its context in settings and its output maximum is unknown.
+ */
+export function reviewModelCapabilities(
+  modelId: string,
+  endpoint?: Pick<ProviderConfiguration, "contextWindow">,
+) {
   if (modelId === "meta-models/muse-spark-open-1026")
     return { contextWindow: 1048576, maxOutputTokens: null };
+
+  if (modelId === "openai-compatible")
+    return {
+      contextWindow: endpoint?.contextWindow ?? customContextWindow.default,
+      maxOutputTokens: null,
+    };
 
   const route = reviewModels.find((entry) => entry.id === modelId);
 
@@ -452,6 +520,36 @@ async function providerRejectionDetail(
   return "unclassified";
 }
 
+/**
+ * The Pi model for the reviewer's OpenAI-compatible endpoint. Its features are unknown, so requests
+ * use only fields such servers commonly accept: `max_tokens`, a system role and no reasoning effort,
+ * store flag or session headers. Its rates are unknown, so the SDK's zero cost is a sentinel only.
+ */
+function customModel(configuration: ProviderConfiguration): Model<"openai-completions"> {
+  if (configuration.model === undefined || configuration.baseUrl === undefined)
+    throw new Error("A custom endpoint needs its address and model name");
+  const contextWindow = configuration.contextWindow ?? customContextWindow.default;
+
+  return {
+    id: configuration.model,
+    name: configuration.model,
+    api: "openai-completions",
+    provider: "openai-compatible",
+    baseUrl: configuration.baseUrl.replace(/\/+$/, ""),
+    input: configuration.images === false ? ["text"] : ["text", "image"],
+    reasoning: false,
+    contextWindow,
+    maxTokens: contextWindow,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    compat: {
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+      maxTokensField: "max_tokens",
+    },
+  };
+}
+
 /** Both SDK entrypoints pass the same durable guard, including complete/completeSimple callers. */
 export function createAdmittedModels(
   configuration: ProviderConfiguration,
@@ -460,19 +558,45 @@ export function createAdmittedModels(
   if (configuration.route === "recorded" && configuration.transport === undefined)
     throw new Error("Recorded execution requires a recorded transport");
   const identity = createExecutionTelemetry(admission.packetReview === true);
-  const route = configuration.provider ?? "meta";
+  const custom = configuration.provider === "openai-compatible" ? customModel(configuration) : null;
 
-  const base = reviewProviders[route]();
+  const route =
+    configuration.provider === undefined || configuration.provider === "openai-compatible"
+      ? "meta"
+      : configuration.provider;
 
-  const modelId = configuration.model ?? reviewProviderRoutes[route].model;
-  const baseUrl = reviewProviderRoutes[route].endpoint;
+  const openCodeGo = custom === null && route === "opencode-go";
+
+  const base: Provider =
+    custom !== null
+      ? createProvider({
+          id: custom.provider,
+          name: "Custom endpoint",
+          baseUrl: custom.baseUrl,
+          auth: {
+            apiKey: {
+              name: "Private startup credential",
+              resolve: async () => ({ auth: { apiKey: Redacted.value(configuration.apiKey) } }),
+            },
+          },
+          models: [custom],
+          api: openAICompletionsApi(),
+        })
+      : reviewProviders[route]();
+
+  const modelId = custom?.id ?? configuration.model ?? reviewProviderRoutes[route].model;
+  const baseUrl = custom?.baseUrl ?? reviewProviderRoutes[route].endpoint;
 
   if (
-    !reviewModels.some((model) => model.id === modelId && model.provider === route) ||
+    (custom === null &&
+      !reviewModels.some((model) => model.id === modelId && model.provider === route)) ||
     (configuration.baseUrl !== undefined && configuration.baseUrl.replace(/\/$/, "") !== baseUrl)
   )
     throw new Error("Inference route does not match the selected pinned model");
-  const catalog = base.getModels().find((model) => model.id === modelId);
+  const catalog = custom === null ? base.getModels().find((model) => model.id === modelId) : null;
+
+  // Every OpenCode Go model comes from Pi's catalog, which picks its wire format and fields.
+  if (openCodeGo && !catalog) throw new Error("Pinned model catalog is incompatible");
 
   const metaModel = metaProvider()
     .getModels()
@@ -482,27 +606,29 @@ export function createAdmittedModels(
 
   // The alternative route is organizer-provided and absent from Pi's catalog. Its rates are unknown.
   // SDK-required zero rates are an internal sentinel only; application cost remains null for both routes.
-  const selected: Model<Api> = catalog
-    ? { ...catalog, maxTokens: metaOutputCeilings.get(catalog.id) ?? catalog.maxTokens }
-    : {
-        id: modelId,
-        name: "Muse Spark Open",
-        api: "openai-completions",
-        provider: "baseten",
-        baseUrl: "https://inference.baseten.co/v1",
-        input: ["text", "image"],
-        reasoning: true,
-        contextWindow: 1048576,
-        // Open serving does not publish a separate output ceiling; the context is the upper bound.
-        maxTokens: 1048576,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      };
+  const selected: Model<Api> =
+    custom ??
+    (catalog
+      ? { ...catalog, maxTokens: metaOutputCeilings.get(catalog.id) ?? catalog.maxTokens }
+      : {
+          id: modelId,
+          name: "Muse Spark Open",
+          api: "openai-completions",
+          provider: "baseten",
+          baseUrl: "https://inference.baseten.co/v1",
+          input: ["text", "image"],
+          reasoning: true,
+          contextWindow: 1048576,
+          // Open serving does not publish a separate output ceiling; the context is the upper bound.
+          maxTokens: 1048576,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        });
 
   // A recorded transport replays at full speed; it still waits out refusals like a live route.
   const pacer =
     configuration.pacer ??
     (configuration.route === "live"
-      ? sharedPacer(route, configuration.apiKey)
+      ? sharedPacer(custom !== null ? "openai-compatible" : route, configuration.apiKey)
       : new RequestPacer(unpacedLimits));
 
   const imageFiles =
@@ -511,6 +637,16 @@ export function createAdmittedModels(
       : undefined;
 
   const uploadSlots = Semaphore.makeUnsafe(imageUploadConcurrency);
+
+  // Baseten's Muse Spark media encoder takes at most eight images per request. The limits of a
+  // custom server and of OpenCode Go's upstream models are unknown, so they get the same window.
+  const eightImages = selected.provider === "baseten" || custom !== null || openCodeGo;
+
+  // None publishes an output ceiling for packet reviews, so their requests leave it unset.
+  const serverOutputLimit = selected.provider === "baseten" || custom !== null;
+
+  // Pi supplies each conversation's durable session; a request outside one gets this adapter's.
+  const fallbackSession = `moke-${randomUUID()}`;
 
   /** Send one image to the Files API once a slot is free; any failure or stop leaves it inline. */
   const uploadImage = (image: string, sha256: string, signal: AbortSignal) =>
@@ -656,7 +792,7 @@ export function createAdmittedModels(
   const guarded = (
     model: Model<Api>,
     transcript: TranscriptContext,
-    options: ProviderRequestOptions | undefined,
+    options: StreamOptions | undefined,
     send: (
       fetch: FetchFunction,
       context: TranscriptContext,
@@ -705,11 +841,11 @@ export function createAdmittedModels(
         )
           throw new Error("Provider admission denied");
 
-        // Baseten's Muse Spark media encoder accepts at most eight images per request, including
-        // images retained in earlier tool results. Go has no Files API, so every image would be
-        // resent inline on every request; it keeps the same window. The durable journal stays intact.
+        // Baseten's Muse Spark media encoder accepts at most eight images per request,
+        // including images retained in earlier tool results; a custom server gets the same window.
+        // The durable journal stays intact.
         const bounded = admission.packetReview
-          ? selected.provider !== "meta"
+          ? eightImages
             ? boundedImageContext(transcript, {
                 images: 8,
                 step: 4,
@@ -767,7 +903,7 @@ export function createAdmittedModels(
               bounds.imageBytes > (admission.packetReview ? 64 : 2) * 1024 * 1024 ||
               bounds.requestBytes > (admission.packetReview ? 72 : 3) * 1024 * 1024 ||
               (!admission.packetReview && bounds.images > 6) ||
-              (selected.provider !== "meta" && bounds.images > 8)
+              (eightImages && bounds.images > 8)
             )
               throw new Error("Transport admission denied");
             dispatched = true;
@@ -784,7 +920,13 @@ export function createAdmittedModels(
             try {
               const dispatch = configuration.transport ?? globalThis.fetch;
               const sentAt = performance.now();
-              const response = await dispatch(input, init);
+
+              // Following a custom server's redirect would forward the drawings somewhere else.
+              const response = await dispatch(
+                input,
+                custom === null ? init : { ...init, redirect: "error" },
+              );
+
               const elapsedMs = performance.now() - sentAt;
 
               httpStatus = response.status;
@@ -792,7 +934,7 @@ export function createAdmittedModels(
 
               // A rate-limit, capacity or model-routing refusal happens before generation, so
               // resending it cannot duplicate paid work. Parallel sheet reviewers rely on this.
-              const refused = await refusalOf(response, elapsedMs);
+              const refused = await refusalOf(response, elapsedMs, openCodeGo);
 
               const retryAfterMs =
                 refused === undefined ? undefined : pacer.retryAfter(response.headers);
@@ -811,7 +953,8 @@ export function createAdmittedModels(
                 refusedUnsent = true;
                 await response.body?.cancel();
                 transportFailure = "http";
-                rejectionDetail = refused === "rate_limit" ? "rate_limit" : "unclassified";
+                rejectionDetail =
+                  refused === "rate_limit" || refused === "usage_limit" ? refused : "unclassified";
 
                 return Response.json(
                   { error: { message: `Provider refused request: ${rejectionDetail}` } },
@@ -889,9 +1032,11 @@ export function createAdmittedModels(
               ? refusalDelay(refused.retryAfterMs, refusals)
               : refused.cooldownMs;
 
-          // A resend that could go out only after the budget ends the attempt now, without waiting.
+          // A usage limit lasts for hours, so resending only spends requests against it. A resend
+          // that could go out only after the budget ends the attempt now, without waiting.
           if (
-            refusals + 1 >= maxRefusals ||
+            refused.kind === "usage_limit" ||
+            refusals + 1 >= (openCodeGo ? openCodeMaxRefusals : maxRefusals) ||
             pacer.now() + waitMs - admittedAt > refusalBudgetMs ||
             options?.signal?.aborted
           )
@@ -986,7 +1131,7 @@ export function createAdmittedModels(
   };
 
   const requestOptions = (
-    options: ProviderRequestOptions | undefined,
+    options: StreamOptions | undefined,
     fetch: FetchFunction,
     cacheKey: string | undefined,
   ): SimpleStreamOptions => {
@@ -1003,7 +1148,8 @@ export function createAdmittedModels(
 
     if (admission.packetReview) result.reasoningEffort = effort;
 
-    // Pi's per-conversation session ID is deliberately not forwarded: sheet reviewers share a prefix.
+    // Except on OpenCode Go, Pi's per-conversation session ID is not forwarded: sheet reviewers share
+    // a prefix and its cache key.
     if (selected.provider === "meta")
       result.onPayload = async (payload) => {
         if (!Predicate.isObject(payload)) return payload;
@@ -1026,17 +1172,19 @@ export function createAdmittedModels(
 
         return { ...payload, ...changes };
       };
-    // Go routes and caches by session; the shared key keeps sheet reviewers on one cached prefix.
-    else if (selected.provider === "opencode-go") {
-      result.headers = { "User-Agent": opencodeGoUserAgent };
-
-      if (cacheKey !== undefined) result.sessionId = cacheKey;
+    // OpenCode Go requires a stable session per conversation and routes and caches by it. Pi's
+    // provider sends it as `x-opencode-session`, with MOKE's identity, so sheet reviewers sharing a
+    // prompt prefix still keep their own sessions, as OpenCode's guidance asks.
+    else if (openCodeGo) {
+      result.sessionId = options?.sessionId ?? fallbackSession;
+      result.identity = openCodeIdentity;
     }
-    // Baseten routes cache hits by replica affinity rather than a request field.
-    else if (cacheKey !== undefined) result.headers = { "x-session-affinity": cacheKey };
+    // Baseten routes cache hits by replica affinity rather than a request field. A custom server's
+    // caching is unknown, so it receives no routing key.
+    else if (cacheKey !== undefined && custom === null)
+      result.headers = { "x-session-affinity": cacheKey };
 
-    if (!admission.packetReview || selected.provider !== "baseten")
-      result.maxTokens = admission.maxOutputTokens;
+    if (!admission.packetReview || !serverOutputLimit) result.maxTokens = admission.maxOutputTokens;
 
     if (options?.signal !== undefined) result.signal = options.signal;
 
@@ -1062,9 +1210,9 @@ export function createAdmittedModels(
       ),
     streamSimple: (model, context, options) =>
       guarded(model, context, options, (fetch, bounded, cacheKey) =>
-        // Simple options inject a context-sized output limit. Packet requests on Baseten
-        // use the API default; reasoning is already set explicitly in requestOptions.
-        admission.packetReview && selected.provider === "baseten"
+        // Simple options inject a context-sized output limit. Packet requests on Baseten and a
+        // custom endpoint use the server's default; reasoning is set explicitly in requestOptions.
+        admission.packetReview && serverOutputLimit
           ? base.stream<Api>(model, bounded, requestOptions(options, fetch, cacheKey))
           : base.streamSimple(model, bounded, requestOptions(options, fetch, cacheKey)),
       ),

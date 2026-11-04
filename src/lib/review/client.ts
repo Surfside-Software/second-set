@@ -13,7 +13,11 @@ import {
   ReviewStorageError,
   type SheetId,
 } from "#lib/review/contracts.ts";
-import { ReviewDesktopRpc } from "#lib/review/shell.ts";
+import {
+  type CustomEndpointSettings,
+  type OpenCodeGoSettings,
+  ReviewDesktopRpc,
+} from "#lib/review/shell.ts";
 import type {
   PacketFindingVerdict,
   PacketReview,
@@ -381,6 +385,30 @@ export function createReviewClient() {
       run(
         Effect.flatMap(ReviewDesktopApi, (client) => client.ChooseReviewRestore({})),
         "The review package could not be restored.",
+      ),
+
+    saveCustomEndpoint: (settings: typeof CustomEndpointSettings.Type) =>
+      run(
+        Effect.flatMap(ReviewDesktopApi, (client) => client.SaveCustomEndpoint(settings)),
+        "The custom endpoint could not be saved.",
+      ),
+
+    removeCustomEndpoint: () =>
+      run(
+        Effect.flatMap(ReviewDesktopApi, (client) => client.RemoveCustomEndpoint({})),
+        "The custom endpoint could not be removed.",
+      ),
+
+    saveOpenCodeGo: (settings: typeof OpenCodeGoSettings.Type) =>
+      run(
+        Effect.flatMap(ReviewDesktopApi, (client) => client.SaveOpenCodeGo(settings)),
+        "The OpenCode Go key could not be saved.",
+      ),
+
+    removeOpenCodeGo: () =>
+      run(
+        Effect.flatMap(ReviewDesktopApi, (client) => client.RemoveOpenCodeGo({})),
+        "The OpenCode Go key could not be removed.",
       ),
 
     /** Load a PNG artifact through bounded chunks and return an object URL. */

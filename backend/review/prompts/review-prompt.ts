@@ -1,9 +1,9 @@
-import type { ReviewProvider } from "#lib/review/models.ts";
 import { Match } from "effect";
 import type {
   ExecutionReviewContext,
   ReviewDiscipline,
 } from "../../../src/lib/review/execution.ts";
+import type { ReviewProvider } from "#lib/review/models.ts";
 import master from "./assets/AGENTS.md" with { type: "text" };
 import method from "./assets/REVIEW_METHOD.md" with { type: "text" };
 import general from "./assets/disciplines/general.md" with { type: "text" };
@@ -85,11 +85,16 @@ export type PacketPromptRole = "review" | "coordinator" | "sheet";
 const rollingImageGuidance = (model: string) =>
   `${model} accepts at most eight images per request, including retained source images. Request at most eight render_sheet images in a tool batch, inspect their content and record concise page/content notes before requesting another batch. Earlier pixels may be replaced by an explicit omission notice in later requests; their metadata and durable artifacts remain available, but render an omitted detail again before making a new source claim. Rendering every assigned page remains required; the rolling image window is not a packet scope limit.`;
 
+/** A custom endpoint's image limits are unknown, so it gets Baseten's eight-image window. */
+const imageWindowGuidance =
+  "Each request carries at most eight images, including retained source images. Request at most eight render_sheet images in a tool batch, inspect their content and record concise page/content notes before requesting another batch. Earlier pixels may be replaced by an explicit omission notice in later requests; their metadata and durable artifacts remain available, but render an omitted detail again before making a new source claim. If rendered images arrive only as an omission notice, you cannot read drawings: record each affected check as Needs input naming the unread sheet instead of describing its content.";
+
 const imageGuidance = {
   baseten: rollingImageGuidance("Muse Spark Open"),
   "opencode-go": rollingImageGuidance("This model route"),
   meta: "Rendered pages and crops stay in your conversation. Render the full assigned page first, then focused crops at legible scale for dense notes, schedules, tables and details. Render a detail again before relying on a reading you are unsure of.",
-} as const;
+  "openai-compatible": imageWindowGuidance,
+} as const satisfies Record<typeof ReviewProvider.Type, string>;
 
 /** Shared instructions for citations whose text must be confirmed in a browser. */
 export const browserCitationGuidance =
@@ -102,8 +107,9 @@ const hostedSearchGuidance = `${codeGuidance} Use search_sources and read_source
 const sourceGuidance = {
   baseten: hostedSearchGuidance,
   "opencode-go": hostedSearchGuidance,
+  "openai-compatible": hostedSearchGuidance,
   meta: `${codeGuidance} For other governing sources and adopted editions, use your built-in web search, then read_source on the primary official page to retrieve and record it; record exact citations and applicability. search_sources remains available as a fallback. Web search results alone are leads, not recorded evidence.`,
-} as const;
+} as const satisfies Record<typeof ReviewProvider.Type, string>;
 
 const roleGuidance: Record<PacketPromptRole, ReadonlyArray<string>> = {
   review: [],

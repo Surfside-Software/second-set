@@ -51,7 +51,23 @@ import {
   selectedReviewPrompt,
   packetPromptVersion,
 } from "./prompts/review-prompt.ts";
-import { reviewModels } from "#lib/review/models.ts";
+import {
+  customContextWindow,
+  defaultOpenCodeGoModel,
+  type ReviewProvider,
+  reviewModels,
+} from "#lib/review/models.ts";
+
+/** The review model a provider selects when a request names none. */
+function defaultModel(provider: typeof ReviewProvider.Type, configured: string | undefined) {
+  if (provider === "openai-compatible") return "openai-compatible";
+
+  if (provider === "opencode-go") return configured ?? defaultOpenCodeGoModel;
+
+  return (
+    configured ?? (provider === "meta" ? "muse-spark-1.3" : "meta-models/muse-spark-open-1026")
+  );
+}
 
 /** One parent ManagedRuntime enters callback Effects; this service never creates a runtime. */
 export interface ExecutionConfiguration {
@@ -840,31 +856,41 @@ export class ReviewExecution extends Context.Service<
           const requestedRoute = reviewModels.find((entry) => entry.id === request.model);
 
           const model =
-            (requestedRoute?.provider === "opencode-go" ? undefined : request.model) ??
-            configuration.provider?.model ??
-            ((configuration.provider?.provider ?? providers[0]?.provider ?? "meta") === "meta"
-              ? "muse-spark-1.3"
-              : "meta-models/muse-spark-open-1026");
+            (requestedRoute?.provider === "opencode-go" ||
+            requestedRoute?.provider === "openai-compatible"
+              ? undefined
+              : request.model) ??
+            defaultModel(
+              configuration.provider?.provider ?? providers[0]?.provider ?? "meta",
+              configuration.provider?.model,
+            );
 
           const modelRoute = reviewModels.find((entry) => entry.id === model);
+
+          // Count-check records name Meta or Baseten; OpenCode Go and the custom endpoint run
+          // drawing reviews only.
+          if (
+            modelRoute !== undefined &&
+            modelRoute.provider !== "meta" &&
+            modelRoute.provider !== "baseten"
+          )
+            return yield* failure(
+              "unavailable",
+              "Count checks run on Meta or Baseten models. Choose one of them for this check; drawing reviews can use OpenCode Go or the custom endpoint.",
+            );
 
           const provider = providers.find(
             (entry) => (entry.provider ?? "meta") === modelRoute?.provider,
           );
 
-          if (provider === undefined)
+          const providerName = provider?.provider ?? "meta";
+
+          if (provider === undefined || (providerName !== "meta" && providerName !== "baseten"))
             return yield* failure(
               "unavailable",
               "Count checks run on Meta or Baseten. Configure a supported provider credential before starting a live inspection.",
             );
 
-          const providerName = provider.provider ?? "meta";
-
-          if (providerName === "opencode-go")
-            return yield* failure(
-              "unavailable",
-              "Count checks run on Meta or Baseten. Choose one of their models for this inspection.",
-            );
           const selected = yield* port.inspect(new ExecutionSelection(request));
 
           const evidence = yield* Schema.decodeUnknownEffect(ExecutionEvidence)(selected).pipe(
@@ -1273,18 +1299,35 @@ export class ReviewExecution extends Context.Service<
                   ? null
                   : (configuration.provider.provider ?? "meta"),
               model:
-                configuration.provider?.model ??
-                (configuration.provider === undefined
+                configuration.provider === undefined
                   ? null
-                  : (configuration.provider.provider ?? "meta") === "meta"
-                    ? "muse-spark-1.3"
-                    : "meta-models/muse-spark-open-1026"),
-              models: reviewModels.map((model) => ({
-                ...model,
-                available: providers.some(
-                  (provider) => (provider.provider ?? "meta") === model.provider,
-                ),
-              })),
+                  : defaultModel(
+                      configuration.provider.provider ?? "meta",
+                      configuration.provider.model,
+                    ),
+              models: reviewModels.map((model) => {
+                const provider = providers.find(
+                  (entry) => (entry.provider ?? "meta") === model.provider,
+                );
+
+                const option = { ...model, available: provider !== undefined };
+
+                // The custom endpoint is shown by its own model name and address, never its key.
+                return model.provider !== "openai-compatible" ||
+                  provider?.model === undefined ||
+                  provider.baseUrl === undefined
+                  ? option
+                  : {
+                      ...option,
+                      label: provider.model,
+                      endpoint: {
+                        baseUrl: provider.baseUrl,
+                        model: provider.model,
+                        images: provider.images !== false,
+                        contextWindow: provider.contextWindow ?? customContextWindow.default,
+                      },
+                    };
+              }),
               segmentation: port.segmentation !== undefined,
               promptVersion: reviewPromptVersion,
               packetPromptVersion,

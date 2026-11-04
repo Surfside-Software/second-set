@@ -4,7 +4,65 @@ import { SqlClient } from "effect/sql";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { id, open, response, until } from "../fixtures/packet-review.ts";
+import type { ProviderTransport } from "../../backend/inference/provider.ts";
+import {
+  decodeRequest,
+  id,
+  open,
+  response,
+  systemPrompt,
+  until,
+} from "../fixtures/packet-review.ts";
+
+test("an OpenCode Go usage limit pauses a parallel review after one refused request", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-packet-go-limit-"));
+  let sheetSends = 0;
+
+  const transport: ProviderTransport = async (_url, init) => {
+    if (!systemPrompt(decodeRequest(init)).includes("## Parallel review: sheet reviewer"))
+      return response([], "Project configuration recorded.");
+
+    sheetSends++;
+
+    return Response.json(
+      {
+        type: "error",
+        error: { type: "GoUsageLimitError", message: "Go usage limit exceeded" },
+        metadata: { workspace: "wrk_go_limit", limitName: "5 hour" },
+      },
+      { status: 429, headers: { "retry-after": "120" } },
+    );
+  };
+
+  const session = await open(directory, transport, true, undefined, "observe", {
+    minSheets: 2,
+    concurrency: { "opencode-go": 3 },
+  });
+
+  try {
+    const request = await session.request("Review the whole drawing set.", {
+      model: "muse-spark-1.3-contributor",
+    });
+
+    const started = await session.run(session.packets.start(request));
+    const paused = await until(session, started.id, "paused");
+
+    expect(paused.error).toContain("usage limit");
+    expect(paused.error).toContain("Nothing was generated or charged");
+    expect(paused.providerFailure).toMatchObject({
+      category: "http",
+      httpStatus: 429,
+      detail: "usage_limit",
+    });
+
+    // The waiting sheet reviewer is held back, so nothing else spends requests against the limit.
+    await Bun.sleep(250);
+    expect(sheetSends).toBe(1);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
 
 test("a request the provider refuses past its budget pauses the review uncharged and resumes explicitly", async () => {
   const directory = await mkdtemp(join(tmpdir(), "moke-packet-refusal-"));

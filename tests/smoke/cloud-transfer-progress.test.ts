@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { InferenceConfiguration, ModalConfiguration } from "#lib/backend-rpc.ts";
+import { ModalConfiguration } from "#lib/backend-rpc.ts";
 import {
   CloudReviewError,
   StartCloudReview,
@@ -12,7 +12,7 @@ import {
 } from "#lib/review/cloud.ts";
 import { ReviewCommand } from "#lib/review/contracts.ts";
 import { PackageError, PackageManifest } from "#lib/review/packages.ts";
-import { cloudEngineIdentity } from "../../backend/cloud/contracts.ts";
+import { CloudProvider, cloudEngineIdentity } from "../../backend/cloud/contracts.ts";
 import { readCloudState } from "../../backend/cloud/files.ts";
 import { CloudReviews, CloudSandbox } from "../../backend/cloud/service.ts";
 import type { CloudSandboxPort } from "../../backend/cloud/sandbox-port.ts";
@@ -147,7 +147,7 @@ test("live cloud status and flushed receipts expose completed upload/download fi
       timeoutMinutes: 15,
       poolQueue: null,
     }),
-    provider: Schema.decodeUnknownSync(InferenceConfiguration)({
+    provider: Schema.decodeUnknownSync(CloudProvider)({
       provider: "meta",
       apiKey: "test",
       baseUrl: "https://api.meta.ai/v1",

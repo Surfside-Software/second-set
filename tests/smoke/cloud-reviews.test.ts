@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { InferenceConfiguration, ModalConfiguration } from "#lib/backend-rpc.ts";
+import { ModalConfiguration } from "#lib/backend-rpc.ts";
 import {
   CloudReviewError,
   CloudReviewStatus,
@@ -14,6 +14,7 @@ import {
 import { CloudReviews, CloudSandbox } from "../../backend/cloud/service.ts";
 import type { CloudSandboxPort } from "../../backend/cloud/sandbox-port.ts";
 import {
+  CloudProvider,
   cloudEngineIdentity,
   CloudWorkerProgress,
   CloudEngineIdentity,
@@ -42,7 +43,7 @@ const modal = Schema.decodeUnknownSync(ModalConfiguration)({
   poolQueue: null,
 });
 
-const provider = Schema.decodeUnknownSync(InferenceConfiguration)({
+const provider = Schema.decodeUnknownSync(CloudProvider)({
   provider: "meta",
   apiKey: "test-model-secret",
   baseUrl: "https://api.meta.ai/v1",
@@ -1105,8 +1106,8 @@ test("a non-canonical provider route fails cloud start before allocation or uplo
     seedCache: () => Effect.succeed([]),
   };
 
-  const slashed = Schema.decodeUnknownSync(InferenceConfiguration)({
-    ...Schema.encodeSync(InferenceConfiguration)(provider),
+  const slashed = Schema.decodeUnknownSync(CloudProvider)({
+    ...Schema.encodeSync(CloudProvider)(provider),
     baseUrl: "https://api.meta.ai/v1/",
   });
 

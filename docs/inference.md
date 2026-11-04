@@ -37,8 +37,8 @@ refuses it. The other three Go models here do not train: MiMo-V2.6-Flash and GLM
 nothing, and GPT-6 Luna keeps abuse logs for 30 days. They have not been tried on drawings.
 
 - **Traffic.** Go is designed for coding agents and monitors traffic for abuse. Parallel drawing
-  reviews are not typical coding traffic. Moke identifies itself as `moke-review/1.0`, sends a session
-  ID per prompt prefix and runs 16 sheet reviewers at a time.
+  reviews are not typical coding traffic. Moke identifies itself as `moke/<version>`, sends a session
+  ID per conversation and runs 3 sheet reviewers at a time. See [OpenCode Go](#opencode-go).
 - **Images.** Go has no Files API, so images travel inline. Reviews keep the eight-image window Baseten
   uses, so a reviewer inspects a batch before requesting the next.
 - **The only chat route once connected.** With a Go key present, the model menu and the Initial Review
@@ -113,8 +113,8 @@ after it began are refused again. Baseten's 429 carries no `Retry-After`. Meta
 also answers a served model with HTTP 404 `model_not_found` now and then (1 in 8
 requests for one team's key on 2026-10-30). Nothing is generated, so that request
 alone is resent after its own backoff. A refused request is resent within the same
-admitted attempt for up to 10 minutes or 40 sends, and stops at once if its next
-send could go out only after the 10 minutes. A packet request refused on every
+admitted attempt for up to 10 minutes or 40 sends (11 on OpenCode Go), and stops at
+once if its next send could go out only after the 10 minutes. A packet request refused on every
 send generated nothing, so the review pauses without an unresolved request and
 says it was not charged; Resume continues it. Other failures are not resent.
 Large packets review each sheet in its own conversation; see
@@ -208,6 +208,132 @@ A probe on 2026-10-30 confirmed that Meta accepts `file_id` images inside
 the same key and a 7,216-token prefix was 99.1% cached. Each review records its
 token totals, overall and per sheet reviewer. The packet panel shows the cached
 share, and **Copy review diagnostics** includes it for every finished review.
+
+## OpenCode Go
+
+Review settings → OpenCode Go connects an [OpenCode Go](https://opencode.ai/docs/go/)
+subscription, so reviews need not spend Meta or Baseten credits. Paste a key from
+the Console harnesses page (`oc_sk_...`) and pick the model to test it with. In
+development, `OPENCODE_API_KEY` in `.env` does the same; Pi and OpenCode read the
+same variable. The model menu then offers these Go models, which read images and
+call tools:
+
+| Review model                 | OpenCode Go wire format |
+| ---------------------------- | ----------------------- |
+| `glm-5.3-flash`              | Chat Completions        |
+| `muse-spark-1.3-contributor` | Responses               |
+| `mimo-v2.6-flash`            | Chat Completions        |
+| `gpt-6-luna`                 | Responses               |
+
+Requests go through Pi's built-in `opencode-go` provider, which OpenCode lists as
+a supported harness. Its catalog picks each model's wire format, reasoning field
+and request fields, under `https://opencode.ai/inference/go/v1`. OpenCode asks
+clients for a stable `x-opencode-session` per conversation and rejects requests
+without one (HTTP 400 `MissingSessionID`, checked 2026-11-01). Pi sends it from
+each durable conversation's session ID, so every sheet reviewer keeps its own
+session across restarts; Baseten's shared prefix key is not used. Requests also
+identify MOKE with `User-Agent: moke/<version>` and `x-opencode-client: moke`,
+as OpenCode asks of third-party clients. Free Go models are not offered: OpenCode
+answers them with HTTP 403 outside its own app.
+
+Go meters spend per model over 5-hour, weekly and monthly windows (20%, 50% and
+100% of the monthly limit) and publishes no request rate or concurrency limit.
+Its [docs](https://opencode.ai/docs/go/) say Go "is designed for OpenCode and
+other coding agents", ask clients to "send typical coding agent traffic", and
+monitor "for abuse that degrades the experience for other users". OpenCode's
+[terms](https://opencode.ai/legal/terms-of-service) also bar "placing an
+unreasonable load" on its infrastructure and using the service on behalf of a
+third party. MOKE is an agent but not a coding agent, so it keeps its traffic
+modest, identifies itself honestly, and should not run client work on a Go key:
+
+- A packet review starts three sheet reviewers at once, about one person's agents.
+  One reviewer sends about three requests a minute (measured on Muse Spark 1.3,
+  2026-10-30), so a 29-sheet review takes about an hour at that speed.
+- The pacer caps every use of the key at 60 requests and 5M tokens a minute. This
+  is MOKE's own ceiling, not a published limit.
+- A `GoUsageLimitError`, `BudgetLimitError` or `CreditLimitExceeded` 429 is never
+  resent, matching OpenCode's own client. The review pauses until the reviewer
+  resumes it.
+- Any other 429 is resent at most ten times, also matching OpenCode's client.
+
+"Extra Usage" on the Console's Go page moves requests past a limit onto
+pay-as-you-go instead of refusing them, so leave it off to keep the limit as a
+hard stop.
+
+Packet reviews keep Baseten's eight-image window. A full window is about 4.5 MB
+of base64 images per request, more than a coding agent's text request, and is the
+least typical part of this traffic. Model images are at most 2048 pixels on their
+long edge; OpenCode's catalog suggests 2000, so a model that receives them
+resized could place an image box up to about 2% off.
+
+Some models need Console settings first.
+Muse Spark 1.3 Contributor needs "Allow paid endpoints that train on request
+data" under Settings › Privacy. Meta may then train on those reviews' drawings and
+text. **Test and save** sends one tool-calling Chat Completions request (OpenCode
+translates the format for every model) and reports a refused key, a refused
+model or a usage limit. The key is stored and removed like a custom endpoint's,
+in `opencode-go-credential.json`. Count checks stay on Meta and Baseten, and SAM
+3.1 keeps using the Meta connection.
+
+## Model for Initial Review and new conversations
+
+Review settings → Model connections chooses the model the Initial Review button
+and new conversations use. Until it is set, a connected OpenCode Go key selects
+Muse Spark 1.3 Contributor, then a connected custom endpoint, then Muse Spark 1.3.
+The choice is stored
+in the window's local storage and holds no credential. A review records the model
+it started with. Initial Review runs on this computer whenever its model's key
+stays here.
+
+## Custom OpenAI-compatible endpoint
+
+Review settings → Custom endpoint runs drawing reviews on another server that
+speaks the OpenAI Chat Completions API, such as vLLM, Ollama, LM Studio or a
+hosted gateway. Use the OpenCode Go section for OpenCode, which needs its session
+header. Enter the base URL (usually ending in `/v1`), the model name the server
+expects, the API key, the model's context window and whether it reads images.
+The context must be at least 32,768 tokens: packet review instructions alone are
+about 15,000 (59 KB), before tool definitions, sheet images and conversation. The
+address must be `https://`, or `http://` for a server on this computer
+(`localhost`, `127.0.0.1`, `[::1]`), without sign-in details, a query or a
+fragment.
+
+**Test and save** first sends one small tool-calling request from the desktop
+shell. Packet reviews work through tool calls, so the confirmation says whether
+the model called the test tool, refused the key, or answered with something
+other than a chat completion. Only the HTTP status is kept, never provider text.
+Saving encrypts the endpoint with Electron safeStorage in
+`custom-endpoint-credential.json`, apart from imported Meta and Baseten
+credentials, and restarts the app. Connections saved in Review settings apply
+even when a session-only file supplies Meta and Baseten. The key is never sent
+back to the renderer; editing the endpoint means entering the key again.
+**Remove** deletes the file and restarts. Saving and removing are disabled while
+a review runs, because a restart marks an in-flight request unresolved. A
+provider set imported from File → Import provider credential configuration may
+also carry one `opencode-go` entry and one `openai-compatible` entry, with
+optional `images` and `contextWindow` fields for the latter; each is stored the
+same way, and a session-only file may include them too.
+
+The endpoint appears in the model menu as one fixed review model,
+`openai-compatible`, labelled with its model name. A review records that ID;
+the upstream model name stays in the endpoint's settings, so a paused review
+resumes on whatever model the endpoint names then.
+
+Requests use only the fields such servers commonly accept: a `system` role,
+`max_tokens` outside packet review (packet requests leave it to the server),
+and no `store`, `reasoning_effort`, prompt-cache key or session-affinity header.
+The server's limits are unknown, so packet reviews keep the eight-image request
+window used for Baseten and start eight sheet reviewers at once. The shared
+pacer starts at 600 requests and 10M tokens a minute, adopts the server's
+`x-ratelimit-*` headers, and waits out 429 refusals as for the other providers.
+A text-only model receives an omission notice in place of each image, and the
+prompt tells it to record unread sheets as Needs input.
+
+SAM 3.1 still runs on the Meta connection, so device counts and finding zooms
+keep using Meta credits while chat requests go to the endpoint. Without a Meta
+key, reviews on the endpoint run without SAM. The custom endpoint does not run
+cloud reviews: its key never leaves this computer. Count checks also stay on Meta and Baseten,
+whose execution records are constrained to those providers.
 
 ## Packaged desktop credentials
 

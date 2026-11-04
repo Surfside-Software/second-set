@@ -100,8 +100,17 @@ export const CloudReviewRecord = Schema.Struct({
 /** Persisted record type stays private to cloud application and adapters. */
 export type CloudReviewRecord = typeof CloudReviewRecord.Type;
 
-/** Provider injection uses the canonical application route and a separately supplied secret. */
-export const CloudProvider = InferenceConfiguration;
+/**
+ * Provider injection uses the canonical application route and a separately supplied secret. A
+ * custom endpoint is not a cloud route: its key stays on the computer that saved it.
+ */
+export const CloudProvider = Schema.Struct({
+  ...InferenceConfiguration.fields,
+  provider: Schema.Literals(["meta", "baseten", "opencode-go"]),
+});
+
+/** Whether a configured provider may run cloud reviews. */
+export const isCloudProvider = Schema.is(CloudProvider);
 
 /** Cloud outbound policy admits exactly these provider routes. */
 export const cloudProviderEndpoints = {

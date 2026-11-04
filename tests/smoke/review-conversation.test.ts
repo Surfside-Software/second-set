@@ -106,10 +106,10 @@ test("model choice uses its provider credential, freezes on replay, and records 
     expect(routedStatus.provider).toBe("meta");
     expect(routedStatus.model).toBe("muse-spark-1.3");
 
-    // Count checks run on Meta or Baseten; OpenCode Go serves drawing-set reviews.
+    // Count checks run on Meta or Baseten; OpenCode Go and custom endpoints serve drawing-set reviews.
     const countModels = reviewModels.filter(
-      (model): model is Exclude<typeof model, { provider: "opencode-go" }> =>
-        model.provider !== "opencode-go",
+      (model): model is Extract<typeof model, { provider: "meta" | "baseten" }> =>
+        model.provider === "meta" || model.provider === "baseten",
     );
 
     for (const model of countModels) {

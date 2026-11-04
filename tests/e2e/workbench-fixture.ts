@@ -17,28 +17,36 @@ import { electron } from "./isolated-electron.ts";
 /** Launch options for an offline desktop session whose providers are configured but never dispatched. */
 export async function offlineDesktop(
   directory: string,
-  providers: ReadonlyArray<"meta" | "baseten">,
+  providers: ReadonlyArray<"meta" | "baseten" | "opencode-go" | "openai-compatible">,
 ) {
   const credentialFile = join(directory, "offline-provider-config.json");
+
+  const routes = {
+    meta: { baseUrl: "https://api.meta.ai/v1", model: "muse-spark-1.3" },
+    baseten: {
+      baseUrl: "https://inference.baseten.co/v1",
+      model: "meta-models/muse-spark-open-1026",
+    },
+    "opencode-go": {
+      baseUrl: "https://opencode.ai/inference/go/v1",
+      model: "muse-spark-1.3-contributor",
+    },
+    // The custom endpoint's address is never reachable; its requests are answered offline.
+    "openai-compatible": {
+      baseUrl: "https://llm.offline.test/v1",
+      model: "offline-coder",
+      contextWindow: 32768,
+    },
+  } as const;
 
   await writeFile(
     credentialFile,
     JSON.stringify({
-      providers: providers.map((provider) =>
-        provider === "meta"
-          ? {
-              provider,
-              apiKey: "offline-ui-test-never-dispatched",
-              baseUrl: "https://api.meta.ai/v1",
-              model: "muse-spark-1.3",
-            }
-          : {
-              provider,
-              apiKey: "offline-ui-test-never-dispatched",
-              baseUrl: "https://inference.baseten.co/v1",
-              model: "meta-models/muse-spark-open-1026",
-            },
-      ),
+      providers: providers.map((provider) => ({
+        provider,
+        apiKey: "offline-ui-test-never-dispatched",
+        ...routes[provider],
+      })),
     }),
     { mode: 0o600 },
   );
