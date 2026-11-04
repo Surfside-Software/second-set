@@ -1,16 +1,15 @@
 import type { Effect, Stream } from "effect";
-import type { InferenceConfiguration } from "#lib/backend-rpc.ts";
 import type { CloudReviewError, CloudTransferProgress } from "#lib/review/cloud.ts";
 import type { PackageFile } from "#lib/review/packages.ts";
 import type { CloudCachedFile, CloudPendingRetain } from "./cache.ts";
-import type { CloudReviewRecord } from "./contracts.ts";
+import type { CloudProvider, CloudReviewRecord } from "./contracts.ts";
 import type { CloudRecoveredWorkerProgress } from "./progress.ts";
 
 /** Sandbox mechanics stay behind the cloud application's replay and ownership policy. */
 export interface CloudSandboxPort {
   /** Resolve the published image and every outbound provider secret without starting compute. */
   readonly preflight: (
-    providers: ReadonlyArray<typeof InferenceConfiguration.Type>,
+    providers: ReadonlyArray<typeof CloudProvider.Type>,
   ) => Effect.Effect<void, CloudReviewError>;
   /** Change signals are hints; callers reconcile the durable job after subscribing and on reconnect. */
   readonly changes: (record: CloudReviewRecord) => Stream.Stream<void, CloudReviewError>;
@@ -23,8 +22,8 @@ export interface CloudSandboxPort {
   ) => Effect.Effect<string, CloudReviewError>;
   readonly dispatch: (
     record: CloudReviewRecord,
-    provider: typeof InferenceConfiguration.Type,
-    alternatives: ReadonlyArray<typeof InferenceConfiguration.Type>,
+    provider: typeof CloudProvider.Type,
+    alternatives: ReadonlyArray<typeof CloudProvider.Type>,
   ) => Effect.Effect<void, CloudReviewError>;
   readonly progress: (
     record: CloudReviewRecord,

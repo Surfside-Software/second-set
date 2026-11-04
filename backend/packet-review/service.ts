@@ -73,6 +73,7 @@ import {
   promptCacheKey,
   packetReasoning,
   reviewModelCapabilities,
+  routeModel,
   type ProviderConfiguration,
   isQuickGatewayRefusal,
 } from "../inference/provider.ts";
@@ -123,11 +124,13 @@ const promptVersion = packetPromptVersion;
  * 220 of 1,276 checks in 33 minutes. Run in parallel at 16 sheets, it recorded all 1,276 using
  * about 1.5M of Meta's 4M tokens a minute, so Meta reviews start every sheet at once. The Baseten
  * key allows 100 requests and 2M tokens a minute (2026-10-31); 16 sheet reviewers send about 40
- * requests a minute, and the shared request pacer holds any burst inside the limit.
+ * requests a minute, and the shared request pacer holds any burst inside the limit. OpenCode Go
+ * asks for typical coding-agent traffic, and a custom endpoint may be one self-hosted server, so
+ * both start eight at a time.
  */
 export const defaultParallel = {
   minSheets: 4,
-  concurrency: { meta: 32, baseten: 16, "opencode-go": 16 },
+  concurrency: { meta: 32, baseten: 16, "opencode-go": 3, "openai-compatible": 8 },
   setup: defaultSetupLimits,
   // Sheet reviewers used 10 to 82 requests on drawing sheets; Spark Open once looped past 250.
   sheetRequests: 120,
@@ -559,7 +562,8 @@ interface Configuration {
   /** Packets with at least minSheets sheets review each sheet in its own conversation. */
   readonly parallel?: {
     readonly minSheets: number;
-    readonly concurrency: Readonly<Record<typeof ReviewProvider.Type, number>>;
+    /** Sheet reviewers at once per provider; a provider left out uses `defaultParallel`. */
+    readonly concurrency: Readonly<Partial<Record<typeof ReviewProvider.Type, number>>>;
     /** Coordinator setup's sheet and request limits; defaults to `defaultSetupLimits`. */
     readonly setup?: SetupLimits;
     /** Model requests one sheet reviewer may make before its sheet stops with its gaps shown. */
@@ -3216,7 +3220,7 @@ export class PacketReviews extends Context.Service<
             if (!provider)
               throw error("unavailable", "The selected model's provider is not connected.");
 
-            const capabilities = reviewModelCapabilities(row.payload.model);
+            const capabilities = reviewModelCapabilities(row.payload.model, provider);
 
             const assignments: SheetAssignments = {
               sheets: new Map(),
@@ -3259,7 +3263,7 @@ export class PacketReviews extends Context.Service<
             const toolRegistry = registryFor(row, assignments);
 
             const admitted = createAdmittedModels(
-              { ...provider, model: row.payload.model },
+              { ...provider, model: routeModel(provider, row.payload.model) },
               {
                 packetReview: true,
                 maxInputTokens: 4 * capabilities.contextWindow,
@@ -3495,7 +3499,10 @@ export class PacketReviews extends Context.Service<
                                   ...review,
                                   state: "paused",
                                   providerFailure: diagnostic,
-                                  error: `The provider refused the request (HTTP ${diagnostic.httpStatus ?? "error"}) until its retry limit ran out. Nothing was generated or charged. Findings and coverage were saved; resume when the provider is available.`,
+                                  error:
+                                    diagnostic.detail === "usage_limit"
+                                      ? "OpenCode reports a usage limit for this model (HTTP 429), so the review paused instead of sending more requests. Nothing was generated or charged. Findings and coverage were saved; OpenCode Console shows when the limit resets, and Resume continues then."
+                                      : `The provider refused the request (HTTP ${diagnostic.httpStatus ?? "error"}) until its retry limit ran out. Nothing was generated or charged. Findings and coverage were saved; resume when the provider is available.`,
                                 })
                               : review,
                           false,
@@ -4097,7 +4104,9 @@ export class PacketReviews extends Context.Service<
                   Struct.assign(planned, {
                     parallel: {
                       stage: "setup" as const,
-                      concurrency: parallel.concurrency[model.provider],
+                      concurrency:
+                        parallel.concurrency[model.provider] ??
+                        defaultParallel.concurrency[model.provider],
                       sheets: sheets.map((sheet) => ({
                         sheetId: sheet.id,
                         conversationId: null,

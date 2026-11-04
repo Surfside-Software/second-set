@@ -16,12 +16,22 @@ import { appendFileSync } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
 import { ReviewDesktopRpc, ReviewShellRpc } from "../src/lib/review/shell.ts";
 import { ReviewError, ReviewStorageError } from "../src/lib/review/contracts.ts";
 import { cachedPromptShare } from "../src/lib/review/packet.ts";
+import { reviewProviderRoutes } from "../src/lib/review/models.ts";
 import { BackendApi, type BackendLaunch } from "./backend.ts";
 import { ReviewProxy, ExecutionProxy, PacketProxy, CloudReviewProxy } from "./review-proxy.ts";
-import { readInferenceConfigurations, storeInferenceConfiguration } from "./credentials.ts";
+import {
+  readInferenceConfigurations,
+  removeSettingsConnection,
+  type SettingsProvider,
+  storeInferenceConfiguration,
+  storeSettingsConnection,
+} from "./credentials.ts";
+import { CredentialError, customEndpointUrl } from "./credential-files.ts";
+import { checkConnection, describeEndpointCheck, openCodeHeaders } from "./connection-check.ts";
 import { readModalConfiguration } from "./modal-credentials.ts";
 import { createDropImports } from "./drop-imports.ts";
 
@@ -170,6 +180,36 @@ if (!app.requestSingleInstanceLock()) {
           mode: 0o600,
         }).catch(() => undefined);
       };
+
+      /** Confirm, delete a Review settings connection and restart; false when declined. */
+      const removeConnection = (provider: SettingsProvider, name: string) =>
+        Effect.gen(function* () {
+          const confirmation = yield* Effect.tryPromise({
+            try: () =>
+              dialog.showMessageBox({
+                type: "warning",
+                buttons: ["Cancel", "Remove and restart"],
+                defaultId: 0,
+                cancelId: 0,
+                message: `Remove ${name}?`,
+                detail:
+                  "Its saved key is deleted and MOKE restarts. Reviews already run on it keep their results.",
+              }),
+            catch: () =>
+              new ReviewStorageError({ message: "The remove confirmation could not open." }),
+          });
+
+          if (confirmation.response !== 1) return false;
+          yield* Effect.tryPromise({
+            try: () => removeSettingsConnection(dataDirectory, provider),
+            catch: () =>
+              new ReviewStorageError({ message: "The saved connection could not be removed." }),
+          });
+          app.relaunch();
+          app.quit();
+
+          return true;
+        });
 
       const shellHandlers = ReviewShellRpc.toLayer(
         Effect.gen(function* () {
@@ -403,6 +443,111 @@ if (!app.requestSingleInstanceLock()) {
 
                 return true;
               }),
+            SaveCustomEndpoint: (settings) =>
+              Effect.gen(function* () {
+                const baseUrl = yield* Effect.try({
+                  try: () => customEndpointUrl(settings.baseUrl),
+                  catch: () =>
+                    new ReviewStorageError({
+                      message:
+                        "Enter the endpoint's https:// address, or http:// for a server on this computer, without a query or sign-in details.",
+                    }),
+                });
+
+                const check = yield* checkConnection({
+                  baseUrl,
+                  model: settings.model,
+                  apiKey: settings.apiKey,
+                });
+
+                const confirmation = yield* Effect.tryPromise({
+                  try: () =>
+                    dialog.showMessageBox({
+                      type: check.kind === "ready" ? "question" : "warning",
+                      buttons: ["Cancel", "Save and restart"],
+                      defaultId: check.kind === "ready" ? 1 : 0,
+                      cancelId: 0,
+                      message: "Save this custom endpoint?",
+                      detail: `${describeEndpointCheck(check)} MOKE restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
+                    }),
+                  catch: () =>
+                    new ReviewStorageError({ message: "The save confirmation could not open." }),
+                });
+
+                if (confirmation.response !== 1) return false;
+                yield* Effect.tryPromise({
+                  try: () =>
+                    storeSettingsConnection(dataDirectory, {
+                      provider: "openai-compatible",
+                      apiKey: settings.apiKey,
+                      baseUrl,
+                      model: settings.model,
+                      images: settings.images,
+                      contextWindow: settings.contextWindow,
+                    }),
+                  catch: (cause) =>
+                    new ReviewStorageError({
+                      message:
+                        cause instanceof CredentialError
+                          ? cause.message
+                          : "The custom endpoint could not be saved.",
+                    }),
+                });
+                app.relaunch();
+                app.quit();
+
+                return true;
+              }),
+            RemoveCustomEndpoint: () =>
+              removeConnection("openai-compatible", "the custom endpoint"),
+            SaveOpenCodeGo: (settings) =>
+              Effect.gen(function* () {
+                const upstream = settings.model;
+
+                const check = yield* checkConnection({
+                  baseUrl: reviewProviderRoutes["opencode-go"].endpoint,
+                  model: upstream,
+                  apiKey: settings.apiKey,
+                  headers: openCodeHeaders(app.getVersion(), `moke-check-${randomUUID()}`),
+                });
+
+                const confirmation = yield* Effect.tryPromise({
+                  try: () =>
+                    dialog.showMessageBox({
+                      type: check.kind === "ready" ? "question" : "warning",
+                      buttons: ["Cancel", "Save and restart"],
+                      defaultId: check.kind === "ready" ? 1 : 0,
+                      cancelId: 0,
+                      message: "Save this OpenCode Go key?",
+                      detail: `${describeEndpointCheck(check, "opencode-go")} Tested with ${upstream}. MOKE restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
+                    }),
+                  catch: () =>
+                    new ReviewStorageError({ message: "The save confirmation could not open." }),
+                });
+
+                if (confirmation.response !== 1) return false;
+                yield* Effect.tryPromise({
+                  try: () =>
+                    storeSettingsConnection(dataDirectory, {
+                      provider: "opencode-go",
+                      apiKey: settings.apiKey,
+                      baseUrl: reviewProviderRoutes["opencode-go"].endpoint,
+                      model: settings.model,
+                    }),
+                  catch: (cause) =>
+                    new ReviewStorageError({
+                      message:
+                        cause instanceof CredentialError
+                          ? cause.message
+                          : "The OpenCode Go key could not be saved.",
+                    }),
+                });
+                app.relaunch();
+                app.quit();
+
+                return true;
+              }),
+            RemoveOpenCodeGo: () => removeConnection("opencode-go", "the OpenCode Go key"),
           };
         }),
       );

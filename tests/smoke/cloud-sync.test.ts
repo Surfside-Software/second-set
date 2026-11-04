@@ -4,9 +4,9 @@ import { TestClock } from "effect/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { InferenceConfiguration, ModalConfiguration } from "#lib/backend-rpc.ts";
+import { ModalConfiguration } from "#lib/backend-rpc.ts";
 import { CloudReviewError, StartCloudReview } from "#lib/review/cloud.ts";
-import { cloudEngineIdentity } from "../../backend/cloud/contracts.ts";
+import { CloudProvider, cloudEngineIdentity } from "../../backend/cloud/contracts.ts";
 import { CloudReviews, CloudSandbox } from "../../backend/cloud/service.ts";
 import { CloudReviewSynchronization } from "../../backend/cloud/sync.ts";
 import type { CloudSandboxPort } from "../../backend/cloud/sandbox-port.ts";
@@ -68,7 +68,7 @@ async function fixture(dropSignals = false) {
     poolQueue: null,
   });
 
-  const provider = Schema.decodeUnknownSync(InferenceConfiguration)({
+  const provider = Schema.decodeUnknownSync(CloudProvider)({
     provider: "meta",
     apiKey: "test",
     baseUrl: "https://api.meta.ai/v1",

@@ -1,6 +1,6 @@
-import type { ReviewProvider } from "#lib/review/models.ts";
 import { Option, Predicate, Redacted, Schema } from "effect";
 import { createHash } from "node:crypto";
+import type { ReviewProvider } from "#lib/review/models.ts";
 
 /** Per-minute request and token allowances a provider enforces for one credential. */
 export interface RateLimits {
@@ -15,8 +15,13 @@ export interface RateLimits {
 export const reportedRateLimits = {
   meta: { requestsPerMinute: 3000, tokensPerMinute: 4_000_000 },
   baseten: { requestsPerMinute: 100, tokensPerMinute: 2_000_000 },
-  // Go publishes dollar allowances, not per-minute limits; this is a cautious starting point.
-  "opencode-go": { requestsPerMinute: 300, tokensPerMinute: 4_000_000 },
+  // OpenCode Go publishes no request rate; it asks for typical coding agent traffic and monitors for
+  // abuse. This ceiling is MOKE's own choice, well above three reviewers' measured 8 requests a
+  // minute, so a burst of quick answers still looks like one person's agents.
+  "opencode-go": { requestsPerMinute: 60, tokensPerMinute: 5_000_000 },
+  // A custom endpoint's limits are unknown until it sends these headers. A 429 starts the shared
+  // cooldown, so the generous start is corrected on first refusal.
+  "openai-compatible": { requestsPerMinute: 600, tokensPerMinute: 10_000_000 },
 } as const satisfies Record<typeof ReviewProvider.Type, RateLimits>;
 
 /** Monotonic time and timers; tests supply a manual clock. */

@@ -1,12 +1,13 @@
 import { safeStorage } from "electron";
 import { Schema } from "effect";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { InferenceConfiguration } from "../src/lib/backend-rpc.ts";
 import { reviewProviderRoutes } from "../src/lib/review/models.ts";
 import {
   CredentialError,
+  parseProviderConfiguration,
   parseProviderConfigurations,
   readProviderConfigurations,
 } from "./credential-files.ts";
@@ -15,6 +16,24 @@ const StoredCredential = Schema.Struct({
   version: Schema.Literal(1),
   encrypted: Schema.NonEmptyString,
 });
+
+/** Imported Meta and Baseten credentials. */
+const importedFile = "provider-credential.json";
+
+/**
+ * Connections saved in Review settings, one file each, so removing one leaves the others. They
+ * apply even when a session-only file supplies Meta and Baseten.
+ */
+const settingsFiles = {
+  "opencode-go": "opencode-go-credential.json",
+  "openai-compatible": "custom-endpoint-credential.json",
+} as const;
+
+/** A provider whose connection is saved from Review settings. */
+export type SettingsProvider = keyof typeof settingsFiles;
+
+const isSettingsProvider = (provider: string): provider is SettingsProvider =>
+  Object.hasOwn(settingsFiles, provider);
 
 const secureStorageAvailable = async () => {
   if (!(await safeStorage.isAsyncEncryptionAvailable())) return false;
@@ -28,36 +47,54 @@ const secureStorageAvailable = async () => {
   return probe.subarray(0, 3).toString() !== "v10";
 };
 
-/** Packaged launches use OS-encrypted storage or an explicitly selected session-only file. */
-export async function readInferenceConfigurations(directory: string, packaged: boolean) {
+/** Decrypt one stored credential file, or fail without revealing its contents. */
+async function readStored(path: string, message: string) {
+  if (!(await secureStorageAvailable()))
+    throw new CredentialError({
+      message:
+        "Secure credential storage is unavailable. Select a session-only credential configuration.",
+    });
+
+  try {
+    const stored = Schema.decodeUnknownSync(Schema.fromJsonString(StoredCredential))(
+      await readFile(path, "utf8"),
+    );
+
+    const decrypted = await safeStorage.decryptStringAsync(Buffer.from(stored.encrypted, "base64"));
+
+    return decrypted.result;
+  } catch {
+    throw new CredentialError({ message });
+  }
+}
+
+/** Encrypt with the OS store and write an owner-only file; never falls back to plain text. */
+async function writeStored(path: string, plain: string) {
+  if (!(await secureStorageAvailable()))
+    throw new CredentialError({
+      message:
+        "OS credential encryption is unavailable. Use an explicitly selected session-only configuration.",
+    });
+
+  const encrypted = await safeStorage.encryptStringAsync(plain);
+
+  await writeFile(path, JSON.stringify({ version: 1, encrypted: encrypted.toString("base64") }), {
+    mode: 0o600,
+    flush: true,
+  });
+}
+
+/** Session file, imported credentials, or (in development only) the environment. */
+async function readImportedConfigurations(directory: string, packaged: boolean) {
   const sessionFile = process.env.MOKE_SESSION_CREDENTIAL_FILE;
 
   if (sessionFile !== undefined) return readProviderConfigurations(sessionFile, true);
-  const storedFile = join(directory, "provider-credential.json");
+  const storedFile = join(directory, importedFile);
 
-  if (existsSync(storedFile)) {
-    if (!(await secureStorageAvailable()))
-      throw new CredentialError({
-        message:
-          "Secure credential storage is unavailable. Select a session-only credential configuration.",
-      });
-
-    try {
-      const stored = Schema.decodeUnknownSync(Schema.fromJsonString(StoredCredential))(
-        await readFile(storedFile, "utf8"),
-      );
-
-      const decrypted = await safeStorage.decryptStringAsync(
-        Buffer.from(stored.encrypted, "base64"),
-      );
-
-      return parseProviderConfigurations(decrypted.result);
-    } catch {
-      throw new CredentialError({
-        message: "The saved provider credential could not be unlocked.",
-      });
-    }
-  }
+  if (existsSync(storedFile))
+    return parseProviderConfigurations(
+      await readStored(storedFile, "The saved provider credential could not be unlocked."),
+    );
 
   if (packaged) return [];
 
@@ -88,31 +125,106 @@ export async function readInferenceConfigurations(directory: string, packaged: b
   });
 }
 
+/**
+ * Packaged launches use OS-encrypted storage or an explicitly selected session-only file.
+ * Connections saved in Review settings replace the same provider from those sources and are listed
+ * after them, so Meta or Baseten stays the startup default when present.
+ */
+export async function readInferenceConfigurations(directory: string, packaged: boolean) {
+  let configs = await readImportedConfigurations(directory, packaged);
+
+  // A session-only launch must still start when the keyring is down.
+  if (process.env.MOKE_SESSION_CREDENTIAL_FILE !== undefined && !(await secureStorageAvailable()))
+    return configs;
+
+  for (const [provider, file] of Object.entries(settingsFiles)) {
+    const stored = join(directory, file);
+
+    if (!existsSync(stored)) continue;
+
+    const saved = parseProviderConfiguration(
+      await readStored(stored, "A connection saved in Review settings could not be unlocked."),
+    );
+
+    if (saved.provider !== provider)
+      throw new CredentialError({
+        message: "A connection saved in Review settings is for another provider.",
+      });
+    configs = [...configs.filter((entry) => entry.provider !== provider), saved];
+  }
+
+  return configs;
+}
+
+/** Save a Review settings connection; the next launch passes it to the backend. */
+export async function storeSettingsConnection(
+  directory: string,
+  config: typeof InferenceConfiguration.Type,
+) {
+  const parsed = parseProviderConfiguration(
+    JSON.stringify(Schema.encodeSync(InferenceConfiguration)(config)),
+  );
+
+  if (!isSettingsProvider(parsed.provider))
+    throw new CredentialError({
+      message: "Meta and Baseten keys are imported from the File menu.",
+    });
+
+  await writeStored(
+    join(directory, settingsFiles[parsed.provider]),
+    JSON.stringify(Schema.encodeSync(InferenceConfiguration)(parsed)),
+  );
+}
+
+/**
+ * Forget a saved Review settings connection, including a copy imported from the File menu by an
+ * earlier version; a session-only file can still supply one.
+ */
+export async function removeSettingsConnection(directory: string, provider: SettingsProvider) {
+  await rm(join(directory, settingsFiles[provider]), { force: true });
+  const imported = join(directory, importedFile);
+
+  if (!existsSync(imported)) return;
+
+  const configs = parseProviderConfigurations(
+    await readStored(imported, "The saved provider credential could not be unlocked."),
+  );
+
+  const kept = configs.filter((entry) => entry.provider !== provider);
+
+  if (kept.length === configs.length) return;
+
+  if (kept.length === 0) return await rm(imported, { force: true });
+
+  await writeStored(
+    imported,
+    JSON.stringify({
+      providers: kept.map((config) => Schema.encodeSync(InferenceConfiguration)(config)),
+    }),
+  );
+}
+
 /** A shell-selected configuration is encrypted before saving, and never enters renderer RPC. */
 export async function storeInferenceConfiguration(directory: string, source: string) {
   const incoming = await readProviderConfigurations(source);
-  const existing = await readInferenceConfigurations(directory, true);
+  const saved = incoming.filter((entry) => isSettingsProvider(entry.provider));
+  const imported = incoming.filter((entry) => !isSettingsProvider(entry.provider));
 
-  const configs = [
-    ...incoming,
-    ...existing.filter((entry) => !incoming.some((item) => item.provider === entry.provider)),
-  ];
+  if (imported.length > 0) {
+    const existing = await readImportedConfigurations(directory, true);
 
-  if (!(await secureStorageAvailable()))
-    throw new CredentialError({
-      message:
-        "OS credential encryption is unavailable. Use an explicitly selected session-only configuration.",
-    });
+    const configs = [
+      ...imported,
+      ...existing.filter((entry) => !imported.some((item) => item.provider === entry.provider)),
+    ];
 
-  const encrypted = await safeStorage.encryptStringAsync(
-    JSON.stringify({
-      providers: configs.map((config) => Schema.encodeSync(InferenceConfiguration)(config)),
-    }),
-  );
+    await writeStored(
+      join(directory, importedFile),
+      JSON.stringify({
+        providers: configs.map((config) => Schema.encodeSync(InferenceConfiguration)(config)),
+      }),
+    );
+  }
 
-  await writeFile(
-    join(directory, "provider-credential.json"),
-    JSON.stringify({ version: 1, encrypted: encrypted.toString("base64") }),
-    { mode: 0o600, flush: true },
-  );
+  for (const entry of saved) await storeSettingsConnection(directory, entry);
 }

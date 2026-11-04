@@ -122,5 +122,14 @@ Meta uses `https://api.meta.ai/v1` and `muse-spark-1.3`; Baseten uses
 is selected. Packaged builds do not auto-load `.env`. The shell sends the key
 over the private backend startup pipe; renderer RPC and packages exclude it.
 
+Review settings can add an OpenCode Go key and one OpenAI-compatible endpoint.
+The renderer sends each key to the shell once; the shell encrypts it with
+safeStorage in its own file and restarts. Like imported credentials, it reaches the backend only over the startup
+pipe. A custom endpoint's key is never sent to cloud reviews. This is the one
+exception to keeping keys out of renderer RPC: a pasted key crosses once, as a
+redacted value, and is never returned. See
+[OpenCode Go](inference.md#opencode-go) and
+[custom endpoints](inference.md#custom-openai-compatible-endpoint).
+
 Set `MOKE_E2E_LIVE=1` only for the explicitly budgeted packaged acceptance test.
 It adds a live inspection to the ordinary four-outcome desktop flow.

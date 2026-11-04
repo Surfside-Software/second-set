@@ -38,6 +38,8 @@
   import FindingInspector from "./FindingInspector.svelte";
   import FindingDecision from "./FindingDecision.svelte";
   import FirmChecklistSettings from "./FirmChecklistSettings.svelte";
+  import CustomEndpointSettings from "./CustomEndpointSettings.svelte";
+  import OpenCodeGoSettings from "./OpenCodeGoSettings.svelte";
   import PacketReviewPanel from "./PacketReviewPanel.svelte";
   import { ReviewDiscipline } from "#lib/review/disciplines.ts";
   import { SheetId } from "#lib/review/contracts.ts";
@@ -69,9 +71,13 @@
     ReviewModelId,
     ReviewModelOption,
     reviewModels,
-    reviewProviderRoutes,
+    runsInCloud,
     trainsOnDrawings,
   } from "#lib/review/models.ts";
+  import type {
+    CustomEndpointSettings as CustomEndpointSettingsInput,
+    OpenCodeGoSettings as OpenCodeGoSettingsInput,
+  } from "#lib/review/shell.ts";
   import {
     findingSubtitle,
     formatOutcome,
@@ -162,6 +168,17 @@
   let firmChecklist = $state<typeof FirmChecklist.Type | null>(null);
   let firmChecklistLoaded = $state(false);
   let firmChecklistMessage = $state("");
+
+  // The reviewer's model for Initial Review and new conversations, kept in this window's storage.
+  const preferredModelKey = "moke.preferredReviewModel";
+
+  let preferredModelChoice = $state(
+    Option.getOrUndefined(
+      Schema.decodeUnknownOption(ReviewModelId)(
+        globalThis.localStorage?.getItem(preferredModelKey),
+      ),
+    ),
+  );
 
   let steeringCommand: {
     commandId: ReturnType<typeof newCommandId>;
@@ -368,7 +385,7 @@
     ).map((model) => ({
       value: model.id,
       label: model.label,
-      description: `${reviewProviderRoutes[model.provider].label}${model.available ? "" : " · add a connection in settings"}`,
+      description: `${providerName(model)}${model.available ? "" : " · add a connection in settings"}`,
       disabled: !model.available,
     })),
   );
@@ -380,6 +397,36 @@
     if (first !== undefined && !modelOptions.some((model) => model.value === selectedModel))
       selectedModel = first;
   });
+
+  // The connected custom endpoint without its key.
+  const customEndpoint = $derived(
+    setup?.models?.find((model) => model.provider === "openai-compatible" && model.available)
+      ?.endpoint,
+  );
+
+  const openCodeGoConnected = $derived(
+    setup?.models?.some((model) => model.provider === "opencode-go" && model.available) === true,
+  );
+
+  const modelAvailable = (id: typeof ReviewModelId.Type) =>
+    modelOptions.some((model) => model.value === id && !model.disabled);
+
+  // Until the reviewer chooses, Initial Review's default applies; a custom endpoint spares Meta credits.
+  const preferredModel = $derived.by((): typeof ReviewModelId.Type => {
+    if (preferredModelChoice !== undefined && modelAvailable(preferredModelChoice))
+      return preferredModelChoice;
+
+    const fallback = initialReviewModelFor((id) =>
+      modelOptions.some((model) => model.value === id && !model.disabled),
+    );
+
+    return !modelAvailable(fallback) && modelAvailable("openai-compatible")
+      ? "openai-compatible"
+      : fallback;
+  });
+
+  const providerOf = (id: typeof ReviewModelId.Type) =>
+    reviewModels.find((model) => model.id === id)?.provider ?? "meta";
 
   const selectedModelAvailable = $derived(
     modelOptions.some((model) => model.value === selectedModel && !model.disabled),
@@ -393,11 +440,8 @@
           (executionStatus.unresolvedAttempts > 0 && !executionStatus.uncertaintyAcknowledged))),
   );
 
-  const initialReviewModel = $derived(
-    initialReviewModelFor((id) =>
-      modelOptions.some((model) => model.value === id && !model.disabled),
-    ),
-  );
+  // Initial Review keeps its fixed request and runs on the reviewer's chosen model.
+  const initialReviewModel = $derived(preferredModel);
 
   // Shown until a revised set arrives; a first set made of several PDFs keeps it.
   const initialReviewVisible = $derived(
@@ -414,6 +458,9 @@
       ({ location: "local", label: `on this computer: ${reason}` }) as const;
 
     if (!cloudSetup?.configured) return { location: "local", label: "on this computer" } as const;
+
+    if (!runsInCloud(providerOf(initialReviewModel)))
+      return local("this model's key stays on this computer");
 
     if (cloudSetup.workspaceEstimate === undefined)
       return local("the cloud size check is unavailable");
@@ -837,6 +884,59 @@
       firmChecklistMessage = result.error.message;
       void loadFirmChecklist();
     }
+  }
+
+  function providerName(model: Pick<typeof ReviewModelOption.Type, "provider" | "endpoint">) {
+    if (model.provider === "meta") return "Meta";
+
+    if (model.provider === "baseten") return "Baseten";
+
+    if (model.provider === "opencode-go") return "OpenCode Go";
+
+    return model.endpoint === undefined
+      ? "OpenAI-compatible endpoint"
+      : `Custom · ${new URL(model.endpoint.baseUrl).host}`;
+  }
+
+  /** Electron tests the endpoint and asks before saving; a saved endpoint restarts the app. */
+  async function saveCustomEndpoint(settings: typeof CustomEndpointSettingsInput.Type) {
+    const result = await client.saveCustomEndpoint(settings);
+
+    if (!result.ok) return result.error.message;
+
+    return result.value ? "Saved. MOKE is restarting to connect the endpoint." : "Not saved.";
+  }
+
+  async function removeCustomEndpoint() {
+    const result = await client.removeCustomEndpoint();
+
+    if (!result.ok) return result.error.message;
+
+    return result.value ? "Removed. MOKE is restarting." : "The endpoint is still connected.";
+  }
+
+  async function saveOpenCodeGo(settings: typeof OpenCodeGoSettingsInput.Type) {
+    const result = await client.saveOpenCodeGo(settings);
+
+    if (!result.ok) return result.error.message;
+
+    return result.value ? "Saved. MOKE is restarting to connect OpenCode Go." : "Not saved.";
+  }
+
+  async function removeOpenCodeGo() {
+    const result = await client.removeOpenCodeGo();
+
+    if (!result.ok) return result.error.message;
+
+    return result.value ? "Removed. MOKE is restarting." : "OpenCode Go is still connected.";
+  }
+
+  function choosePreferredModel(value: string) {
+    const chosen = Schema.decodeUnknownOption(ReviewModelId)(value);
+
+    if (Option.isNone(chosen)) return;
+    preferredModelChoice = chosen.value;
+    globalThis.localStorage?.setItem(preferredModelKey, chosen.value);
   }
 
   function openPacketFocus(focus: typeof PacketFindingFocus.Type) {
@@ -1656,6 +1756,7 @@
     selectedModel =
       saved?.model ??
       previousReview?.model ??
+      (modelAvailable(preferredModel) ? preferredModel : undefined) ??
       offeredReviewModels(setup?.models ?? []).find((model) => model.available)?.id ??
       selectedModel;
     modelChosen = saved?.model !== undefined;
@@ -1952,7 +2053,10 @@
 
       if (result.ok) {
         setup = result.value;
-        const configuredModel = Schema.decodeUnknownOption(ReviewModelId)(result.value.model);
+
+        const configuredModel = modelAvailable(preferredModel)
+          ? Option.some(preferredModel)
+          : Schema.decodeUnknownOption(ReviewModelId)(result.value.model);
 
         // A conversation that already has a review keeps that review's model.
         if (
@@ -2270,17 +2374,35 @@
               : "Not connected"}</span
           >
         </p>
-        <p>
-          OpenCode Go <span class="connection-state"
-            >{setup?.models?.some((model) => model.provider === "opencode-go" && model.available)
-              ? "Connected"
-              : "Not connected"}</span
-          >
-        </p>
         {#if !setup?.models?.some((model) => model.available)}<p class="muted">
             Add one from File → Import provider credential configuration.
           </p>{/if}
+        <label for="preferred-review-model">Model for Initial Review and new conversations</label
+        ><select
+          id="preferred-review-model"
+          value={preferredModel}
+          onchange={(event) => choosePreferredModel(event.currentTarget.value)}
+        >
+          {#each modelOptions.filter((model) => !model.disabled) as option (option.value)}<option
+              value={option.value}>{option.label} · {option.description}</option
+            >{/each}
+        </select>
+        <p class="muted">
+          A review keeps the model it started with. SAM always uses the Meta connection.
+        </p>
       </section>
+      <OpenCodeGoSettings
+        connected={openCodeGoConnected}
+        disabled={packetBusy || cloudBlocked || executionBlocked}
+        onSave={saveOpenCodeGo}
+        onRemove={removeOpenCodeGo}
+      />
+      <CustomEndpointSettings
+        endpoint={customEndpoint}
+        disabled={packetBusy || cloudBlocked || executionBlocked}
+        onSave={saveCustomEndpoint}
+        onRemove={removeCustomEndpoint}
+      />
       <section class="settings-section">
         <details>
           <summary {...tip("Findings are review results, not professional approval.")}
@@ -2661,7 +2783,13 @@
                     value={location}
                     options={[
                       { value: "local", label: "On this computer" },
-                      { value: "cloud", label: "Push to cloud", disabled: !cloudSetup?.configured },
+                      {
+                        value: "cloud",
+                        label: "Push to cloud",
+                        // A custom endpoint's key stays on this computer.
+                        disabled:
+                          !cloudSetup?.configured || !runsInCloud(providerOf(selectedModel)),
+                      },
                     ]}
                     disabled={busy || executionBlocked || cloudBlocked}
                     onChange={(value) => {
@@ -2678,6 +2806,7 @@
                     onChange={(value) => {
                       selectedModel = Schema.decodeUnknownSync(ReviewModelId)(value);
                       modelChosen = true;
+                      if (!runsInCloud(providerOf(selectedModel))) location = "local";
                     }}
                   />
                   <ReviewSelect
@@ -3938,7 +4067,8 @@
   }
   .project-form input,
   .import-label input,
-  .settings-dialog input {
+  .settings-dialog input,
+  .settings-dialog select {
     width: 100%;
     min-width: 0;
     min-height: 40px;

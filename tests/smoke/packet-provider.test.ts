@@ -1,3 +1,4 @@
+import packageInfo from "../../package.json";
 import { ReviewProvider, reviewProviderRoutes } from "#lib/review/models.ts";
 import { expect, test } from "bun:test";
 import { Redacted, Schema } from "effect";
@@ -129,7 +130,7 @@ interface FixtureOptions {
 }
 
 function fixture(
-  provider: typeof ReviewProvider.Type = "meta",
+  provider: keyof typeof reviewProviderRoutes = "meta",
   packetReview = true,
   refusals = 0,
   options: FixtureOptions = { retryAfter: "1" },
@@ -361,8 +362,10 @@ test("OpenCode Go sends Muse Spark through its route, names itself and uses no M
 
   expect(captured.url).toBe("https://opencode.ai/inference/go/v1/responses");
   expect(captured.authorization).toBe("Bearer packet-opencode-go-fixture-key");
-  expect(captured.headers.get("user-agent")).toBe("moke-review/1.0");
-  expect(captured.headers.get("x-opencode-session")).toBe("moke-sheet-fixture");
+  expect(captured.headers.get("user-agent")).toBe(`moke/${packageInfo.version}`);
+  expect(captured.headers.get("x-opencode-client")).toBe("moke");
+  // Each conversation has its own session, as OpenCode asks; the shared cache key does not replace it.
+  expect(captured.headers.get("x-opencode-session")).not.toBe("moke-sheet-fixture");
 
   const wire = Schema.decodeUnknownSync(MetaRequest)(captured.body);
 

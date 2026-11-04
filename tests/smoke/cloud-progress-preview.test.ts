@@ -3,7 +3,7 @@ import { Effect, Layer, ManagedRuntime, Schema, Stream } from "effect";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { InferenceConfiguration, ModalConfiguration } from "#lib/backend-rpc.ts";
+import { ModalConfiguration } from "#lib/backend-rpc.ts";
 import {
   CloudFindingPreview,
   StartCloudPacketReview,
@@ -12,6 +12,7 @@ import {
 import { CloudReviews, CloudSandbox } from "../../backend/cloud/service.ts";
 import type { CloudSandboxPort } from "../../backend/cloud/sandbox-port.ts";
 import {
+  CloudProvider,
   CloudWorkerProgress,
   cloudEngineIdentity,
   type CloudReviewRecord,
@@ -35,7 +36,7 @@ const modal = Schema.decodeUnknownSync(ModalConfiguration)({
   poolQueue: null,
 });
 
-const provider = Schema.decodeUnknownSync(InferenceConfiguration)({
+const provider = Schema.decodeUnknownSync(CloudProvider)({
   provider: "meta",
   apiKey: "test-model-secret",
   baseUrl: "https://api.meta.ai/v1",

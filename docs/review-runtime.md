@@ -39,7 +39,8 @@ The review moves through three stages, recorded in `PacketReview.parallel`:
    is built from it, before and after a restart.
 2. **Sheets.** One conversation per sheet with unsettled checks. They run `concurrency` at a time:
    32 on Meta (3,000 requests and 4M tokens a minute per team) and 16 on Baseten (100 requests and
-   2M tokens a minute for the hackathon key). Sixteen Baseten reviewers send about 40 requests a
+   2M tokens a minute for the hackathon key). OpenCode Go runs 3 and a custom endpoint 8; see
+   [OpenCode Go](inference.md#opencode-go). Sixteen Baseten reviewers send about 40 requests a
    minute; the shared [request pacer](inference.md#rate-limit-pacing-and-refusals) holds bursts and
    refusals inside the key's limits. A sheet reviewer can
    open, record coverage for, and segment only its own sheet. It records findings visible on that

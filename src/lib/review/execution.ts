@@ -105,6 +105,7 @@ export const ProviderFailure = Schema.Struct({
       "payload_limit",
       "authentication",
       "rate_limit",
+      "usage_limit",
       "invalid_request",
       "unclassified",
     ]),
