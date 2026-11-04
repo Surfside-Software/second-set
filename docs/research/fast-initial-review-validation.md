@@ -67,10 +67,13 @@ longer resend every retained image as base64 on each turn.
 - **HTTP 502 stops a sheet reviewer.** In the cloud Brewery run, four sheet reviewers
   each received HTTP 502 within about 50 ms (4 of 575 calls). A 502 is not treated as a
   refusal before generation, so it is not resent; those sheets kept their gaps. The
-  local runs saw none.
+  local runs saw none. Since 2026-10-31 a gateway 502 or 503 is resent like a 529; see
+  [rate-limit pacing and refusals](../inference.md#rate-limit-pacing-and-refusals).
 - **Windows cloud reviews on this machine.** Cloudflare WARP's resolver times out on
   Modal's worker hosts (`*.w.modal.host`), so every file and exec call from the Windows
-  app fails before a review starts; WSL resolves them. The cloud runs therefore ran the
+  app fails before a review starts; WSL resolves them. The cause, found on 2026-10-31, is
+  WARP's default `host` fallback domain; see
+  [cloud troubleshooting](../cloud-reviews.md#troubleshooting). The cloud runs therefore ran the
   Linux desktop app through WSLg on the same machine and uplink.
 - **Cloud check after launch.** Two cloud attempts showed "on this computer" because
   the quiet cloud check failed at that moment; the next attempt passed in about 3 s.

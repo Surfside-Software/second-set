@@ -47,7 +47,11 @@ The review moves through three stages, recorded in `PacketReview.parallel`:
    coordinator's finding. It cannot record missing-content findings, because it cannot search the
    other sheets, and it cannot change the project configuration: it reports a different project
    fact in its notes. It ends with `finish_sheet` notes: summary, key facts, cross-references and
-   suspected gaps. A reviewer that stops without notes is asked once to save them.
+   suspected gaps. A reviewer that stops without notes is asked up to twice to save them with
+   `finish_sheet`, separately from one reminder about pending finding summaries. A sheet reviewer
+   stops after 120 model requests; drawing sheets have used 10 to 82, and a Spark Open reviewer
+   once looped past 250. Its recorded coverage and findings stay, and its remaining checks stay
+   open for the coordinator and the report.
 3. **Coordination.** The coordinator receives every sheet's notes, compares facts across sheets,
    checks suspected gaps against the whole inventory, and calls `finish_review`. Its tool list
    widens once, here; each role and stage otherwise keeps one list, so its cached prefix holds.
@@ -86,7 +90,10 @@ evidence: the current drawings and governing sources still establish every findi
   duplicate, with a reason. Follow-ups in the conversation receive findings with their decisions.
   The prompt tells the model not to raise a dismissed issue again unless the current sources show
   something the reason did not consider. Sheet reviewers get their sheet's findings with
-  decisions, and the coordinator's finding list includes each decision.
+  decisions, and the coordinator's finding list includes each decision. On a revised set, each
+  sheet reviewer also gets the findings carried from the earlier sheet its sheet replaces, through
+  the saved revision correspondence. It updates each by id, or marks it `Resolved` after
+  inspecting the revised sheet; only carried findings can become `Resolved`.
 - **Firm checklist.** Saved in Review settings and frozen into each review at start. Packet prompt
   `moke-packet-review-v5` appends it after the requested scope, so reviews with and without a
   checklist share every cached token before it, and the coordinator and sheet reviewers receive the

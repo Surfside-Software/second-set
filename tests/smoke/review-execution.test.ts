@@ -713,8 +713,9 @@ test("SDK error retry headers cannot bypass the one-send reservation", async () 
     const body = Schema.decodeUnknownSync(Schema.String)(init?.body);
     expect(body).toContain('"stream":true');
 
+    // The SDK would retry a 500 after retry-after-ms; a gateway 503 is the pacer's own refusal.
     return new Response(JSON.stringify({ error: { message: "fixture only" } }), {
-      status: 503,
+      status: 500,
       headers: { "retry-after-ms": "1", "content-type": "application/json" },
     });
   });

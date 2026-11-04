@@ -1,7 +1,8 @@
 import { Effect, Schema, Semaphore } from "effect";
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { copyFile, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { renameReplacing } from "../rename.ts";
 import { dirname, join } from "node:path";
 import { CloudReviewError, type CloudTransferProgress } from "#lib/review/cloud.ts";
 import { PackageManifest, type PackageFile } from "#lib/review/packages.ts";
@@ -275,7 +276,7 @@ const copyAtomically = async (source: string, destination: string) => {
   try {
     // Clone where the filesystem supports it; otherwise this is an ordinary local copy.
     await copyFile(source, scratch, constants.COPYFILE_FICLONE);
-    await rename(scratch, destination);
+    await renameReplacing(scratch, destination);
   } finally {
     await rm(scratch, { force: true });
   }

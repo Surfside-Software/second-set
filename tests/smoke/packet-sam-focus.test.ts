@@ -200,3 +200,105 @@ test("a device count needs SAM, and each recorded finding gets a SAM zoom of its
     await rm(directory, { recursive: true, force: true });
   }
 }, 120000);
+
+test.each([
+  ["refused on every send", 4, false],
+  ["refused once", 1, true],
+] as const)(
+  "a finding zoom whose SAM request is %s settles without stopping the review",
+  async (_label, refusals, zoomed) => {
+    const directory = await mkdtemp(join(tmpdir(), "moke-packet-sam-refusal-"));
+    let samSends = 0;
+    let step = 0;
+    let sheetId = "";
+    let box = { x: 0, y: 0, width: 1, height: 1 };
+
+    const transport: ProviderTransport = async (_url, init) => {
+      const request = decodeRequest(init);
+
+      if (request.model === "sam-3.1") {
+        samSends++;
+
+        return samSends <= refusals
+          ? Response.json(
+              { error: { message: "Bad gateway" } },
+              { status: 502, headers: { "retry-after": "1" } },
+            )
+          : sam("sam-after-refusal", `<0f>${instance(0, 10)}`);
+      }
+
+      const rendered = outputs(Schema.Struct({ artifact: Artifact }), request).at(0);
+
+      switch (step++) {
+        case 0:
+          return response([{ name: "render_sheet", arguments: { sheetId } }]);
+        case 1:
+          if (!rendered) throw new Error("The rendered sheet was not delivered to the model.");
+
+          return response([
+            {
+              name: "record_finding",
+              arguments: {
+                title: "Title block omits the permit stage",
+                discipline: "general",
+                severity: "Minor",
+                status: "Needs input",
+                classification: "Recommendation",
+                locations: [
+                  {
+                    sheetId,
+                    detail: "Title block",
+                    region: {
+                      x: box.x + box.width * 0.3,
+                      y: box.y + box.height * 0.3,
+                      width: box.width * 0.2,
+                      height: box.height * 0.2,
+                    },
+                  },
+                ],
+                observed: "The title block names the revision but no permit stage.",
+                correction: "Show the permit stage in the title block.",
+                evidenceIds: [rendered.artifact.id],
+                evidenceNote: "The title block is legible on the rendered sheet.",
+                citationIds: [],
+                calculationIds: [],
+                priorCommentId: null,
+              },
+            },
+          ]);
+        case 2:
+          return response([
+            {
+              name: "finish_review",
+              arguments: { summary: "Title block reviewed.", missingInputs: [] },
+            },
+          ]);
+        default:
+          return response([], "The title block needs the permit stage.");
+      }
+    };
+
+    const session = await open(directory, transport);
+
+    try {
+      const sheet = (await session.snapshot()).sheets[0];
+
+      if (!sheet) throw new Error("The fixture PDF has no source sheet.");
+      sheetId = sheet.id;
+      box = { x: sheet.box.x, y: sheet.box.y, width: sheet.box.width, height: sheet.box.height };
+
+      const started = await session.run(
+        session.packets.start(await session.request("Check the title block.")),
+      );
+
+      const finished = await until(session, started.id, "completed");
+      expect(samSends).toBe(zoomed ? 2 : 4);
+      expect(finished.findings).toHaveLength(1);
+      expect(finished.findings[0]?.focus === undefined).toBe(!zoomed);
+    } finally {
+      await session.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  120000,
+);

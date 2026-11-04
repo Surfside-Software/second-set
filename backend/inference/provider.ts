@@ -142,14 +142,27 @@ interface RefusedDispatch {
 }
 
 /**
- * Why a response refused the request before generating anything: a rate limit (429), missing
- * serving capacity (529), or Meta's intermittent 404 `model_not_found` for a served model (about
- * one request in eight for one team's key on 2026-10-30).
+ * A gateway's 502 or 503 proves nothing was generated only when it answers at once. Meta's gateway
+ * answered 7 of 13 sheet reviewers with HTTP 502 within about 110 ms on 2026-10-31; a later one can
+ * follow real work, so it stays unresolved like 500 and 504.
  */
-async function refusalOf(response: Response): Promise<Refusal | "model_not_found" | undefined> {
+export const isQuickGatewayRefusal = (status: number, elapsedMs: number) =>
+  (status === 502 || status === 503) && elapsedMs <= 5000;
+
+/**
+ * Why a response refused the request before generating anything: a rate limit (429), missing
+ * serving capacity (529, or a quick gateway 502 or 503), or Meta's intermittent 404
+ * `model_not_found` for a served model (about one request in eight for one team's key on
+ * 2026-10-30).
+ */
+async function refusalOf(
+  response: Response,
+  elapsedMs: number,
+): Promise<Refusal | "model_not_found" | undefined> {
   if (response.status === 429) return "rate_limit";
 
-  if (response.status === 529) return "overloaded";
+  if (response.status === 529 || isQuickGatewayRefusal(response.status, elapsedMs))
+    return "overloaded";
 
   if (response.status !== 404) return undefined;
   const reader = response.clone().body?.getReader();
@@ -770,14 +783,16 @@ export function createAdmittedModels(
 
             try {
               const dispatch = configuration.transport ?? globalThis.fetch;
+              const sentAt = performance.now();
               const response = await dispatch(input, init);
+              const elapsedMs = performance.now() - sentAt;
 
               httpStatus = response.status;
               failurePhase = "response";
 
               // A rate-limit, capacity or model-routing refusal happens before generation, so
               // resending it cannot duplicate paid work. Parallel sheet reviewers rely on this.
-              const refused = await refusalOf(response);
+              const refused = await refusalOf(response, elapsedMs);
 
               const retryAfterMs =
                 refused === undefined ? undefined : pacer.retryAfter(response.headers);

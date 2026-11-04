@@ -3,6 +3,7 @@ import { SqliteClient } from "@effect/sql-sqlite-bun";
 import { Cause, Effect, Exit, Fiber, Layer, Metric, Result, Semaphore, Struct } from "effect";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { deflateSync } from "node:zlib";
 import { dirname, join, resolve } from "node:path";
 import { artifactBytesVerified } from "../../backend/documents/artifact-store.ts";
 import { Documents, pdfJobConcurrency } from "../../backend/documents/documents.ts";
@@ -125,6 +126,107 @@ test("direct crops contain the source mark through every rotation, nonzero page 
       expect(restored.x).toBeCloseTo(120, 6);
       expect(restored.y).toBeCloseTo(540, 6);
     }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
+/** One page drawing a black 4200 x 4200 image, above the 16-megapixel output limit, at 100-400 points. */
+function largeImagePdf() {
+  const side = 4200;
+  const pixels = deflateSync(new Uint8Array(side * side));
+  const content = "q 300 0 0 300 100 100 cm /Im1 Do Q";
+
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>",
+    `<< /Type /XObject /Subtype /Image /Width ${side} /Height ${side} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${pixels.byteLength} >>`,
+    `<< /Length ${content.length} >>`,
+  ];
+
+  const chunks: Array<Uint8Array> = [];
+  const offsets: Array<number> = [];
+  let length = 0;
+
+  const push = (bytes: Uint8Array) => {
+    chunks.push(bytes);
+    length += bytes.byteLength;
+  };
+
+  const text = (value: string) => push(new TextEncoder().encode(value));
+
+  text("%PDF-1.7\n");
+  objects.forEach((dictionary, index) => {
+    offsets.push(length);
+    text(`${index + 1} 0 obj\n${dictionary}\n`);
+
+    if (index === 3) {
+      text("stream\n");
+      push(pixels);
+      text("\nendstream\n");
+    }
+
+    if (index === 4) text(`stream\n${content}\nendstream\n`);
+    text("endobj\n");
+  });
+
+  const xref = length;
+  text(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`);
+
+  for (const offset of offsets) text(`${String(offset).padStart(10, "0")} 00000 n \n`);
+  text(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+
+  return Buffer.concat(chunks);
+}
+
+test("embedded images above the output pixel limit still render", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-large-image-"));
+
+  try {
+    const original = join(directory, "large-image.pdf");
+    await writeFile(original, largeImagePdf());
+
+    const render = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const documents = yield* Documents;
+          const imported = yield* documents.importPdf(original);
+          const page = imported.pages[0];
+
+          if (page === undefined) return yield* Effect.die("No fixture page");
+
+          const sheet = new Sheet({
+            ...page,
+            id: sheetId(crypto.randomUUID()),
+            projectId: projectId(crypto.randomUUID()),
+            revisionId: revisionId(crypto.randomUUID()),
+            confirmed: true,
+            coverage: "reviewer_complete",
+          });
+
+          return yield* documents.render(
+            imported.sha256,
+            sheet,
+            new Region({ x: 50, y: 50, width: 400, height: 400 }),
+            72,
+          );
+        }).pipe(Effect.provide(documentsLayer(directory))),
+      ),
+    );
+
+    const image = await loadImage(
+      await readFile(join(directory, "artifacts", `${render.sha256}.png`)),
+    );
+
+    const canvas = createCanvas(render.width, render.height);
+    const context = canvas.getContext("2d");
+    context.drawImage(image, 0, 0);
+    const centre = transformPoint(render.pdfToPixels, 250, 250);
+    const [red] = context.getImageData(Math.round(centre.x), Math.round(centre.y), 1, 1).data;
+
+    // PDF.js drops a larger image than its maxImageSize without an error, leaving white paper.
+    expect(red).toBeLessThan(64);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

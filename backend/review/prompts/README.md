@@ -6,7 +6,7 @@ the upstream paths and SHA-256 hashes. Read the original skill repository to
 update them; this application does not edit that source repository.
 
 `review-prompt.ts` imports the files with Bun's text loader, embedding them in the
-compiled backend. Packet review version `moke-packet-review-v9` supplies the full
+compiled backend. Packet review version `moke-packet-review-v10` supplies the full
 master AGENTS.md and REVIEW_METHOD.md, including Report and release, as Pi
 Durable's conversation `agent.instructions`. The reviewer request and document
 inventory are separate input data. Each run records the prompt version and
@@ -127,3 +127,12 @@ coordinator's guidance describes setup's sheet and request limits, and
 Packet review `moke-packet-review-v8` leaves quotes empty for unread ICC and Florida rule text, and notes empty except for project-specific facts. The host records the access limit required by REVIEW_METHOD.md.
 
 Packet review `moke-packet-review-v9` tells every reviewer to log a citation when a finding rests on a code requirement or a sheet prints one, as REVIEW_METHOD.md requires. A real 46-sheet review on v8 recorded 3 citations in 698 calls, none from a sheet reviewer, because the sheet role never mentioned them. Search is now for when the section is unknown, since naming the document, edition and section gets the same link. See [the research note](../../../docs/research/citation-links-real-set.md).
+
+Packet review `moke-packet-review-v10` has models mark finding locations and crops with
+`imageBox`, a pixel box in an image they received, which the host converts to PDF points.
+Models had placed regions several lines away from the cited text when they converted pixels to
+points themselves. Revised sheets now receive the findings carried from the sheets they replace,
+to update by id or mark `Resolved`, and `withdraw_finding` removes a finding recorded in error in
+the same review. A finding that calls an area blank, empty or illegible must cite a focused crop
+of it, because full-sheet images are too coarse for small text. The prompt adds short severity
+definitions and forbids test findings.

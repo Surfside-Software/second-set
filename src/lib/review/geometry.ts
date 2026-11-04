@@ -37,6 +37,69 @@ export function containsRegion(page: Region, region: Region) {
   );
 }
 
+/** Moke delivers source images to models at most 2,048 pixels on either side. */
+export const modelImageLimit = 2048;
+
+/** The pixel size Moke delivers to a model for a rendered artifact of this size. */
+export function deliveredImageSize(width: number, height: number) {
+  const scale = Math.min(1, modelImageLimit / Math.max(width, height));
+
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+/** A pixel box in a delivered image, with a top-left origin. */
+export interface ImageBox {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+/**
+ * Map a box drawn on the image a model received back to PDF points through the artifact's
+ * stored pixel transform, so models never convert coordinates themselves.
+ */
+export function deliveredBoxToPdf(
+  artifact: {
+    readonly width: number;
+    readonly height: number;
+    readonly pixelsToPdf: typeof Affine.Type;
+  },
+  box: ImageBox,
+) {
+  const delivered = deliveredImageSize(artifact.width, artifact.height);
+
+  if (
+    !(
+      box.left >= 0 &&
+      box.top >= 0 &&
+      box.right <= delivered.width &&
+      box.bottom <= delivered.height
+    ) ||
+    box.right <= box.left ||
+    box.bottom <= box.top
+  )
+    return new ReviewInputError({
+      message: `The image box must lie inside the delivered ${delivered.width}×${delivered.height}-pixel image, with right greater than left and bottom greater than top.`,
+    });
+
+  const sx = artifact.width / delivered.width;
+  const sy = artifact.height / delivered.height;
+
+  return transformRegion(
+    artifact.pixelsToPdf,
+    new Region({
+      x: box.left * sx,
+      y: box.top * sy,
+      width: (box.right - box.left) * sx,
+      height: (box.bottom - box.top) * sy,
+    }),
+  );
+}
+
 /** Map all four corners, retaining a useful enclosing rectangle after rotation. */
 export function transformRegion(transform: typeof Affine.Type, region: Region) {
   const corners = [

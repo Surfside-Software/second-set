@@ -23,6 +23,7 @@ import { ExecutionEvidence, ExecutionImage, type ExecutionPort } from "./executi
 import { validateRenderRequest } from "../documents/render-bounds.ts";
 import { renderIdentity } from "../documents/render-identity.ts";
 import { invertTransform } from "#lib/review/geometry.ts";
+import { encodeModelImage, modelImageBytes } from "./model-image.ts";
 import {
   AgentInput,
   AgentMutation,
@@ -303,7 +304,7 @@ export function createReviewOperations(config: ReviewOperationsConfiguration) {
   });
 
   const port: ExecutionPort = {
-    readImage: (artifact) =>
+    readImage: (artifact, options) =>
       toExecution(
         Effect.gen(function* () {
           if (
@@ -324,23 +325,14 @@ export function createReviewOperations(config: ReviewOperationsConfiguration) {
           );
 
           const converted = yield* Effect.tryPromise({
-            try: async () => {
-              const image = new Bun.Image(bytes);
-              const metadata = await image.metadata();
-              const scale = Math.min(1, 2048 / Math.max(metadata.width, metadata.height));
-              const width = Math.max(1, Math.round(metadata.width * scale));
-              const height = Math.max(1, Math.round(metadata.height * scale));
-              const data = await image.resize(width, height).png().toBuffer();
-
-              return { data: Buffer.from(data), width, height };
-            },
+            try: () => encodeModelImage(bytes, options?.lossy === true),
             catch: () =>
               new ReviewInputError({
                 message: "The selected evidence image could not be prepared.",
               }),
           });
 
-          if (converted.data.byteLength > 1024 * 1024)
+          if (converted.data.byteLength > modelImageBytes)
             return yield* new ReviewInputError({
               message: "Choose a smaller source region for this model inspection.",
             });
@@ -365,7 +357,7 @@ export function createReviewOperations(config: ReviewOperationsConfiguration) {
             artifactId: artifact.id,
             projectId: artifact.projectId,
             sheetId: artifact.sheetId,
-            mimeType: "image/png",
+            mimeType: converted.mimeType,
             data: converted.data.toString("base64"),
             width: converted.width,
             height: converted.height,

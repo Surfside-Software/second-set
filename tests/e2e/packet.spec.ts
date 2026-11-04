@@ -367,7 +367,10 @@ test("document QA needs no count check and persisted findings support evidence, 
         exact: true,
       })
       .click();
-    await expect.poll(() => page.evaluate(() => window.auditRpc.held)).toBe(true);
+    // The held reply waits on a fresh 300-dpi render, which cold CI runners finish slowly.
+    await expect
+      .poll(() => page.evaluate(() => window.auditRpc.held), { timeout: 15000 })
+      .toBe(true);
     await page.getByRole("button", { name: "Open findings", exact: true }).click();
     await page
       .locator(".findings-bubble")
@@ -398,7 +401,9 @@ test("document QA needs no count check and persisted findings support evidence, 
       .locator(".findings-bubble")
       .getByRole("button", { name: "Second source finding", exact: false })
       .click();
-    await expect.poll(() => page.evaluate(() => window.auditRpc.held)).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => window.auditRpc.held), { timeout: 15000 })
+      .toBe(true);
     await page.getByRole("button", { name: "Open findings", exact: true }).click();
     await page
       .locator(".findings-bubble")
@@ -445,7 +450,9 @@ test("document QA needs no count check and persisted findings support evidence, 
         exact: true,
       })
       .click();
-    await expect.poll(() => page.evaluate(() => window.auditRpc.held)).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => window.auditRpc.held), { timeout: 15000 })
+      .toBe(true);
     await page.getByRole("button", { name: "Close source panel", exact: true }).click();
     await page.evaluate(async () => {
       window.auditRpc.release();
@@ -508,7 +515,9 @@ test("document QA needs no count check and persisted findings support evidence, 
       .getByRole("button", { name: seeded.findingTitle, exact: false })
       .click();
     await expect(page.getByTestId("selected-packet-finding")).toBeVisible();
-    await expect.poll(() => page.evaluate(() => window.auditRpc.held)).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => window.auditRpc.held), { timeout: 15000 })
+      .toBe(true);
     await page.getByRole("button", { name: "Open findings", exact: true }).click();
     await page.evaluate(() => window.auditRpc.release());
     await expect(page.locator(".viewer img")).toBeVisible();

@@ -1,5 +1,6 @@
 import { Effect, Schema, Struct } from "effect";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, readFile, rm } from "node:fs/promises";
+import { renameReplacing } from "../rename.ts";
 import { dirname } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -38,7 +39,7 @@ export const writeCloudFile = (path: string, text: string) =>
           await file.close();
         }
 
-        await rename(temporary, path);
+        await renameReplacing(temporary, path);
 
         if (process.platform !== "win32") {
           const directory = await open(dirname(path), "r");
