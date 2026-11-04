@@ -56,7 +56,7 @@ test("an OpenCode Go key keeps its canonical route and can run in the cloud", ()
     expect(() => parseProviderConfiguration(JSON.stringify(invalid))).toThrow(CredentialError);
 });
 
-/** A Chat Completions stream with a reasoning field, as OpenCode Go returns for DeepSeek. */
+/** A Chat Completions stream with a reasoning field, as OpenCode Go returns for GLM. */
 function completions() {
   const chunks = [
     {
@@ -312,7 +312,7 @@ test("the OpenCode Go key check sends the session, client and user agent OpenCod
   const check = await Effect.runPromise(
     checkConnection({
       baseUrl: `http://127.0.0.1:${server.port}/v1`,
-      model: "deepseek-v4.1-flash",
+      model: "glm-5.3-flash",
       apiKey: Redacted.make("oc_sk_fixture"),
       headers: openCodeHeaders("0.1.0", "moke-check-1"),
     }),

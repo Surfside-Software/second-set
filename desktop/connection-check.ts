@@ -134,7 +134,7 @@ function describeOpenCodeRefusal(status: number) {
     return "OpenCode refused the key (HTTP 401). Copy a key from a workspace with a Go subscription.";
 
   if (status === 403)
-    return "OpenCode refused this model for the key (HTTP 403). In Console Settings › Privacy, DeepSeek needs the Global region and Muse Spark Contributor needs “Allow paid endpoints that train on request data”.";
+    return "OpenCode refused this model for the key (HTTP 403). In Console Settings › Privacy, Muse Spark Contributor needs “Allow paid endpoints that train on request data”.";
 
   if (status === 429)
     return "OpenCode reports a usage limit for this model (HTTP 429). Go limits reset over 5-hour, weekly and monthly windows.";
