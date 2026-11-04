@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { renameReplacing } from "./rename.ts";
 import { basename, dirname, join } from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
 import { Effect, Schema } from "effect";
@@ -257,7 +258,7 @@ export const restoreDatabase = Effect.fn("restoreDatabase")(function* (
     () => Effect.promise(() => rm(replacement, { force: true })),
   );
   yield* io(
-    () => rename(replacement, filename),
+    () => renameReplacing(replacement, filename),
     "The original database could not be replaced. It was preserved.",
   );
 });

@@ -885,6 +885,7 @@ test.each([
   ["moke-packet-review-v6", "florida-code-index-v1"],
   ["moke-packet-review-v7", "florida-code-index-v1"],
   ["moke-packet-review-v8", "florida-code-index-v2"],
+  ["moke-packet-review-v9", "florida-code-index-v3"],
 ] as const)(
   "dispatched protocol-5 jobs stay readable after a worker upgrade: %s with %s",
   async (packetPrompt, codeIndex) => {

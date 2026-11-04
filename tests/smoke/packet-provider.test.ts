@@ -501,6 +501,32 @@ test("a rate-limit refusal is resent after the provider delay within one admitte
   expect(session.endings).toEqual([false]);
 });
 
+test.each([502, 503])(
+  "a gateway %d before generation is resent within one admitted attempt",
+  async (status) => {
+    const session = fixture("meta", true, 1, { status, retryAfter: "1" });
+
+    const answer = await session.admitted.telemetry.startSpan(generation, (telemetry) =>
+      session.admitted.models.completeSimple(session.model, shortContext, { telemetry }),
+    );
+
+    expect(answer.stopReason).toBe("stop");
+    expect(session.requests).toHaveLength(2);
+    expect(session.receipts).toHaveLength(1);
+  },
+);
+
+test("an HTTP 500 can follow real work, so it is not resent", async () => {
+  const session = fixture("meta", true, 1, { status: 500, retryAfter: "1" });
+
+  const answer = await session.admitted.telemetry.startSpan(generation, (telemetry) =>
+    session.admitted.models.completeSimple(session.model, shortContext, { telemetry }),
+  );
+
+  expect(answer.stopReason).toBe("error");
+  expect(session.requests).toHaveLength(1);
+});
+
 /** Wall time when every test clock starts. */
 const startedAt = Date.UTC(2026, 9, 31, 12, 0, 0);
 

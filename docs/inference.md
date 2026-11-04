@@ -99,7 +99,12 @@ update it. Both providers send them. The pacer waits before the durable request
 attempt is recorded, so a cancel or shutdown during the wait leaves nothing
 unresolved, and the 300-second request deadline starts only when the request is sent.
 
-HTTP 429 and 529 mean the provider refused the request before generating. The
+HTTP 429 and 529 mean the provider refused the request before generating. A gateway's 502 or
+503 is handled the same way: Meta answered 7 of 13 sheet reviewers with 502 within about 110 ms
+on 2026-10-31, before any generation, and not resending it left those sheets unreviewed. HTTP
+500 and 504 can follow real work and are not resent. A SAM request refused with 429, 502, 503 or
+529 is resent up to three times; if every send is refused, its attempt is withdrawn uncharged and
+the reviewer continues without that segmentation or finding zoom. The
 refusal starts one cooldown that every conversation on the key waits out, so
 parallel sheet reviewers do not retry into the same limit. The cooldown honours
 `Retry-After` in full, as delay-seconds or an HTTP-date. Otherwise, or when it is

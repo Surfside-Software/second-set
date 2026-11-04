@@ -143,13 +143,16 @@ interface RefusedDispatch {
 
 /**
  * Why a response refused the request before generating anything: a rate limit (429), missing
- * serving capacity (529), or Meta's intermittent 404 `model_not_found` for a served model (about
- * one request in eight for one team's key on 2026-10-30).
+ * serving capacity (529, or a gateway's 502 or 503), or Meta's intermittent 404 `model_not_found`
+ * for a served model (about one request in eight for one team's key on 2026-10-30). Meta's
+ * gateway answered 7 of 13 sheet reviewers with HTTP 502 within about 110 ms on 2026-10-31,
+ * before any generation; 500 and 504 can follow real work and stay unresolved.
  */
 async function refusalOf(response: Response): Promise<Refusal | "model_not_found" | undefined> {
   if (response.status === 429) return "rate_limit";
 
-  if (response.status === 529) return "overloaded";
+  if (response.status === 529 || response.status === 502 || response.status === 503)
+    return "overloaded";
 
   if (response.status !== 404) return undefined;
   const reader = response.clone().body?.getReader();

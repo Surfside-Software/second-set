@@ -17,6 +17,12 @@ export const DocumentsLimits = {
   maxDpi: 300,
   minDpi: 24,
   maxOutputPixels: 16_000_000,
+  /**
+   * Largest embedded image PDF.js decodes; larger images are dropped from the render without an
+   * error. Drawing sets embed scanned schedules and details above the output limit, and a
+   * 24 x 36-inch sheet scanned at 400 ppi is about 138 megapixels.
+   */
+  maxEmbeddedImagePixels: 150_000_000,
   maxReadChunkBytes: 256 * 1024,
   /** Verified artifact bytes held so chunked reads hash each file once. */
   verifiedReadBytes: 64 * 1024 * 1024,

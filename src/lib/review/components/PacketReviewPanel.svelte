@@ -326,6 +326,7 @@
           class="finding"
           data-testid={`packet-finding-${finding.id}`}
           data-decision={finding.decision?.verdict}
+          data-status={finding.status}
           onclick={() => onFinding(finding.id)}
           ><span class="severity" data-severity={finding.severity}>{finding.severity}</span><strong
             >{packetFindingText(finding).title}</strong
@@ -789,6 +790,10 @@
     color: var(--color-text-muted);
     text-decoration: line-through;
   }
+  .finding[data-status="Resolved"] strong {
+    color: var(--color-text-muted);
+  }
+
   /* The review's records: one quiet row each, with what matters on the right. */
   .records {
     display: grid;

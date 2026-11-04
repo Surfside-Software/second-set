@@ -82,7 +82,7 @@ function loadDocument(pdfPath: string, sha256?: string) {
     wasmUrl: join(assetsRoot ?? "", "wasm/") + "/",
     useSystemFonts: false,
     verbosity: 0,
-    maxImageSize: DocumentsLimits.maxOutputPixels,
+    maxImageSize: DocumentsLimits.maxEmbeddedImagePixels,
   });
 }
 

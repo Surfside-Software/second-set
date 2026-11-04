@@ -27,7 +27,8 @@ import {
 import { SqlClient } from "effect/sql";
 import { createHash, randomUUID } from "node:crypto";
 import { extname, join } from "node:path";
-import { rename, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
+import { renameReplacing } from "../rename.ts";
 import {
   CommandId,
   CommandReceipt,
@@ -38,7 +39,7 @@ import {
   SheetId,
 } from "#lib/review/contracts.ts";
 import { ExecutionError, ReviewDiscipline, type ProviderFailure } from "#lib/review/execution.ts";
-import { transformRegion } from "#lib/review/geometry.ts";
+import { deliveredBoxToPdf, transformRegion } from "#lib/review/geometry.ts";
 import {
   PacketReview,
   PacketScope,
@@ -46,7 +47,9 @@ import {
   PacketCoverage,
   PacketCitation,
   PacketFinding,
+  PacketFindingLocationInput,
   PacketFindingSummary,
+  PacketImageBox,
   FirmChecklist,
   type PacketFindingDecision,
   PacketPriorComment,
@@ -125,6 +128,8 @@ export const defaultParallel = {
   minSheets: 4,
   concurrency: { meta: 32, baseten: 16, "opencode-go": 16 },
   setup: defaultSetupLimits,
+  // Sheet reviewers used 10 to 82 requests on drawing sheets; Spark Open once looped past 250.
+  sheetRequests: 120,
 } as const;
 
 /** Which conversation made each model or SAM request, and which sheet each sheet reviewer owns. */
@@ -158,6 +163,7 @@ const attemptKey = (taskId: number, attempt: number) => `${taskId}:${attempt}`;
 
 /** Admission's answer when coordinator setup has used its request limit. */
 const setupEnded = Symbol("setupEnded");
+const sheetEnded = Symbol("sheetEnded");
 
 const ReceiptUsage = Schema.fromJsonString(
   Schema.Struct({
@@ -280,7 +286,11 @@ const Attempt = Schema.Struct({
 const Text = Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(32000));
 const Id = Schema.String.check(Schema.isUUID());
 const ToolResult = Schema.Struct({ value: Schema.Json });
-const PriorCommentInput = PacketPriorComment.mapFields(Struct.omit(["revisionTargetSheetIds"]));
+
+const PriorCommentInput = Schema.Struct({
+  ...PacketPriorComment.mapFields(Struct.omit(["revisionTargetSheetIds", "recordedBy"])).fields,
+  id: Schema.optionalKey(PacketPriorComment.fields.id),
+});
 
 const ChecklistRow = Schema.Struct({
   revision: Schema.Int,
@@ -330,6 +340,122 @@ const focusTarget = (
       ? [{ sheet, region }]
       : [];
   })[0];
+
+/** A sheet reviewer owns its sheet and the earlier-revision sheets that sheet replaces. */
+const ownsSheet = (
+  review: Pick<PacketReview, "predecessorSheetIds">,
+  assigned: string,
+  sheetId: string,
+) =>
+  sheetId === assigned ||
+  (review.predecessorSheetIds?.[assigned] ?? []).some((predecessor) => predecessor === sheetId);
+
+/** Earlier-revision sheets that each current sheet replaces, following chained revisions. */
+export const predecessorsOf = <S extends string>(
+  sheetIds: ReadonlyArray<S>,
+  correspondence: ReadonlyArray<{
+    readonly oldSheetId: S;
+    readonly newSheetId: S | null;
+    readonly content: string;
+  }>,
+): Record<string, ReadonlyArray<S>> => {
+  const links = correspondence.filter(
+    (link) =>
+      link.newSheetId !== null && (link.content === "changed" || link.content === "unchanged"),
+  );
+
+  return Object.fromEntries(
+    sheetIds.flatMap((sheetId) => {
+      const found = new Set<S>();
+      const queue: Array<S> = [sheetId];
+
+      while (queue.length) {
+        const current = queue.shift();
+
+        for (const link of links)
+          if (
+            link.newSheetId === current &&
+            !found.has(link.oldSheetId) &&
+            link.oldSheetId !== sheetId
+          ) {
+            found.add(link.oldSheetId);
+            queue.push(link.oldSheetId);
+          }
+      }
+
+      return found.size ? [[sheetId, [...found]]] : [];
+    }),
+  );
+};
+
+/** Responses Meta's SAM endpoint returns before generating anything. */
+const samRefusals: ReadonlySet<number> = new Set([429, 502, 503, 529]);
+
+/** Resends of a refused SAM request before the attempt is withdrawn uncharged. */
+const samRefusalResends = 3;
+
+/** Every send of a SAM request was refused before generation. */
+class SamRefused extends Error {
+  constructor(readonly status: number) {
+    super(`SAM refused the request with HTTP ${status}.`);
+  }
+}
+
+/** Wait, ending early with the signal's abort. */
+const abortableDelay = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason);
+
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", stop);
+      resolve();
+    }, ms);
+
+    const stop = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+
+    signal.addEventListener("abort", stop, { once: true });
+  });
+
+/** Whether two PDF regions share any area. */
+const overlaps = (a: Region, b: Region) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+// Full-sheet renders are reduced to the model's image limit, too coarse to judge small text or
+// dense tables, so a blank or illegible claim must cite a focused crop of that area.
+const requireFocusedEvidence = (
+  review: PacketReview,
+  finding: Pick<typeof PacketFinding.Type, "title" | "observed" | "locations">,
+  evidence: ReadonlyArray<{ readonly sheetId: string | null; readonly region: Region | null }>,
+) => {
+  if (
+    !/\b(?:blank|empty|unfilled|illegible|unreadable|not (?:legible|readable)|blurr(?:y|ed)|pixelated|too (?:small|faint|low[- ]res\w*) to (?:read|discern)|(?:low|insufficient) resolution)\b/i.test(
+      `${finding.title} ${finding.observed}`,
+    )
+  )
+    return;
+
+  const focused = finding.locations.some((location) => {
+    const sheet = review.sheets.find((item) => item.id === location.sheetId);
+
+    return evidence.some(
+      (artifact) =>
+        sheet !== undefined &&
+        artifact.sheetId === sheet.id &&
+        artifact.region !== null &&
+        (artifact.region.width < sheet.box.width || artifact.region.height < sheet.box.height) &&
+        (location.region === null || overlaps(artifact.region, location.region)),
+    );
+  });
+
+  if (!focused)
+    throw error(
+      "input",
+      "Full-sheet renders are reduced to fit the model's image limit. Before describing an area as blank, empty or illegible, render a focused crop of it with render_sheet, cite that crop in evidenceIds and describe what it shows.",
+    );
+};
 
 // Both technical text and its display summary use the same missing-content evidence gate.
 const requireAbsenceSupport = (
@@ -420,6 +546,8 @@ interface Configuration {
     readonly concurrency: Readonly<Record<typeof ReviewProvider.Type, number>>;
     /** Coordinator setup's sheet and request limits; defaults to `defaultSetupLimits`. */
     readonly setup?: SetupLimits;
+    /** Model requests one sheet reviewer may make before its sheet stops with its gaps shown. */
+    readonly sheetRequests?: number;
   };
   readonly runPromise: <A, E>(
     effect: Effect.Effect<A, E>,
@@ -494,6 +622,7 @@ export class PacketReviews extends Context.Service<
         );
 
         const setupLimits = config.parallel?.setup ?? defaultSetupLimits;
+        const sheetRequests = config.parallel?.sheetRequests ?? defaultParallel.sheetRequests;
         const updates = yield* PubSub.unbounded<PacketReview>();
         const runtimes = new Map<string, Runtime>();
         // Early finishes are returned to the reviewer a bounded number of times per review.
@@ -837,7 +966,24 @@ export class PacketReviews extends Context.Service<
           const registry = createRegistry();
           // Images rendered since each conversation's latest model request.
           const imageCounts = new Map<number, number>();
-          const nudged = new Set<number>();
+          // Each conversation is reminded once about pending summaries and twice about missing notes.
+          const nudged = new Map<number, { summaries: number; notes: number }>();
+
+          /** Evidence artifacts a finding cites; unknown ids are left to the record's own checks. */
+          const evidenceArtifacts = async (
+            artifactIds: (typeof PacketFinding.Type)["evidenceIds"],
+          ) =>
+            (
+              await Promise.all(
+                artifactIds.map(async (artifactId) => {
+                  try {
+                    return await run(config.review.artifact(row.project_id, artifactId));
+                  } catch {
+                    return undefined;
+                  }
+                }),
+              )
+            ).flatMap((artifact) => (artifact === undefined ? [] : [artifact]));
 
           /** The id a sheet reviewer's citation is stored under, so a peer's cannot overwrite it. */
           const sheetCitationId = (row: Row, conversationId: number, id: string) => {
@@ -867,6 +1013,7 @@ export class PacketReviews extends Context.Service<
             record_citation: "recording",
             record_finding: "recording",
             record_finding_summary: "recording",
+            withdraw_finding: "recording",
             record_prior_comment: "recording",
             ask_reviewer: "recording",
             finish_setup: "recording",
@@ -1135,18 +1282,48 @@ export class PacketReviews extends Context.Service<
                     ),
                   );
 
-                  const response = await (meta.transport ?? globalThis.fetch)(prepared.route, {
-                    method: "POST",
-                    headers: {
-                      Authorization: `Bearer ${Redacted.value(meta.apiKey)}`,
-                      "Content-Type": "application/json",
-                    },
-                    body: prepared.body,
-                    redirect: "error",
-                    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120000)]),
-                  });
+                  const send = () =>
+                    (meta.transport ?? globalThis.fetch)(prepared.route, {
+                      method: "POST",
+                      headers: {
+                        Authorization: `Bearer ${Redacted.value(meta.apiKey)}`,
+                        "Content-Type": "application/json",
+                      },
+                      body: prepared.body,
+                      redirect: "error",
+                      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120000)]),
+                    });
+
+                  // A refusal before generation (rate limit, capacity or a gateway's 502 or 503,
+                  // seen within milliseconds) is resent a few times; nothing was generated.
+                  let response = await send();
+
+                  for (
+                    let resend = 0;
+                    samRefusals.has(response.status) && resend < samRefusalResends;
+                    resend++
+                  ) {
+                    await response.body?.cancel();
+                    const retryAfter = Number(response.headers.get("retry-after"));
+
+                    await abortableDelay(
+                      Math.min(
+                        30_000,
+                        Number.isFinite(retryAfter) && retryAfter > 0
+                          ? retryAfter * 1000
+                          : 2000 * 2 ** resend,
+                      ),
+                      controller.signal,
+                    );
+                    response = await send();
+                  }
 
                   answered = response;
+
+                  if (samRefusals.has(response.status)) {
+                    await response.body?.cancel();
+                    throw new SamRefused(response.status);
+                  }
 
                   if (!response.ok || !response.body)
                     throw error("uncertain", "SAM did not return a usable response.");
@@ -1212,6 +1389,33 @@ export class PacketReviews extends Context.Service<
 
                   return { raw, prepared, replayed: false };
                 } catch (cause) {
+                  // Every send was refused before generation, so the attempt is withdrawn uncharged
+                  // and the reviewer continues without SAM.
+                  if (cause instanceof SamRefused) {
+                    await run(
+                      query(
+                        Effect.gen(function* () {
+                          const fresh = yield* load(row.project_id, row.id);
+                          const sql = yield* SqlClient.SqlClient;
+                          yield* sql`DELETE FROM packet_review_attempts WHERE review_id=${row.id} AND task_id=${taskId} AND attempt=1 AND kind='sam' AND status='uncertain'`;
+
+                          return yield* save(
+                            fresh,
+                            new PacketReview({
+                              ...fresh.payload,
+                              admittedCalls: Math.max(0, fresh.payload.admittedCalls - 1),
+                            }),
+                          );
+                        }),
+                      ).pipe(Effect.flatMap(publish)),
+                    );
+
+                    throw error(
+                      "unavailable",
+                      `SAM refused the request (HTTP ${cause.status}) on every send. Nothing was generated or charged; continue without SAM for this area.`,
+                    );
+                  }
+
                   // An HTTP refusal is reported apart from a request whose outcome is unknown; the
                   // receipt of either stays unresolved and is never sent again.
                   const failure: typeof ProviderFailure.Type = {
@@ -1424,7 +1628,9 @@ export class PacketReviews extends Context.Service<
                       coverage: review.coverage.filter((entry) => entry.sheetId === assigned),
                       findings: withoutFocus(
                         review.findings.filter((finding) =>
-                          finding.locations.some((location) => location.sheetId === assigned),
+                          finding.locations.some((location) =>
+                            ownsSheet(review, assigned, location.sheetId),
+                          ),
                         ),
                       ),
                     };
@@ -1433,18 +1639,60 @@ export class PacketReviews extends Context.Service<
             defineTool({
               name: "render_sheet",
               description:
-                "Open an original PDF page or focused crop at a legible scale. Coordinates are original PDF points, bottom-left origin. Returned transforms map actual delivered pixels to the page. Every assigned sheet must be inspected; use crops to read details and retain focused evidence.",
+                "Open an original PDF page or focused crop at a legible scale. To zoom into part of an image you already received, pass imageBox: that image's artifactId and the left, top, right and bottom of the area in its delivered pixels (top-left origin); the host converts it. region takes original PDF points with a bottom-left origin instead. The result reports the delivered width and height. Every assigned sheet must be inspected; use crops to read details and retain focused evidence.",
               parameters: descriptor(
-                Schema.Struct({ sheetId: SheetId, region: Schema.optionalKey(Region) }),
+                Schema.Struct({
+                  sheetId: SheetId,
+                  region: Schema.optionalKey(Region),
+                  imageBox: Schema.optionalKey(PacketImageBox),
+                }),
               ),
               replay: "safe",
               executionMode: "sequential",
               async execute(raw, api) {
-                const input = Schema.decodeUnknownSync(
+                const decoded = Schema.decodeUnknownSync(
                   Schema.toCodecJson(
-                    Schema.Struct({ sheetId: SheetId, region: Schema.optionalKey(Region) }),
+                    Schema.Struct({
+                      sheetId: SheetId,
+                      region: Schema.optionalKey(Region),
+                      imageBox: Schema.optionalKey(PacketImageBox),
+                    }),
                   ),
                 )(raw);
+
+                const boxed =
+                  decoded.imageBox === undefined
+                    ? undefined
+                    : await run(
+                        config.review.artifact(row.project_id, decoded.imageBox.artifactId),
+                      );
+
+                if (boxed !== undefined && boxed.sheetId !== decoded.sheetId)
+                  throw error(
+                    "input",
+                    "An imageBox must come from a render_sheet image of the same sheet.",
+                  );
+
+                const converted =
+                  boxed === undefined || decoded.imageBox === undefined
+                    ? undefined
+                    : deliveredBoxToPdf(boxed, decoded.imageBox);
+
+                if (converted !== undefined && !(converted instanceof Region))
+                  throw error("input", converted.message);
+
+                const sheetBox = row.payload.sheets.find(
+                  (item) => item.id === decoded.sheetId,
+                )?.box;
+
+                // A box drawn to an image edge can round just past the page.
+                const input = {
+                  sheetId: decoded.sheetId,
+                  region:
+                    converted === undefined
+                      ? decoded.region
+                      : ((sheetBox && clip(converted, sheetBox)) ?? converted),
+                };
 
                 const current = await run(
                   query(
@@ -1494,7 +1742,10 @@ export class PacketReviews extends Context.Service<
                       ),
                     );
 
-                    const image = await run(config.review.port.readImage(artifact));
+                    const image = await run(
+                      config.review.port.readImage(artifact, { lossy: true }),
+                    );
+
                     await recordTool(
                       row,
                       api.taskId,
@@ -1719,12 +1970,26 @@ export class PacketReviews extends Context.Service<
             ),
             tool(
               "record_coverage_batch",
-              "Record coverage for multiple sheet/pass/discipline checks together after inspecting the source images. Each entry remains explicit; checked/issue needs an inspected page, and Not applicable or Needs input needs its reason.",
+              "Record coverage for up to 1,000 sheet/pass/discipline checks together after inspecting the source images. Each entry remains explicit; checked/issue needs an inspected page, and Not applicable or Needs input needs its reason. The batch is saved only when every entry is valid; an error names the first invalid entry by number, sheet, discipline and pass.",
               Schema.Struct({
                 entries: Schema.NonEmptyArray(PacketCoverage).check(Schema.isMaxLength(1000)),
               }),
               async (task, input, api) => {
-                for (const entry of input.entries) outsideSheet(api.conversationId, entry.sheetId);
+                const label = (entry: (typeof input.entries)[number], index: number) =>
+                  `Entry ${index + 1} (${
+                    row.payload.sheets.find((sheet) => sheet.id === entry.sheetId)?.label ??
+                    entry.sheetId
+                  }, ${entry.discipline}, ${entry.pass})`;
+
+                input.entries.forEach((entry, index) => {
+                  try {
+                    outsideSheet(api.conversationId, entry.sheetId);
+                  } catch (cause) {
+                    throw cause instanceof ExecutionError
+                      ? error("input", `${label(entry, index)}: ${cause.message}`)
+                      : cause;
+                  }
+                });
 
                 return await recordTool(
                   row,
@@ -1733,9 +1998,12 @@ export class PacketReviews extends Context.Service<
                   (review) => {
                     let coverage = [...review.coverage];
 
-                    for (const entry of input.entries) {
+                    input.entries.forEach((entry, index) => {
                       if (!review.sheets.some((sheet) => sheet.id === entry.sheetId))
-                        throw error("input", "Coverage page is outside the frozen packet.");
+                        throw error(
+                          "input",
+                          `${label(entry, index)}: coverage page is outside the frozen packet.`,
+                        );
 
                       if (
                         (entry.status === "checked" || entry.status === "issue") &&
@@ -1743,7 +2011,7 @@ export class PacketReviews extends Context.Service<
                       )
                         throw error(
                           "input",
-                          "Inspect each original sheet image before claiming coverage.",
+                          `${label(entry, index)}: inspect this sheet's original image before claiming coverage.`,
                         );
 
                       if (
@@ -1752,7 +2020,7 @@ export class PacketReviews extends Context.Service<
                       )
                         throw error(
                           "input",
-                          "Record the specific reason or missing input for this check.",
+                          `${label(entry, index)}: record the specific reason or missing input for this check.`,
                         );
                       coverage = [
                         ...coverage.filter(
@@ -1763,7 +2031,7 @@ export class PacketReviews extends Context.Service<
                         ),
                         entry,
                       ];
-                    }
+                    });
 
                     return new PacketReview({ ...review, coverage });
                   },
@@ -1843,12 +2111,11 @@ export class PacketReviews extends Context.Service<
                   row,
                   task,
                   "citation",
-                  (review) => {
-                    return new PacketReview({
+                  (review) =>
+                    new PacketReview({
                       ...review,
                       citations: upsert(review.citations, citation),
-                    });
-                  },
+                    }),
                   // The model keeps using the id it chose; only the host sees the stored one.
                   { ...citation, id: input.id },
                 );
@@ -1856,17 +2123,19 @@ export class PacketReviews extends Context.Service<
             ),
             tool(
               "record_finding",
-              "Save the complete source-specific technical finding, including necessary values, qualifications and evidence. Do not shorten or omit technical facts to fit a display limit. Give each location the tight PDF region of the problem area; when SAM is available the host renders a zoom of the first region under half its sheet and segments it for the reviewer. Reuse an existing issue ID for follow-up; an empty evidence, citation or calculation list keeps what the finding holds, and only a replacement list changes it. The result includes the host-owned summary state and revision; if Pending, use record_finding_summary. Completed and the reviewer's decision are user-owned and cannot be set by this tool.",
+              "Save the complete source-specific technical finding, including necessary values, qualifications and evidence. Do not shorten or omit technical facts to fit a display limit. Mark each location's problem area with imageBox: the artifactId of a render_sheet image of that sheet and the tight left, top, right and bottom of the area in that image's delivered pixels (top-left origin, within its width and height). The host converts it to PDF points; do not convert coordinates yourself. Use a crop where the item is legible. When SAM is available the host zooms into the first area under half its sheet and segments it for the reviewer. Severity: Critical only for a demonstrated life-safety hazard, structural inadequacy or a defect that blocks the permit; Major for missing or conflicting design information needed to review or build; Minor for drafting, labeling, spelling and other correctable presentation issues. Reuse an existing issue ID for follow-up, including findings carried from an earlier revision; an empty evidence, citation or calculation list keeps what the finding holds, and only a replacement list changes it; status Resolved applies only to a carried finding whose revised sheet you inspected in this review and that no longer has the issue. Never record test, placeholder or dummy findings. The result includes the host-owned summary state and revision; if Pending, use record_finding_summary. Completed and the reviewer's decision are user-owned and cannot be set by this tool.",
               Schema.Struct({
                 ...Struct.omit(PacketFinding.fields, [
                   "summary",
                   "decision",
                   "focus",
+                  "locations",
                   "evidenceIds",
                   "citationIds",
                   "calculationIds",
                   "priorCommentId",
                 ]),
+                locations: Schema.Array(PacketFindingLocationInput),
                 id: Schema.optionalKey(Id),
                 completed: Schema.optionalKey(Schema.Boolean),
                 // Models omit these or send "" when they have none, and send "null" as the prior
@@ -1877,13 +2146,50 @@ export class PacketReviews extends Context.Service<
                 calculationIds: orBlank(PacketFinding.fields.calculationIds),
                 priorCommentId: Schema.optionalKey(Schema.NullOr(Schema.String)),
               }),
-              async (task, given, api) => {
+              async (task, { locations: requested, ...given }, api) => {
+                // Image boxes become PDF regions through the artifact's own pixel transform.
+                const imageArtifacts = requested.flatMap((location) =>
+                  location.imageBox ? [location.imageBox.artifactId] : [],
+                );
+
+                const locations = await Promise.all(
+                  requested.map(async ({ imageBox, region, ...location }) => {
+                    if (imageBox === undefined) return { ...location, region: region ?? null };
+
+                    const artifact = await run(
+                      config.review.artifact(row.project_id, imageBox.artifactId),
+                    );
+
+                    if (artifact.sheetId !== location.sheetId)
+                      throw error(
+                        "input",
+                        "An imageBox must come from a render_sheet image of the same sheet as its location.",
+                      );
+
+                    const converted = deliveredBoxToPdf(artifact, imageBox);
+
+                    if (!(converted instanceof Region)) throw error("input", converted.message);
+
+                    return { ...location, region: converted };
+                  }),
+                );
+
                 const input = {
                   ...given,
+                  locations,
                   evidenceIds: given.evidenceIds || [],
                   citationIds: given.citationIds || [],
                   calculationIds: given.calculationIds || [],
                 };
+
+                // An update that leaves the list empty keeps the finding's evidence, so check that.
+                const evidence = await evidenceArtifacts(
+                  input.evidenceIds.length > 0
+                    ? input.evidenceIds
+                    : ((await run(get(row.project_id, row.id))).findings.find(
+                        (entry) => entry.id === input.id,
+                      )?.evidenceIds ?? []),
+                );
 
                 if (input.absenceCheck && assignments.sheets.has(api.conversationId))
                   throw error(
@@ -1926,12 +2232,21 @@ export class PacketReviews extends Context.Service<
                     const existing = review.findings.find((entry) => entry.id === id);
                     const target = focusTarget(input.locations, review.sheets);
 
-                    // Reusing an id cannot adopt a peer sheet's or the coordinator's finding.
+                    if (imageArtifacts.some((artifact) => !review.evidenceIds.includes(artifact)))
+                      throw error(
+                        "input",
+                        "An imageBox must come from an image rendered for this packet.",
+                      );
+
+                    // Reusing an id cannot adopt a peer sheet's or the coordinator's finding; a
+                    // carried finding on the sheet this one replaces belongs to this reviewer.
                     if (
                       sheetId !== null &&
                       existing !== undefined &&
-                      ((existing.summary?.sheetId ?? sheetId) !== sheetId ||
-                        existing.locations.some((location) => location.sheetId !== sheetId))
+                      (!ownsSheet(review, sheetId, existing.summary?.sheetId ?? sheetId) ||
+                        existing.locations.some(
+                          (location) => !ownsSheet(review, sheetId, location.sheetId),
+                        ))
                     )
                       throw error(
                         "input",
@@ -2007,6 +2322,32 @@ export class PacketReviews extends Context.Service<
                       );
 
                     requireAbsenceSupport(review, finding);
+                    requireFocusedEvidence(review, finding, evidence);
+
+                    if (
+                      finding.status === "Resolved" &&
+                      (!(review.carriedFindingIds ?? []).includes(id) ||
+                        !finding.locations.length ||
+                        finding.locations.some(
+                          (location) =>
+                            !(review.inspectedThisReviewSheetIds ?? []).includes(location.sheetId),
+                        ))
+                    )
+                      throw error(
+                        "input",
+                        "Resolved applies only to a finding carried from an earlier review, located on the revised sheets you inspected in this review. Record a new or remaining issue as Confirmed or Needs input.",
+                      );
+
+                    const unknown = finding.calculationIds.filter(
+                      (calculation) =>
+                        !review.calculations.some((entry) => entry.id === calculation),
+                    );
+
+                    if (unknown.length)
+                      throw error(
+                        "input",
+                        `Unknown calculation ids: ${unknown.join(", ")}. Cite the ids calculate returned.`,
+                      );
 
                     if (!finding.evidenceIds.length && !finding.evidenceNote.trim())
                       throw error(
@@ -2056,8 +2397,14 @@ export class PacketReviews extends Context.Service<
               "record_finding_summary",
               "Save a short display title, one observation sentence and one action-led correction for the exact id and revision returned by record_finding. This never changes the full technical record, evidence or status. Correct rejected summaries before finishing.",
               RecordFindingSummary,
-              async (task, input, api) =>
-                await recordTool(
+              async (task, input, api) => {
+                const summarized = (await run(get(row.project_id, row.id))).findings.find(
+                  (entry) => entry.id === input.id,
+                );
+
+                const evidence = await evidenceArtifacts(summarized?.evidenceIds ?? []);
+
+                return await recordTool(
                   row,
                   task,
                   "finding-summary",
@@ -2074,6 +2421,11 @@ export class PacketReviews extends Context.Service<
                       title: input.title,
                       observed: input.observed,
                     });
+                    requireFocusedEvidence(
+                      review,
+                      { ...finding, title: input.title, observed: input.observed },
+                      evidence,
+                    );
                     const assigned = assignments.sheets.get(api.conversationId);
 
                     if (assigned !== undefined && finding.summary.sheetId !== assigned)
@@ -2094,16 +2446,77 @@ export class PacketReviews extends Context.Service<
                     });
                   },
                   { id: input.id },
+                );
+              },
+            ),
+            tool(
+              "withdraw_finding",
+              "Withdraw a finding recorded in this review that proved mistaken or duplicates another finding. Findings carried from an earlier review cannot be withdrawn; update them by id or mark them Resolved. A finding the reviewer has decided stays.",
+              Schema.Struct({
+                id: Id,
+                reason: Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(2000)),
+              }),
+              async (task, input, api) =>
+                await recordTool(
+                  row,
+                  task,
+                  "finding-withdrawal",
+                  (review) => {
+                    const finding = review.findings.find((entry) => entry.id === input.id);
+                    const assigned = assignments.sheets.get(api.conversationId);
+
+                    if (!finding) throw error("input", "No finding has that id.");
+
+                    if ((review.carriedFindingIds ?? []).includes(input.id))
+                      throw error(
+                        "input",
+                        "A finding carried from an earlier review cannot be withdrawn. Update it by id or mark it Resolved.",
+                      );
+
+                    if (finding.decision !== undefined)
+                      throw error("input", "The reviewer has decided this finding, so it stays.");
+
+                    if (assigned !== undefined && finding.summary?.sheetId !== assigned)
+                      throw error("input", "Withdraw only your own sheet's findings.");
+
+                    const updated = new PacketReview({
+                      ...review,
+                      findings: review.findings.filter((entry) => entry.id !== input.id),
+                    });
+
+                    return assigned === undefined
+                      ? updated
+                      : invalidateSheetNotes(updated, assigned);
+                  },
+                  { id: input.id, withdrawn: true },
                 ),
             ),
             tool(
               "record_prior_comment",
-              "Track an agency comment, response and changed source. Resolved requires current inspection of its persisted revision target. Target sheet IDs are assigned by the host and cannot be changed by this tool. User completion does not close it.",
+              "Track an agency comment, response and changed source. Resolved requires current inspection of its persisted revision target. Target sheet IDs are assigned by the host and cannot be changed by this tool. User completion does not close it. Omit id for a new comment; pass an earlier comment's id to update it.",
               PriorCommentInput,
-              async (task, input) => {
+              async (task, { id: requestedId, ...fields }, api) => {
+                const recordedBy = assignments.sheets.get(api.conversationId) ?? null;
+
+                const input = {
+                  ...fields,
+                  id: requestedId ?? stableId(row.id, task, "prior-comment"),
+                };
+
                 const snapshot = await run(asExecution(config.review.snapshot(row.project_id, 0)));
                 const current = await run(get(row.project_id, row.id));
                 const previous = current.priorComments.find((comment) => comment.id === input.id);
+
+                if (
+                  recordedBy !== null &&
+                  previous !== undefined &&
+                  previous.recordedBy !== undefined &&
+                  previous.recordedBy !== recordedBy
+                )
+                  throw error(
+                    "input",
+                    "That prior comment id belongs to another reviewer's record. Omit id to record a new comment.",
+                  );
 
                 const changed = current.sheets.filter(
                   (sheet) => !(current.baselineSheetIds ?? []).includes(sheet.id),
@@ -2113,7 +2526,11 @@ export class PacketReviews extends Context.Service<
                   ? (previous.revisionTargetSheetIds ?? [])
                   : (changed.length ? changed : current.sheets).map((sheet) => sheet.id);
 
-                const comment = { ...input, revisionTargetSheetIds: targets };
+                const comment = {
+                  ...input,
+                  revisionTargetSheetIds: targets,
+                  recordedBy: previous?.recordedBy ?? recordedBy,
+                };
 
                 return await recordTool(
                   row,
@@ -2400,11 +2817,10 @@ export class PacketReviews extends Context.Service<
 
                     return undefined;
                   },
-                  // A sheet reviewer that stops without notes is asked once to save them.
+                  // A reviewer that stops with pending summaries or, on a sheet, without notes is reminded.
                   onYield: async (_answer, api) => {
                     const sheetId = assignments.sheets.get(api.conversationId);
-
-                    if (nudged.has(api.conversationId)) return undefined;
+                    const count = nudged.get(api.conversationId) ?? { summaries: 0, notes: 0 };
                     const review = await run(get(row.project_id, row.id));
 
                     const pending = review.findings.filter(
@@ -2413,8 +2829,8 @@ export class PacketReviews extends Context.Service<
                         (sheetId === undefined || finding.summary.sheetId === sheetId),
                     );
 
-                    if (review.state === "running" && pending.length) {
-                      nudged.add(api.conversationId);
+                    if (review.state === "running" && pending.length && count.summaries < 1) {
+                      nudged.set(api.conversationId, { ...count, summaries: count.summaries + 1 });
 
                       return {
                         continue: `Full technical findings are saved, but short summaries are pending: ${JSON.stringify(pending.map((finding) => ({ id: finding.id, summary: finding.summary })))}. Call record_finding_summary for each, then finish your review.`,
@@ -2424,17 +2840,19 @@ export class PacketReviews extends Context.Service<
                     if (sheetId === undefined) return undefined;
 
                     if (
+                      count.notes >= 2 ||
                       review.state !== "running" ||
                       review.parallel?.sheets.some(
                         (entry) => entry.sheetId === sheetId && entry.notes !== undefined,
                       )
                     )
                       return undefined;
-                    nudged.add(api.conversationId);
+                    nudged.set(api.conversationId, { ...count, notes: count.notes + 1 });
 
+                    // Spark Open once wrote its notes as text, saying finish_sheet was not listed.
                     return {
                       continue:
-                        "Record any remaining coverage for your sheet, then call finish_sheet with your notes. The coordinator needs them to compare sheets.",
+                        "Record any remaining coverage for your sheet, then call the finish_sheet tool with summary, keyFacts, crossReferences and suspectedGaps. finish_sheet is in your tool list; notes written as text are not saved, and the coordinator needs them to compare sheets.",
                     };
                   },
                 }),
@@ -2612,7 +3030,9 @@ export class PacketReviews extends Context.Service<
                         .map(({ discipline, pass, reason }) => ({ discipline, pass, reason })),
                       previousFindings: withoutFocus(
                         current.findings.filter((finding) =>
-                          finding.locations.some((location) => location.sheetId === sheet.id),
+                          finding.locations.some((location) =>
+                            ownsSheet(current, sheet.id, location.sheetId),
+                          ),
                         ),
                       ),
                       previousComments: current.priorComments.filter((comment) =>
@@ -2840,6 +3260,20 @@ export class PacketReviews extends Context.Service<
                           return setupEnded;
                         }
 
+                        // A sheet reviewer that keeps going past its limit stops; what it recorded
+                        // stays and the sheet is reported with its gaps.
+                        const requester = assignments.requests.get(phase["task.id"]);
+
+                        const ownSheet =
+                          requester === undefined ? undefined : assignments.sheets.get(requester);
+
+                        if (
+                          ownSheet !== undefined &&
+                          (parallel?.sheets.find((entry) => entry.sheetId === ownSheet)?.promptUsage
+                            ?.calls ?? 0) >= sheetRequests
+                        )
+                          return sheetEnded;
+
                         const sql = yield* SqlClient.SqlClient;
 
                         const unresolved = yield* Schema.decodeUnknownEffect(UnresolvedAttempts)(
@@ -2887,6 +3321,13 @@ export class PacketReviews extends Context.Service<
                     .then(async (receipt) => {
                       if (receipt === null || receipt === setupEnded)
                         await run(get(row.project_id, row.id).pipe(Effect.flatMap(publish)));
+
+                      // Only this sheet's conversation stops; peers and coordination continue.
+                      if (receipt === sheetEnded)
+                        throw error(
+                          "unavailable",
+                          "This sheet reached its request limit. Its recorded coverage and findings are kept, and its remaining checks stay open.",
+                        );
 
                       // This request is never sent; its run ends and the sheet reviewers start.
                       if (receipt === setupEnded)
@@ -3550,6 +3991,11 @@ export class PacketReviews extends Context.Service<
               unchanged.some((sheet) => sheet.id === id),
             ),
             baselineSheetIds: unchanged.map((sheet) => sheet.id),
+            predecessorSheetIds: predecessorsOf(
+              sheets.map((sheet) => sheet.id),
+              state.sheetCorrespondence ?? [],
+            ),
+            carriedFindingIds: (earlier?.findings ?? []).map((finding) => finding.id),
             inspectedThisReviewSheetIds: [],
             evidenceIds: earlier?.evidenceIds ?? [],
             conversationContext: state.messages
@@ -3566,12 +4012,15 @@ export class PacketReviews extends Context.Service<
             citations: earlier?.citations ?? [],
             calculations: earlier?.calculations ?? [],
             findings: earlier?.findings ?? [],
-            priorComments: (earlier?.priorComments ?? []).map((comment) =>
-              (comment.status === "Open" || comment.status === "Partly resolved") &&
-              revisionTargets.length > 0
+            // Ownership fences comments made in this review; carried ones can be updated.
+            priorComments: (earlier?.priorComments ?? []).map((carried) => {
+              const comment = Struct.omit(carried, ["recordedBy"]);
+
+              return (comment.status === "Open" || comment.status === "Partly resolved") &&
+                revisionTargets.length > 0
                 ? { ...comment, revisionTargetSheetIds: revisionTargets }
-                : comment,
-            ),
+                : comment;
+            }),
             summary: "",
             missingInputs: [],
             error: null,
@@ -4186,7 +4635,7 @@ export class PacketReviews extends Context.Service<
               );
 
               if (!artifact) continue;
-              const image = yield* config.review.port.readImage(artifact);
+              const image = yield* config.review.port.readImage(artifact, { lossy: true });
               evidence.set(id, `data:${image.mimeType};base64,${image.data}`);
             }
 
@@ -4200,7 +4649,7 @@ export class PacketReviews extends Context.Service<
                   flag: "wx",
                   flush: true,
                 });
-                await rename(temporary, destination);
+                await renameReplacing(temporary, destination);
               } finally {
                 await rm(temporary, { force: true });
               }

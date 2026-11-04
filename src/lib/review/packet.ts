@@ -231,13 +231,36 @@ export const PacketFindingFocus = Schema.Struct({
   ).check(Schema.isMaxLength(8)),
 });
 
+const Pixel = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0));
+
+/**
+ * A box drawn on an image the model received from render_sheet, in that image's delivered
+ * pixels with a top-left origin. The host converts it to PDF points.
+ */
+export const PacketImageBox = Schema.Struct({
+  artifactId: ArtifactId,
+  left: Pixel,
+  top: Pixel,
+  right: Pixel,
+  bottom: Pixel,
+});
+
+/** A model-supplied finding location: an image box is preferred over raw PDF points. */
+export const PacketFindingLocationInput = Schema.Struct({
+  sheetId: SheetId,
+  detail: Required,
+  region: Schema.optionalKey(Schema.NullOr(Region)),
+  imageBox: Schema.optionalKey(PacketImageBox),
+});
+
 /** General review issues retain evidence and remain distinct from reviewer completion tracking. */
 export const PacketFinding = Schema.Struct({
   id: Id,
   title: Required,
   discipline: ReviewDiscipline,
   severity: Schema.Literals(["Critical", "Major", "Minor"]),
-  status: Schema.Literals(["Confirmed", "Needs input"]),
+  /** Resolved closes a carried finding after its revised sheet is inspected in this review. */
+  status: Schema.Literals(["Confirmed", "Needs input", "Resolved"]),
   classification: Schema.Literals([
     "Code",
     "Permit condition",
@@ -292,6 +315,8 @@ export const PacketPriorComment = Schema.Struct({
   evidenceIds: Schema.Array(ArtifactId),
   /** Host-owned revision target; unchanged follow-ups cannot replace it with baseline evidence. */
   revisionTargetSheetIds: Schema.optionalKey(Schema.Array(SheetId)),
+  /** Host-owned: the sheet whose reviewer recorded it, or null for the main conversation. */
+  recordedBy: Schema.optionalKey(Schema.NullOr(SheetId)),
 });
 
 /** The firm's own review checklist. Each save is a new revision; reviews keep the one they started with. */
@@ -344,6 +369,7 @@ export const PacketActivityTool = Schema.Literals([
   "record_citation",
   "record_finding",
   "record_finding_summary",
+  "withdraw_finding",
   "record_prior_comment",
   "ask_reviewer",
   "finish_setup",
@@ -469,6 +495,13 @@ export class PacketReview extends Schema.Class<PacketReview>("PacketReview")({
   sheets: Schema.Array(PacketSheet),
   inspectedSheetIds: Schema.Array(SheetId),
   baselineSheetIds: Schema.optionalKey(Schema.Array(SheetId)),
+  /**
+   * Earlier-revision sheets each current sheet replaces, from the saved revision correspondence.
+   * Carried findings on those sheets belong to the current sheet's reviewer.
+   */
+  predecessorSheetIds: Schema.optionalKey(Schema.Record(Schema.String, Schema.Array(SheetId))),
+  /** Findings carried from the conversation's earlier review; only these can become Resolved. */
+  carriedFindingIds: Schema.optionalKey(Schema.Array(Id)),
   inspectedThisReviewSheetIds: Schema.optionalKey(Schema.Array(SheetId)),
   detailInspectedSheetIds: Schema.optionalKey(Schema.Array(SheetId)),
   /** Sheets with a completed segment_objects call in this review; device counts require one. */

@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
 import { Schema } from "effect";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProviderTransport } from "../../backend/inference/provider.ts";
+import { ReviewCommand } from "#lib/review/contracts.ts";
 import { reviewDisciplines } from "#lib/review/execution.ts";
 import { ReviewPass } from "#lib/review/packet.ts";
 import { packetCoverageProgress } from "#lib/review/packet-coverage.ts";
@@ -19,6 +20,7 @@ import {
   type Request,
   type Session,
 } from "../fixtures/packet-review.ts";
+import { createHeroPdf } from "../fixtures/hero-case.ts";
 
 const parallel = { minSheets: 2, concurrency: { meta: 4, baseten: 2, "opencode-go": 2 } } as const;
 
@@ -1334,6 +1336,202 @@ test("every sheet reviewer opens from the setup snapshot after a peer adds a sou
     expect(finished.sources).toHaveLength(1);
     expect(finished.projectConfiguration.occupancy).toBe("B");
     expect(finished.parallel?.setup).toEqual(paused.parallel?.setup);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
+test("a revised sheet's reviewer updates the carried finding by id", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-carried-"));
+  const findingId = crypto.randomUUID();
+  const citationId = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
+  const openings = new Array<string>();
+  const refusals = new Array<string>();
+
+  const citation = {
+    id: citationId,
+    sourceId: null,
+    jurisdiction: "Florida",
+    document: "FBC Building",
+    edition: "2023 8th Edition",
+    section: "1010.1.9",
+    quote: "",
+    application: "Door hardware printed on the sheet.",
+    status: "unverified",
+    note: "",
+  };
+
+  const transport: ProviderTransport = async (_url, init) => {
+    const request = decodeRequest(init);
+
+    if (request.model === "sam-3.1") return samResponse();
+
+    const made = calls(request.input);
+
+    if (systemPrompt(request).includes("## Parallel review: sheet reviewer")) {
+      const input = outputs(SheetInput, request).at(0);
+
+      if (!input) throw new Error("Sheet reviewer input is missing its sheet");
+      const own = input.sheet.id;
+      const first = own === input.inventory[0]?.id;
+      const rendered = outputs(Rendered, request).find((result) => result.artifact.sheetId === own);
+
+      if (!rendered) {
+        if (first) openings.push(strings(request.input ?? null).join("\n"));
+
+        return response([{ name: "render_sheet", arguments: { sheetId: own } }]);
+      }
+
+      if (!made.includes("record_citation"))
+        return response([{ name: "record_citation", arguments: citation }]);
+
+      if (first && !made.includes("record_finding"))
+        return response([
+          {
+            name: "record_finding",
+            arguments: { ...findingOn([own], [rendered.artifact.id]), id: findingId },
+          },
+        ]);
+
+      if (!made.includes("record_coverage_batch"))
+        refusals.push(strings(request.input ?? null).join("\n"));
+
+      return reviewOwnSheet(request, own);
+    }
+
+    return outputs(CoordinatorInput, request).at(-1)?.stage === "setup"
+      ? response([], "Project configuration recorded.")
+      : coordinate(request);
+  };
+
+  const sequential = { ...parallel, concurrency: { meta: 1, baseten: 1, "opencode-go": 1 } };
+  const session = await open(directory, transport, true, undefined, "observe", sequential);
+
+  try {
+    const original = (await session.snapshot()).sheets;
+
+    const started = await session.run(
+      session.packets.start(await session.request("Review the whole drawing set.")),
+    );
+
+    await until(session, started.id, "completed");
+
+    const before = await session.snapshot();
+    const source = join(directory, "Revision B.pdf");
+    await writeFile(source, createHeroPdf("B"));
+    await session.importPdf({
+      commandId: id(),
+      projectId: session.projectId,
+      expectedVersion: before.project?.version ?? -1,
+      source,
+      name: "Revision B.pdf",
+    });
+
+    const imported = await session.snapshot();
+    const revision = imported.revisions.at(-1);
+
+    const [pair, ...pairs] = original.map((sheet) => {
+      const replacement = imported.sheets.find(
+        (item) => item.revisionId === revision?.id && item.pageIndex === sheet.pageIndex,
+      );
+
+      if (!replacement) throw new Error("Revision B was not imported.");
+
+      return {
+        oldSheetId: sheet.id,
+        newSheetId: replacement.id,
+        confirmed: true,
+        content: "changed" as const,
+      };
+    });
+
+    if (!revision || !pair) throw new Error("Revision B was not imported.");
+    await session.command(
+      ReviewCommand.cases.AssociateRevision.make({
+        commandId: id(),
+        projectId: session.projectId,
+        expectedVersion: imported.project?.version ?? -1,
+        revisionId: revision.id,
+        correspondence: [pair, ...pairs],
+      }),
+    );
+
+    refusals.length = 0;
+
+    const followUp = await session.run(
+      session.packets.start(
+        await session.request("Recheck the revised set.", {
+          selection: { mode: "whole_set", revisionId: revision.id, sheetIds: [] },
+        }),
+      ),
+    );
+
+    const rechecked = await until(session, followUp.id, "completed");
+
+    // The revised sheet's reviewer sees the finding carried from the sheet it replaces.
+    expect(openings.at(-1)).toContain(findingId);
+    expect(refusals.join("\n")).not.toContain("That finding belongs to another sheet");
+    expect(rechecked.findings.map((finding) => finding.id)).toEqual([findingId]);
+    expect(rechecked.findings[0]?.locations.map((location) => location.sheetId)).toEqual([
+      pair.newSheetId,
+    ]);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
+test("a sheet reviewer that keeps requesting stops at its request limit and the review finishes", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-sheet-limit-"));
+  let looping = "";
+
+  const transport: ProviderTransport = async (_url, init) => {
+    const request = decodeRequest(init);
+
+    if (request.model === "sam-3.1") return samResponse();
+
+    if (systemPrompt(request).includes("## Parallel review: sheet reviewer")) {
+      const input = outputs(SheetInput, request).at(0);
+
+      if (!input) throw new Error("Sheet reviewer input is missing its sheet");
+      const own = input.sheet.id;
+
+      // The first sheet's reviewer never finishes; it renders its sheet again and again.
+      if (own === input.inventory[0]?.id) {
+        looping = own;
+
+        return response([{ name: "render_sheet", arguments: { sheetId: own } }]);
+      }
+
+      return reviewOwnSheet(request, own);
+    }
+
+    return outputs(CoordinatorInput, request).at(-1)?.stage === "setup"
+      ? response([], "Project configuration recorded.")
+      : coordinate(request);
+  };
+
+  const limited = {
+    ...parallel,
+    concurrency: { meta: 1, baseten: 1, "opencode-go": 1 },
+    sheetRequests: 5,
+  };
+  // The stopped sheet leaves coverage gaps, so the coordinator confirms finish_review once more.
+
+  const session = await open(directory, transport, true, undefined, "accept", limited);
+
+  try {
+    const started = await session.run(
+      session.packets.start(await session.request("Review the whole drawing set.")),
+    );
+
+    const finished = await until(session, started.id, "completed");
+    const stopped = finished.parallel?.sheets.find((entry) => entry.sheetId === looping);
+
+    expect(stopped?.state).toBe("failed");
+    expect(stopped?.promptUsage?.calls).toBe(5);
+    expect(finished.parallel?.sheets.some((entry) => entry.state === "completed")).toBe(true);
   } finally {
     await session.dispose();
     await rm(directory, { recursive: true, force: true });

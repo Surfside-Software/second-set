@@ -107,6 +107,15 @@ The renderer version changes with the pinned PDF.js or canvas version. Rendering
 checks the original's hash on the exact bytes given to PDF.js; a replaced
 original fails and stores no image.
 
+PDF.js removes an embedded image larger than its image limit from the page without an error.
+Renderer `moke-render-1` used the 16-megapixel output limit there, so scanned schedules and
+details above it rendered as blank paper; a 17.6-megapixel panel schedule on a sample sheet
+was reported as missing. `moke-render-2` decodes embedded images up to 150 megapixels, enough
+for a 24 x 36-inch sheet scanned at 400 ppi, and its new renderer version keeps earlier renders
+from being reused. With those images drawn, a full sheet can exceed the 1 MiB model image limit
+as PNG; images for the reasoning model and reports then go as JPEG at the same pixel size, so
+image boxes still convert through the same transform. SAM still receives PNG.
+
 When `record_project` names a jurisdiction, the host reads project configuration,
 source metadata without text, citations and agency comments from the 200 most
 recent packet reviews in other conversations. It offers those from the same state
@@ -191,7 +200,7 @@ retries reuse only files whose size and SHA-256 match the selected result
 manifest; interrupted Modal copy scratch files are cleared before package validation.
 
 New cloud receipts record `workerProtocol: 5`, the only protocol admitted for new
-work, with packet prompt v6. Older receipts recover progress only for jobs already
+work, with packet prompt v8. Older receipts recover progress only for jobs already
 `dispatching` or `running`: unmarked receipts accept protocol 2 or 3, protocol-3
 receipts accept protocol 3, and protocol-4 receipts accept protocol 4 with packet
 prompts v3 to v5. [Current admission and recovery](cloud-reviews.md#current-admission-and-recovery)

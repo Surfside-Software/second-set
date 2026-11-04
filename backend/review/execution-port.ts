@@ -75,7 +75,7 @@ export class ExecutionImage extends Schema.Class<ExecutionImage>("ExecutionImage
   artifactId: ArtifactId,
   projectId: ProjectId,
   sheetId: SheetId,
-  mimeType: Schema.Literal("image/png"),
+  mimeType: Schema.Literals(["image/png", "image/jpeg"]),
   data: Schema.String.check(
     Schema.isMinLength(1),
     Schema.isMaxLength(2 * 1024 * 1024),
@@ -110,7 +110,11 @@ export interface ExecutionPort {
     fence: ExecutionFence,
     detail: typeof DetailRequest.Type,
   ) => Effect.Effect<Artifact, ExecutionError>;
-  readonly readImage: (artifact: Artifact) => Effect.Effect<ExecutionImage, ExecutionError>;
+  /** `lossy` lets an image too large as PNG reach a reasoning model as JPEG; SAM needs PNG. */
+  readonly readImage: (
+    artifact: Artifact,
+    options?: { readonly lossy?: boolean },
+  ) => Effect.Effect<ExecutionImage, ExecutionError>;
   readonly propose: (
     fence: ExecutionFence,
     proposal: typeof CountProposal.Type,

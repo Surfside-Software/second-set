@@ -373,6 +373,19 @@ also passed. A separate live probe with zero model calls verified stale candidat
 skipping, rejected sandbox cleanup, name-based claim recovery, and cold fallback.
 See [the recorded cloud validation](research/cloud-validation.md).
 
+## Troubleshooting
+
+**Windows cloud reviews time out before transfer.** Cloudflare WARP's free client lists `host`
+among its default DNS fallback domains, so lookups for Modal's worker hosts (`*.modal.host`) go to
+the local resolver and time out. Every file and exec call to the worker then fails. Disconnect
+WARP for the review, or remove the entry with `warp-cli dns fallback remove host`
+(`warp-cli dns fallback reset` restores the defaults).
+
+**A finished review stops at "Sync paused" with "A package file could not be written."** Windows
+antivirus and indexing briefly hold files Moke has just written, and replacing such a file fails
+until they let go. Restores, transfers and database replacement now retry that rename for about
+ten seconds (`backend/rename.ts`). A paused sync keeps the downloaded result; choose Retry sync.
+
 ## Primary references
 
 - [Modal JavaScript/TypeScript SDK](https://modal.com/docs/guide/sdk-javascript-go)
@@ -401,7 +414,7 @@ are fenced while the cloud owns the workspace.
 
 New reviews are admitted only to a protocol-5 worker whose identity matches this
 build exactly: package engine `review-pi-1.4.0-v1`, count prompt
-`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v9`, and the
+`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v10`, and the
 current instruction revision and code index version. Every new ownership receipt
 records `workerProtocol: 5`. An image with a different identity fails the
 identity probe before transfer. Migrations are not part of the identity: a worker
@@ -414,12 +427,12 @@ Recovery only observes work already `dispatching` or `running`; it never
 redispatches or restarts a model. Earlier identities must still match the current
 engine, count prompt and instruction revision. Protocols 2 to 4 omit the code index; earlier protocol-5 workers use index v1:
 
-| Receipt `workerProtocol`                  | Progress accepted while dispatched             |
-| ----------------------------------------- | ---------------------------------------------- |
-| Absent, saved by protocol-2 or 3 desktops | Protocol 2 or 3 with packet prompts v1 to v3   |
-| `3`                                       | Protocol 3 with packet prompts v1 to v3        |
-| `4`                                       | Protocol 4 with packet prompts v3 to v5        |
-| `5`                                       | Protocol 5 with v8/index v2, or v6/v7/index v1 |
+| Receipt `workerProtocol`                  | Progress accepted while dispatched                                 |
+| ----------------------------------------- | ------------------------------------------------------------------ |
+| Absent, saved by protocol-2 or 3 desktops | Protocol 2 or 3 with packet prompts v1 to v3                       |
+| `3`                                       | Protocol 3 with packet prompts v1 to v3                            |
+| `4`                                       | Protocol 4 with packet prompts v3 to v5                            |
+| `5`                                       | Protocol 5 with v9 or v10/index v3, v8/index v2, or v6/v7/index v1 |
 
 Receipts in every other phase accept only current progress.
 
@@ -456,6 +469,11 @@ worker stay readable.
 Packet prompt `moke-packet-review-v8` removes access boilerplate and paraphrases of unread code text. It ships with `florida-code-index-v2` and requires a newly published worker image. Protocol remains 5; dispatched v6/v7 jobs with index v1 stay readable, but those identities cannot admit new work.
 
 Packet prompt `moke-packet-review-v9` tells reviewers to log the citations their findings rest on and the ones sheets print. It ships with `florida-code-index-v3`, which marks Reserved sections and adds the real high-velocity masonry sections, and with a worker that keeps each sheet reviewer's citations apart and records a citation's source only when the review retrieved it. It requires a newly published worker image. Dispatched v8 jobs with index v2 stay readable.
+
+Packet prompt `moke-packet-review-v10` adds image-box finding locations, carried findings on
+revised sheets, the `Resolved` finding status and `withdraw_finding`. Publish a new worker image
+before sending v10 reviews; a v9 image fails the identity probe before transfer. Jobs already sent
+to a v9 worker stay readable.
 
 The protocol-3 handshake required support for explicit revision, selected-sheet
 and persisted-discipline scope, and includes both packet and count prompt versions.

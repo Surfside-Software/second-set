@@ -4,7 +4,8 @@ import { SqlClient } from "effect/sql";
 import { SqlError } from "effect/sql/SqlError";
 import { createHash, randomUUID } from "node:crypto";
 import { constants, existsSync } from "node:fs";
-import { lstat, mkdir, open, readdir, readFile, realpath, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile, realpath, rm } from "node:fs/promises";
+import { renameReplacing } from "../rename.ts";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -403,7 +404,7 @@ const writeBytes = (path: string, bytes: Uint8Array | string) =>
         await handle.close();
       }
 
-      await rename(temporary, path);
+      await renameReplacing(temporary, path);
     },
     catch: (cause) => asPackageError(cause, "A package file could not be written."),
   });
@@ -1449,7 +1450,10 @@ const writeApplicationPackage = (
           }
 
           yield* fsyncDirectory(staging);
-          yield* io(() => rename(staging, target), "The package directory could not be published.");
+          yield* io(
+            () => renameReplacing(staging, target),
+            "The package directory could not be published.",
+          );
           yield* fsyncDirectory(dirname(target));
 
           return new PackageExportResult({
@@ -1837,14 +1841,14 @@ const rollbackEntry = (dataDirectory: string, entry: SwapEntry) =>
         "The restore discard directory could not be created.",
       );
       yield* io(
-        () => rename(live, discarded),
+        () => renameReplacing(live, discarded),
         "A replaced file could not be moved aside during rollback.",
       );
     }
 
     if (entry.hadOriginal) {
       yield* makeDirectory(dirname(live), "A restored directory could not be created.");
-      yield* io(() => rename(saved, live), "An original file could not be restored.");
+      yield* io(() => renameReplacing(saved, live), "An original file could not be restored.");
       yield* fsyncDirectory(dirname(saved));
       yield* fsyncDirectory(dirname(live));
     }
@@ -1976,7 +1980,7 @@ const swapEntry = (dataDirectory: string, journal: RestoreJournal, index: number
 
     if (existed) {
       yield* makeDirectory(dirname(saved), "The restore save directory could not be created.");
-      yield* io(() => rename(live, saved), "A live file could not be moved aside.");
+      yield* io(() => renameReplacing(live, saved), "A live file could not be moved aside.");
     }
 
     next = {
@@ -1994,7 +1998,10 @@ const swapEntry = (dataDirectory: string, journal: RestoreJournal, index: number
     };
     yield* writeJournal(dataDirectory, next);
     yield* makeDirectory(dirname(live), "A restored directory could not be created.");
-    yield* io(() => rename(incoming, live), "A package file could not be moved into place.");
+    yield* io(
+      () => renameReplacing(incoming, live),
+      "A package file could not be moved into place.",
+    );
     next = {
       ...next,
       entries: next.entries.map((entry, entryIndex) =>

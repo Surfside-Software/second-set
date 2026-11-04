@@ -343,7 +343,7 @@ export class ReviewExecution extends Context.Service<
           JSON.stringify(await tool(run, operation));
 
         const readImage = (run: RunRecord, artifact: Artifact) =>
-          port.readImage(artifact).pipe(
+          port.readImage(artifact, { lossy: true }).pipe(
             Effect.flatMap(Schema.decodeUnknownEffect(ExecutionImage)),
             Effect.flatMap((image) =>
               image.projectId === run.project_id &&
