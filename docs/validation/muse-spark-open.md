@@ -7,8 +7,8 @@ Muse Spark Open is one of Meta's open-weight models. Moke runs it through Basete
 
 Two reviews of a supplied three-sheet fire-alarm set ran to completion in the cloud on
 Muse Spark Open during desktop acceptance runs on October 29, 2026. The earlier run
-covered the fire-alarm discipline. The later run's 132 passes are every discipline on
-all three sheets: 11 disciplines, 4 passes and 3 sheets.
+covered the fire-alarm discipline. The later run recorded all 132 coverage rows, some of
+which can be marked not applicable: 11 disciplines, 4 passes and 3 sheets.
 
 | Run                       | Calls | Passes recorded | Findings | Elapsed  | Notes                                                                                                                           |
 | ------------------------- | ----: | --------------: | -------: | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
