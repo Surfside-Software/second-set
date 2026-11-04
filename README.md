@@ -95,7 +95,8 @@ bun run dev
 You can import drawings and use manual count checks without provider keys.
 For model review, copy [.env.example](.env.example) to `.env` and set
 `OPENCODE_API_KEY`, `MODEL_API_KEY` or `BASETEN_API_KEY`. With a Go key, reviews run
-on OpenCode Go, and Meta is used only for SAM and count checks. Otherwise choose
+on Muse Spark 1.3 Contributor through OpenCode Go, and Meta's API is used only for
+SAM and count checks. Otherwise choose
 Muse Spark, Muse Wonder or Baseten Muse Spark Open in the app.
 Restart after changing credentials. See [inference setup](docs/inference.md) for
 packaged-app credentials, model capabilities and optional review budgets.

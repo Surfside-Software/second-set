@@ -35,8 +35,8 @@ test("OpenCode Go and a custom endpoint are set up in Review settings and run In
     const model = page.getByRole("button", { name: /^Model:/ });
     await expect(model).toContainText("Muse Spark 1.3 Contributor");
     await model.click();
-    await expect(page.getByRole("option", { name: /GLM-5\.3-Flash/ })).toBeVisible();
     await expect(page.getByRole("option", { name: /Muse Spark 1\.3 Contributor/ })).toBeVisible();
+    await expect(page.getByRole("option", { name: /GLM|MiMo|GPT-6 Luna/ })).toHaveCount(0);
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: "Review settings", exact: true }).click();
@@ -48,7 +48,6 @@ test("OpenCode Go and a custom endpoint are set up in Review settings and run In
     const goSave = go.getByRole("button", { name: "Test and save", exact: true });
     await expect(goSave).toBeDisabled();
     await go.getByLabel("API key", { exact: true }).fill("oc_sk_replacement_never_dispatched");
-    await go.getByLabel("Test with", { exact: true }).selectOption("glm-5.3-flash");
 
     await page.evaluate((exit) => window.rpcControl.answer("SaveOpenCodeGo", exit), success(false));
 
@@ -57,7 +56,7 @@ test("OpenCode Go and a custom endpoint are set up in Review settings and run In
 
     expect((await requests(page, "SaveOpenCodeGo"))[0]?.payload).toEqual({
       apiKey: "oc_sk_replacement_never_dispatched",
-      model: "glm-5.3-flash",
+      model: "muse-spark-1.3-contributor",
     });
 
     const endpoint = settings.getByTestId("custom-endpoint");
@@ -102,8 +101,6 @@ test("OpenCode Go and a custom endpoint are set up in Review settings and run In
     await expect(preferred).toHaveValue("muse-spark-1.3-contributor");
     await preferred.selectOption("openai-compatible");
     await expect(initial).toHaveAttribute("data-tip", /Custom endpoint/);
-    await preferred.selectOption("glm-5.3-flash");
-    await expect(initial).toHaveAttribute("data-tip", /GLM-5\.3-Flash/);
     await preferred.selectOption("muse-spark-1.3-contributor");
     await expect(initial).toHaveAttribute("data-tip", /Muse Spark 1\.3 Contributor/);
     await settings.getByRole("button", { name: "Done", exact: true }).click();

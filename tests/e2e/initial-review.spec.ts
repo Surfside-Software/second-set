@@ -219,8 +219,8 @@ test("With OpenCode Go connected, Go models are the only chat choice while Meta 
     const model = page.getByRole("button", { name: /^Model:/ });
     await expect(model).toContainText("Muse Spark 1.3 Contributor (trains on drawings)");
     await model.click();
-    await expect(page.getByRole("option")).toHaveCount(4);
-    await expect(page.getByRole("option", { name: /Muse Wonder|Muse Spark Open/ })).toHaveCount(0);
+    await expect(page.getByRole("option")).toHaveCount(1);
+    await expect(page.getByRole("option")).toContainText("Muse Spark 1.3 Contributor");
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: "Review settings", exact: true }).click();

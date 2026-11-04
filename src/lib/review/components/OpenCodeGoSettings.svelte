@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Redacted } from "effect";
-  import { defaultOpenCodeGoModel, OpenCodeGoModelId, reviewModels } from "#lib/review/models.ts";
+  import { defaultOpenCodeGoModel } from "#lib/review/models.ts";
   import type { OpenCodeGoSettings } from "#lib/review/shell.ts";
 
   let {
@@ -18,10 +18,8 @@
   } = $props();
 
   const id = $props.id();
-  const models = reviewModels.filter((model) => model.provider === "opencode-go");
 
   let apiKey = $state("");
-  let model = $state<typeof OpenCodeGoModelId.Type>(defaultOpenCodeGoModel);
   let message = $state("");
   let working = $state(false);
 
@@ -31,7 +29,7 @@
     if (apiKey.trim() === "") return;
     working = true;
     message = "Testing the key with one small request…";
-    message = await onSave({ apiKey: Redacted.make(apiKey.trim()), model });
+    message = await onSave({ apiKey: Redacted.make(apiKey.trim()), model: defaultOpenCodeGoModel });
     working = false;
   }
 
@@ -47,8 +45,8 @@
     OpenCode Go <span class="connection-state">{connected ? "Connected" : "Not connected"}</span>
   </h3>
   <p class="muted">
-    Use your OpenCode Go subscription for drawing reviews. Its models appear in the model menu.
-    Create a key on the OpenCode Console harnesses page.
+    Use your OpenCode Go subscription for drawing reviews. Muse Spark 1.3 Contributor then appears
+    in the model menu. Create a key on the OpenCode Console harnesses page.
   </p>
   <p class="muted">
     In Console Settings › Privacy, Muse Spark 1.3 Contributor needs “Allow paid endpoints that train
@@ -64,13 +62,6 @@
       {disabled}
       bind:value={apiKey}
     />
-    <label for={`${id}-model`}>Test with</label><select
-      id={`${id}-model`}
-      {disabled}
-      bind:value={model}
-    >
-      {#each models as option (option.id)}<option value={option.id}>{option.label}</option>{/each}
-    </select>
     <div class="actions">
       <button type="submit" class="btn" disabled={disabled || working || apiKey.trim() === ""}
         >Test and save</button
@@ -119,8 +110,7 @@
     letter-spacing: var(--tracking-wider);
     text-transform: uppercase;
   }
-  input,
-  select {
+  input {
     width: 100%;
     min-width: 0;
     min-height: 40px;

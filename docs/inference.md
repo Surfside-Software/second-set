@@ -16,13 +16,12 @@ The repository ignores `.env` and `.env.*` except the blank `.env.example`.
 
 ## Models and routes
 
-| Model                                            | Provider    | Canonical endpoint                    | Credential         |
-| ------------------------------------------------ | ----------- | ------------------------------------- | ------------------ |
-| `muse-spark-1.3`                                 | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
-| `muse-wonder-1.0`                                | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
-| `meta-models/muse-spark-open-1026`               | Baseten     | `https://inference.baseten.co/v1`     | `BASETEN_API_KEY`  |
-| `muse-spark-1.3-contributor`                     | OpenCode Go | `https://opencode.ai/inference/go/v1` | `OPENCODE_API_KEY` |
-| `mimo-v2.6-flash`, `glm-5.3-flash`, `gpt-6-luna` | OpenCode Go | `https://opencode.ai/inference/go/v1` | `OPENCODE_API_KEY` |
+| Model                              | Provider    | Canonical endpoint                    | Credential         |
+| ---------------------------------- | ----------- | ------------------------------------- | ------------------ |
+| `muse-spark-1.3`                   | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
+| `muse-wonder-1.0`                  | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
+| `meta-models/muse-spark-open-1026` | Baseten     | `https://inference.baseten.co/v1`     | `BASETEN_API_KEY`  |
+| `muse-spark-1.3-contributor`       | OpenCode Go | `https://opencode.ai/inference/go/v1` | `OPENCODE_API_KEY` |
 
 ## OpenCode Go
 
@@ -33,8 +32,7 @@ Meta's Muse Spark 1.3 otherwise. Go is a subscription with monthly dollar allowa
 **Muse Spark Contributor trains on your drawings.** Go sells it at a discount in exchange for using
 prompts and completions to train Meta's models, and it is not zero-retention. An owner must turn on
 **Allow paid endpoints that train on request data** in the workspace's Settings > Privacy, or Go
-refuses it. The other three Go models here do not train: MiMo-V2.6-Flash and GLM-5.3-Flash keep
-nothing, and GPT-6 Luna keeps abuse logs for 30 days. They have not been tried on drawings.
+refuses it.
 
 - **Traffic.** Go is designed for coding agents and monitors traffic for abuse. Parallel drawing
   reviews are not typical coding traffic. Moke identifies itself as `moke/<version>`, sends a session
@@ -213,17 +211,13 @@ share, and **Copy review diagnostics** includes it for every finished review.
 
 Review settings → OpenCode Go connects an [OpenCode Go](https://opencode.ai/docs/go/)
 subscription, so reviews need not spend Meta or Baseten credits. Paste a key from
-the Console harnesses page (`oc_sk_...`) and pick the model to test it with. In
-development, `OPENCODE_API_KEY` in `.env` does the same; Pi and OpenCode read the
-same variable. The model menu then offers these Go models, which read images and
-call tools:
+the Console harnesses page (`oc_sk_...`). In development, `OPENCODE_API_KEY` in
+`.env` does the same; Pi and OpenCode read the same variable. The model menu then
+offers `muse-spark-1.3-contributor`, which reads images and calls tools over Responses.
 
-| Review model                 | OpenCode Go wire format |
-| ---------------------------- | ----------------------- |
-| `glm-5.3-flash`              | Chat Completions        |
-| `muse-spark-1.3-contributor` | Responses               |
-| `mimo-v2.6-flash`            | Chat Completions        |
-| `gpt-6-luna`                 | Responses               |
+Moke offers only Meta's model through Go. Earlier reviews on MiMo-V2.6-Flash,
+GLM-5.3-Flash or GPT-6 Luna stay readable, and a saved connection that names one of
+them still opens, but no menu offers them for new reviews.
 
 Requests go through Pi's built-in `opencode-go` provider, which OpenCode lists as
 a supported harness. Its catalog picks each model's wire format, reasoning field
