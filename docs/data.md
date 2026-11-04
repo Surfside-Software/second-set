@@ -200,7 +200,7 @@ retries reuse only files whose size and SHA-256 match the selected result
 manifest; interrupted Modal copy scratch files are cleared before package validation.
 
 New cloud receipts record `workerProtocol: 5`, the only protocol admitted for new
-work, with packet prompt v8. Older receipts recover progress only for jobs already
+work, with packet prompt v10. Older receipts recover progress only for jobs already
 `dispatching` or `running`: unmarked receipts accept protocol 2 or 3, protocol-3
 receipts accept protocol 3, and protocol-4 receipts accept protocol 4 with packet
 prompts v3 to v5. [Current admission and recovery](cloud-reviews.md#current-admission-and-recovery)

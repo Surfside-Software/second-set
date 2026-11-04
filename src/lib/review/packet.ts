@@ -250,7 +250,8 @@ export const PacketFindingLocationInput = Schema.Struct({
   sheetId: SheetId,
   detail: Required,
   region: Schema.optionalKey(Schema.NullOr(Region)),
-  imageBox: Schema.optionalKey(PacketImageBox),
+  // Models send null for fields they have nothing for; refusing that costs a paid turn.
+  imageBox: Schema.optionalKey(Schema.NullOr(PacketImageBox)),
 });
 
 /** General review issues retain evidence and remain distinct from reviewer completion tracking. */

@@ -3,7 +3,8 @@ import { Schema } from "effect";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ProviderTransport } from "../../backend/inference/provider.ts";
+import { isQuickGatewayRefusal, type ProviderTransport } from "../../backend/inference/provider.ts";
+import { PacketFindingLocationInput } from "#lib/review/packet.ts";
 import { predecessorsOf } from "../../backend/packet-review/service.ts";
 import { Artifact, ReviewCommand, ReviewInputError } from "#lib/review/contracts.ts";
 import { deliveredBoxToPdf, deliveredImageSize } from "#lib/review/geometry.ts";
@@ -55,6 +56,25 @@ test("an image box maps delivered pixels back to PDF points through the artifact
     { left: 50, top: 50, right: 40, bottom: 60 },
   ])
     expect(deliveredBoxToPdf(artifact, box)).toBeInstanceOf(ReviewInputError);
+});
+
+test("a location with no image box accepts the null models send for it", () => {
+  const decoded = Schema.decodeUnknownSync(PacketFindingLocationInput)({
+    sheetId: id(),
+    detail: "Door 101 hardware",
+    region: null,
+    imageBox: null,
+  });
+
+  expect(decoded.imageBox).toBeNull();
+});
+
+test("a gateway error counts as a refusal only when it answers at once", () => {
+  expect(isQuickGatewayRefusal(502, 110)).toBe(true);
+  expect(isQuickGatewayRefusal(503, 5000)).toBe(true);
+  // A late one can follow real work, so its charge stays unresolved.
+  expect(isQuickGatewayRefusal(502, 5001)).toBe(false);
+  expect(isQuickGatewayRefusal(500, 110)).toBe(false);
 });
 
 test("revised sheets inherit the earlier sheets they replace through chained correspondence", () => {
@@ -283,6 +303,7 @@ test("finding records are validated, withdrawable and carried into a revised rev
             arguments: finding(revisedSheet, revised, {
               id: carried,
               status: "Resolved",
+              observed: "The hardware set missing from Revision A is now on the plan and schedule.",
               evidenceNote: "Revision B lists hardware set 4 on both the plan and the schedule.",
               citationIds: [citation],
             }),

@@ -660,7 +660,7 @@ test("a finding that drops its evidence and citation lists is still recorded", a
             name: "record_finding",
             arguments: {
               ...finding,
-              title: "Blank lists",
+              title: "Cleared lists",
               evidenceIds: "",
               citationIds: "",
               calculationIds: "",
@@ -692,7 +692,7 @@ test("a finding that drops its evidence and citation lists is still recorded", a
     const finished = await until(session, started.id, "failed");
 
     expect(finished.findings.map((recorded) => recorded.title).toSorted()).toEqual([
-      "Blank lists",
+      "Cleared lists",
       "Dropped lists",
       "Placeholder comment",
       "Text null",

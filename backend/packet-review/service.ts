@@ -74,6 +74,7 @@ import {
   packetReasoning,
   reviewModelCapabilities,
   type ProviderConfiguration,
+  isQuickGatewayRefusal,
 } from "../inference/provider.ts";
 import { openReviewJournal, journalFormat } from "../inference/journal.ts";
 import { ResponseReceipt } from "../inference/response.ts";
@@ -350,6 +351,15 @@ const ownsSheet = (
   sheetId === assigned ||
   (review.predecessorSheetIds?.[assigned] ?? []).some((predecessor) => predecessor === sheetId);
 
+/** A finding this sheet's reviewer may update: all of it is on its sheet or one it replaces. */
+const updatableBy = (
+  review: Pick<PacketReview, "predecessorSheetIds">,
+  assigned: string,
+  finding: Pick<typeof PacketFinding.Type, "locations">,
+) =>
+  finding.locations.length > 0 &&
+  finding.locations.every((location) => ownsSheet(review, assigned, location.sheetId));
+
 /** Earlier-revision sheets that each current sheet replaces, following chained revisions. */
 export const predecessorsOf = <S extends string>(
   sheetIds: ReadonlyArray<S>,
@@ -388,8 +398,8 @@ export const predecessorsOf = <S extends string>(
   );
 };
 
-/** Responses Meta's SAM endpoint returns before generating anything. */
-const samRefusals: ReadonlySet<number> = new Set([429, 502, 503, 529]);
+/** Responses Meta's SAM endpoint returns before generating anything, at any age. */
+const samRefusals: ReadonlySet<number> = new Set([429, 529]);
 
 /** Resends of a refused SAM request before the attempt is withdrawn uncharged. */
 const samRefusalResends = 3;
@@ -460,8 +470,14 @@ const requireFocusedEvidence = (
 // Both technical text and its display summary use the same missing-content evidence gate.
 const requireAbsenceSupport = (
   review: PacketReview,
-  finding: Pick<typeof PacketFinding.Type, "title" | "observed" | "locations" | "absenceCheck">,
+  finding: Pick<
+    typeof PacketFinding.Type,
+    "title" | "observed" | "locations" | "absenceCheck" | "status"
+  >,
 ) => {
+  // A Resolved finding says the revised sheet now has the item, so nothing needs searching for.
+  if (finding.status === "Resolved") return;
+
   const claimsAbsence =
     /\b(?:missing|absent|omitted|not (?:provided|supplied|included|shown|present|located|found)|(?:could|can) ?not (?:locate|find)|unable to (?:locate|find)|lacks|lacking|truncated|clipped|cut off|does not (?:contain|include|show)|no .{0,70}(?:provided|shown|included|calculations?|matri(?:x|ces)|schedules?|tables?))\b/i.test(
       `${finding.title} ${finding.observed}`,
@@ -1294,15 +1310,23 @@ export class PacketReviews extends Context.Service<
                       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120000)]),
                     });
 
-                  // A refusal before generation (rate limit, capacity or a gateway's 502 or 503,
-                  // seen within milliseconds) is resent a few times; nothing was generated.
-                  let response = await send();
+                  const timedSend = async () => {
+                    const sentAt = performance.now();
+                    const response = await send();
 
-                  for (
-                    let resend = 0;
-                    samRefusals.has(response.status) && resend < samRefusalResends;
-                    resend++
-                  ) {
+                    return {
+                      response,
+                      refused:
+                        samRefusals.has(response.status) ||
+                        isQuickGatewayRefusal(response.status, performance.now() - sentAt),
+                    };
+                  };
+
+                  // A refusal before generation (rate limit, capacity or a quick gateway 502 or
+                  // 503) is resent a few times; nothing was generated.
+                  let { response, refused } = await timedSend();
+
+                  for (let resend = 0; refused && resend < samRefusalResends; resend++) {
                     await response.body?.cancel();
                     const retryAfter = Number(response.headers.get("retry-after"));
 
@@ -1315,12 +1339,12 @@ export class PacketReviews extends Context.Service<
                       ),
                       controller.signal,
                     );
-                    response = await send();
+                    ({ response, refused } = await timedSend());
                   }
 
                   answered = response;
 
-                  if (samRefusals.has(response.status)) {
+                  if (refused) {
                     await response.body?.cancel();
                     throw new SamRefused(response.status);
                   }
@@ -1627,11 +1651,7 @@ export class PacketReviews extends Context.Service<
                       sources: review.sources.map(({ id, url, title }) => ({ id, url, title })),
                       coverage: review.coverage.filter((entry) => entry.sheetId === assigned),
                       findings: withoutFocus(
-                        review.findings.filter((finding) =>
-                          finding.locations.some((location) =>
-                            ownsSheet(review, assigned, location.sheetId),
-                          ),
-                        ),
+                        review.findings.filter((finding) => updatableBy(review, assigned, finding)),
                       ),
                     };
               },
@@ -2154,7 +2174,7 @@ export class PacketReviews extends Context.Service<
 
                 const locations = await Promise.all(
                   requested.map(async ({ imageBox, region, ...location }) => {
-                    if (imageBox === undefined) return { ...location, region: region ?? null };
+                    if (!imageBox) return { ...location, region: region ?? null };
 
                     const artifact = await run(
                       config.review.artifact(row.project_id, imageBox.artifactId),
@@ -2196,6 +2216,25 @@ export class PacketReviews extends Context.Service<
                     "input",
                     "A sheet reviewer cannot search the whole set. List the suspected missing item under suspectedGaps in finish_sheet; the coordinator checks it.",
                   );
+
+                // A carried finding shows the earlier sheet it was found on; models copy that id.
+                const assignedSheet = assignments.sheets.get(api.conversationId);
+
+                if (assignedSheet !== undefined) {
+                  const held = await run(get(row.project_id, row.id));
+
+                  if (
+                    input.locations.some(
+                      (location) =>
+                        location.sheetId !== assignedSheet &&
+                        ownsSheet(held, assignedSheet, location.sheetId),
+                    )
+                  )
+                    throw error(
+                      "input",
+                      `Locate this finding on your assigned sheet ${assignedSheet}. The other sheet id is the earlier revision it replaces.`,
+                    );
+                }
 
                 // A sheet reviewer's finding stays on its sheet, with evidence rendered from it.
                 outsideSheet(
@@ -2507,17 +2546,6 @@ export class PacketReviews extends Context.Service<
                 const current = await run(get(row.project_id, row.id));
                 const previous = current.priorComments.find((comment) => comment.id === input.id);
 
-                if (
-                  recordedBy !== null &&
-                  previous !== undefined &&
-                  previous.recordedBy !== undefined &&
-                  previous.recordedBy !== recordedBy
-                )
-                  throw error(
-                    "input",
-                    "That prior comment id belongs to another reviewer's record. Omit id to record a new comment.",
-                  );
-
                 const changed = current.sheets.filter(
                   (sheet) => !(current.baselineSheetIds ?? []).includes(sheet.id),
                 );
@@ -2537,6 +2565,19 @@ export class PacketReviews extends Context.Service<
                   task,
                   "prior_comment",
                   (review) => {
+                    // Checked on the state being written: parallel reviewers can share an id.
+                    const latest = review.priorComments.find((entry) => entry.id === input.id);
+
+                    if (
+                      recordedBy !== null &&
+                      latest?.recordedBy !== undefined &&
+                      latest.recordedBy !== recordedBy
+                    )
+                      throw error(
+                        "input",
+                        "That prior comment id belongs to another reviewer's record. Omit id to record a new comment.",
+                      );
+
                     if (
                       comment.evidenceIds.some((id) => !review.evidenceIds.includes(id)) ||
                       (comment.status === "Resolved" &&
@@ -2565,7 +2606,12 @@ export class PacketReviews extends Context.Service<
 
                     return new PacketReview({
                       ...review,
-                      priorComments: upsert(review.priorComments, comment),
+                      priorComments: upsert(review.priorComments, {
+                        ...comment,
+                        revisionTargetSheetIds:
+                          latest?.revisionTargetSheetIds ?? comment.revisionTargetSheetIds,
+                        recordedBy: latest?.recordedBy ?? recordedBy,
+                      }),
                     });
                   },
                   comment,
@@ -3030,9 +3076,7 @@ export class PacketReviews extends Context.Service<
                         .map(({ discipline, pass, reason }) => ({ discipline, pass, reason })),
                       previousFindings: withoutFocus(
                         current.findings.filter((finding) =>
-                          finding.locations.some((location) =>
-                            ownsSheet(current, sheet.id, location.sheetId),
-                          ),
+                          updatableBy(current, sheet.id, finding),
                         ),
                       ),
                       previousComments: current.priorComments.filter((comment) =>

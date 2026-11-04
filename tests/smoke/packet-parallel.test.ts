@@ -1342,10 +1342,94 @@ test("every sheet reviewer opens from the setup snapshot after a peer adds a sou
   }
 }, 120000);
 
+test("sheet reviewers sharing a prior comment id cannot overwrite each other", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-comment-race-"));
+  const commentId = crypto.randomUUID();
+  const refusals = new Array<string>();
+  let waiting = 0;
+  let release = () => {};
+
+  const allReady = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  const transport: ProviderTransport = async (_url, init) => {
+    const request = decodeRequest(init);
+
+    if (request.model === "sam-3.1") return samResponse();
+
+    const made = calls(request.input);
+
+    if (systemPrompt(request).includes("## Parallel review: sheet reviewer")) {
+      const input = outputs(SheetInput, request).at(0);
+
+      if (!input) throw new Error("Sheet reviewer input is missing its sheet");
+      const own = input.sheet.id;
+
+      if (!outputs(Rendered, request).some((result) => result.artifact.sheetId === own))
+        return response([{ name: "render_sheet", arguments: { sheetId: own } }]);
+
+      if (!made.includes("record_prior_comment")) {
+        // Hold every reviewer here so their writes overlap.
+        waiting++;
+
+        if (waiting === input.inventory.length) release();
+        await allReady;
+
+        return response([
+          {
+            name: "record_prior_comment",
+            arguments: {
+              id: commentId,
+              agency: "Fixture agency",
+              date: "2026-10-28",
+              number: "1",
+              comment: `Comment read from sheet ${own}.`,
+              response: "Awaiting revised deliverable",
+              changedSources: "Baseline A",
+              status: "Open",
+              evidenceIds: [],
+            },
+          },
+        ]);
+      }
+
+      if (!made.includes("record_coverage_batch"))
+        refusals.push(strings(request.input ?? null).join("\n"));
+
+      return reviewOwnSheet(request, own);
+    }
+
+    return outputs(CoordinatorInput, request).at(-1)?.stage === "setup"
+      ? response([], "Project configuration recorded.")
+      : coordinate(request);
+  };
+
+  const session = await open(directory, transport, true, undefined, "observe", parallel);
+
+  try {
+    const started = await session.run(
+      session.packets.start(await session.request("Review the whole drawing set.")),
+    );
+
+    const finished = await until(session, started.id, "completed");
+    const [comment] = finished.priorComments;
+
+    expect(finished.priorComments).toHaveLength(1);
+    expect(refusals.join("\n")).toContain("That prior comment id belongs to another reviewer");
+    // The stored comment is the first writer's, not a later peer's overwrite.
+    expect(comment?.comment).toBe(`Comment read from sheet ${comment?.recordedBy}.`);
+  } finally {
+    await session.dispose();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 120000);
+
 test("a revised sheet's reviewer updates the carried finding by id", async () => {
   const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-carried-"));
   const findingId = crypto.randomUUID();
   const citationId = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
+  let earlierSheet = "";
   const openings = new Array<string>();
   const refusals = new Array<string>();
 
@@ -1386,7 +1470,19 @@ test("a revised sheet's reviewer updates the carried finding by id", async () =>
       if (!made.includes("record_citation"))
         return response([{ name: "record_citation", arguments: citation }]);
 
-      if (first && !made.includes("record_finding"))
+      // On the revision, the reviewer first copies the earlier sheet id it was shown.
+      if (first && earlierSheet !== "" && !made.includes("record_finding"))
+        return response([
+          {
+            name: "record_finding",
+            arguments: { ...findingOn([earlierSheet], [rendered.artifact.id]), id: findingId },
+          },
+        ]);
+
+      if (
+        first &&
+        made.filter((name) => name === "record_finding").length < (earlierSheet === "" ? 1 : 2)
+      )
         return response([
           {
             name: "record_finding",
@@ -1447,6 +1543,7 @@ test("a revised sheet's reviewer updates the carried finding by id", async () =>
     });
 
     if (!revision || !pair) throw new Error("Revision B was not imported.");
+    earlierSheet = pair.oldSheetId;
     await session.command(
       ReviewCommand.cases.AssociateRevision.make({
         commandId: id(),
@@ -1472,6 +1569,9 @@ test("a revised sheet's reviewer updates the carried finding by id", async () =>
     // The revised sheet's reviewer sees the finding carried from the sheet it replaces.
     expect(openings.at(-1)).toContain(findingId);
     expect(refusals.join("\n")).not.toContain("That finding belongs to another sheet");
+    expect(refusals.join("\n")).toContain(
+      `Locate this finding on your assigned sheet ${pair.newSheetId}`,
+    );
     expect(rechecked.findings.map((finding) => finding.id)).toEqual([findingId]);
     expect(rechecked.findings[0]?.locations.map((location) => location.sheetId)).toEqual([
       pair.newSheetId,
