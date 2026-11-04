@@ -1,15 +1,19 @@
-# Selected Pi runtime slice
+# Pi runtime for count checks
 
 Implemented against installed `@earendil-works/pi-durable`, `pi-ai`, `chord`, and
 `pi-telemetry` 1.4.0, Effect 4.0.4, and TypeBox 1.3.27. Production imports use
-installed packages. The read-only preflight at `/tmp/moke-pi-preflight-RSsqwv`
-established the published SQLite facade, telemetry identity propagation,
-recovery resend behavior, and safe-tool receipt pattern. This slice uses the
+installed packages. A read-only preflight established the published SQLite facade, telemetry identity propagation,
+recovery resend behavior, and safe-tool receipt pattern. This adapter uses the
 published Harness and SQLite storage rather than replacing their internals.
+
+This describes the execution adapter that runs selected count checks,
+`backend/review/execution.ts`. Packet reviews use the same Pi Durable packages from
+`backend/packet-review/service.ts`, with automatic compaction and parallel sheet
+reviewers; see [the review runtime](../review-runtime.md).
 
 ## Composition contract
 
-Acquire `acquireDataDirectoryOwnership(dataDirectory)` in the parent's application
+Acquire `acquireDataDirectoryOwnership(dataDirectory)` in the application
 scope **before migrations**, domain SQL, or journal work. Its realpath-canonical
 directory and generation go into:
 
@@ -30,7 +34,7 @@ ReviewExecution.layer({
 });
 ```
 
-The parent owns one ManagedRuntime. The service creates none. During Layer
+The application owns one ManagedRuntime. The service creates none. During Layer
 finalization, its callback entry uses `Effect.runPromiseWith` with that
 finalizer's Context because ManagedRuntime marks its public entry disposed
 before releasing Layers. Tool callbacks do not acquire another runtime.
@@ -43,7 +47,7 @@ transport. Without provider configuration, start returns a typed unavailable fai
 and creates no phantom run. No execution RPC carries credentials, filesystem paths, journals, or
 transcripts.
 
-`backend/review/execution-port.ts` defines the parent's required capabilities:
+`backend/review/execution-port.ts` defines the capabilities it needs from the application:
 
 | Operation                  | Contract                                                                                    |
 | -------------------------- | ------------------------------------------------------------------------------------------- |
@@ -51,16 +55,16 @@ transcripts.
 | `render(fence, detail)`    | Bounded PDF region plus a named missing fact; returns an application Artifact.              |
 | `readImage(artifact)`      | Application-resized PNG pixels, actual delivered dimensions, and both PDF/pixel transforms. |
 | `propose(fence, proposal)` | Proposed count and evidence; never accepts or confirms coverage.                            |
-| `evaluate(fence)`          | Parent's deterministic check over accepted inputs.                                          |
+| `evaluate(fence)`          | The application's deterministic check over accepted inputs.                                 |
 | `message(fence, text)`     | Application progress or a reviewer clarification request.                                   |
 
-The optional segmentation capability is application-owned and not exposed as a
-paid tool by this slice. SAM integration remains separate.
+When a Meta key is configured, the application supplies the segmentation capability
+and this adapter adds a `segment` tool. SAM has [its own adapter](sam-integration.md).
 
 Every mutation fence includes project/finding/run/journal IDs, owner generation,
 captured source/fact versions, and a stable command UUID derived from journal ID
 and durable tool task ID. Overview render commands also include a stable sheet
-discriminator. The parent must return an existing receipt **before** checking
+discriminator. The application must return an existing receipt **before** checking
 current versions, then atomically check the fence and commit mutation plus
 receipt. Already admitted work may drain while state is `pausing`; `paused`,
 `cancelled`, `uncertain`, stale owner, and changed source/fact versions cannot
@@ -75,7 +79,7 @@ delivered dimensions/transforms. Moke owns resizing and provenance.
 ## Persistence and admission
 
 `0003_review_execution.sql` stores runs, attempts, and cursor-based status events
-in `app.sqlite`. It deliberately makes no assumption about the parent's project
+in `app.sqlite`. It deliberately makes no assumption about the application's project
 table key; project authorization is through the port. Each short SQL operation
 opens a scoped Effect SQL connection and shares the recovery semaphore. No
 provider wait holds that permit.
@@ -92,7 +96,7 @@ The separate `.execution-owner.sqlite` connection holds `BEGIN IMMEDIATE` with
 busy timeout zero for the process lifetime. Recovery/export must exclude this
 lock file. When uncooperative shutdown exceeds the bound, an exit listener
 retains the native lock handle through process exit, even after Layer disposal.
-The parent must terminate its Bun process within the overall three-second
+The application must terminate its Bun process within the overall three-second
 shutdown policy when `close` returns false. A local lock on a network filesystem
 or after machine power loss has not been validated.
 
@@ -156,7 +160,7 @@ The final focused run passed 13 tests and 71 assertions on Bun 1.4.4, Linux x64.
 - Duplicate stable command receipts return one committed proposal even after the
   run becomes terminal. The preflight separately exercised crash immediately
   before and after domain commit; that crash-window probe has not been repeated
-  against the parent's final domain adapter.
+  against the final domain adapter.
 - Timeout, retry-bearing 503, malformed arguments, stale late proposal, call
   bound, and conservative text bound are exercised.
 - Cancel intent persists before abort and blocks a late proposed-count response.
@@ -174,10 +178,8 @@ The final focused run passed 13 tests and 71 assertions on Bun 1.4.4, Linux x64.
 
 These establish local process-crash and admission behavior, not real provider
 acceptance, billing, retrieval, power-loss guarantees, or target-OS installed
-Electron packaging. Parent integration owns the explicit budgeted live probe,
-real domain/PDF acceptance, complete export/restore consistency, E2E, council,
-and final repository verification. Gates 0C/0D are not declared fully passed by
-this slice alone.
+Electron packaging. The [core validation](../validation/core-validation.md)
+records the live provider, packaged-app and restore checks.
 
 ## Lifecycle command receipts and explicit new attempts
 

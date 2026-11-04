@@ -8,11 +8,11 @@ on free credits.
 
 ## Results
 
-| Set                                         | Sheets | Time      | Checks recorded | Settled | Findings | Calls |   Cost |
-| ------------------------------------------- | -----: | --------- | --------------: | ------: | -------: | ----: | -----: |
-| Civil grading (project-04)                  |      5 | 9.0 min   |       220 / 220 |     211 |       29 |   115 |  $1.98 |
-| Brewery (project-01), 16 at a time          |     29 | 43.4 min  |   1,276 / 1,276 |   1,249 |       69 |   941 | $16.55 |
-| Brewery, one conversation (Audit 3 recheck) |     29 | 33.6 min¹ |     220 / 1,276 |       — |        — |     — |      — |
+| Set                                     | Sheets | Time      | Checks recorded | Settled | Findings | Calls |   Cost |
+| --------------------------------------- | -----: | --------- | --------------: | ------: | -------: | ----: | -----: |
+| Civil grading (project-04)              |      5 | 9.0 min   |       220 / 220 |     211 |       29 |   115 |  $1.98 |
+| Brewery (project-01), 16 at a time      |     29 | 43.4 min  |   1,276 / 1,276 |   1,249 |       69 |   941 | $16.55 |
+| Brewery, one conversation (earlier run) |     29 | 33.6 min¹ |     220 / 1,276 |       — |        — |     — |      — |
 
 ¹ Muse Spark Open on Baseten; the review stopped before finishing.
 

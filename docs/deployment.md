@@ -28,9 +28,7 @@ bun run package:desktop
 ```
 
 Increment package.json's version, commit the release, then push its matching v tag
-when ready to publish. The generator itself never creates release tags.
-The initial homepage assumes `sc-frederick/<project-name>`; update package.json to
-the actual project URL before release. Linux desktopName and application identity
+when ready to publish. Linux desktopName and application identity
 are generated from the project name.
 
 ## Bun backend and build tools
@@ -72,10 +70,8 @@ app. Backend code does not run in Electron's embedded Node runtime.
 
 ## Update delivery
 
-Choose the updater and download access for each application. The user often hosts
-release files on R2 and presents notices, downloads, and installation inside the
-app. Evaluate aecPermitMonitor's implementation before reusing it. The baseline
-does not hardcode a bucket, feed, public-download policy, or universal installer.
+Choose the updater and download access for each application. The baseline does
+not hardcode a bucket, feed, public-download policy, or universal installer.
 
 An updater must select the matching OS/architecture artifact, verify it before
 execution, report progress and failure, preserve data, and distinguish download,
@@ -95,9 +91,7 @@ secrets and avoid logging user data or credentials. Hosted monitoring is optiona
 Store persistent credentials through the OS credential facility; never bundle
 provider API tokens or store them in renderer localStorage.
 
-Cloud features are optional. Add Cloudflare + Alchemy with development, staging,
-and production separation when required. Authentication, sync ownership, offline
-behavior, and conflict policy are chosen for the application.
+Cloud review is optional; see [cloud reviews](cloud-reviews.md).
 
 macOS artifacts receive an ad-hoc signature on the runner, which requires no
 Apple developer account. They have no Developer ID signature or notarization,

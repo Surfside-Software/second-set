@@ -72,7 +72,7 @@ images. The packaged command requires exactly one application under `release/`,
 so remove obsolete build output before repackaging.
 
 Live checks are opt-in and may spend API credits. See [inference setup](inference.md)
-and the [recorded validation](research/core-validation.md). A passing offline
+and the [recorded validation](validation/core-validation.md). A passing offline
 suite establishes application behavior with controlled responses, not current
 provider availability or model accuracy.
 
@@ -96,15 +96,13 @@ The captures include the [workbench](screenshots/workbench.png),
 [correction history](screenshots/correction.png), and
 [revision history](screenshots/revision.png).
 
-Inspect the generated PNGs before committing them. Keep historical live-validation
-screenshots under `docs/research/screenshots/` with the original evidence notes.
+Inspect the generated PNGs before committing them.
 
 ## Design and experiments
 
-The workbench uses the Forge design system described in
-[the design notes](../design/DESIGN.md). Run `project-kit design forge .` to
-restore its licensed reference under the ignored `design/reference/` directory.
-Reference source stays outside application distributions.
+The workbench adapts the Forge design system, described in
+[the design notes](design.md). The licensed Forge pack is not in this repository
+and is not needed to build the app.
 
 SAM and adaptive-review commands are separate research tools. Their recipes and
 captured results live under `experiments/`; generated runs and private PDFs are

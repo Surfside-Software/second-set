@@ -30,21 +30,16 @@ export const reviewProviderRoutes = {
   { readonly label: string; readonly endpoint: string; readonly model: string }
 >;
 
-/**
- * OpenCode Go models that read images and call tools. Free Go models answer HTTP 403 outside
- * OpenCode itself, so none is listed.
- */
-export const OpenCodeGoModelId = Schema.Literals([
-  "muse-spark-1.3-contributor",
-  "mimo-v2.6-flash",
-  "glm-5.3-flash",
-  "gpt-6-luna",
-]);
+/** The OpenCode Go model a new connection saves: Moke offers Meta's model through Go, no other. */
+export const OpenCodeGoModelId = Schema.Literals(["muse-spark-1.3-contributor"]);
 
 /** The model a new OpenCode Go connection is tested with. */
 export const defaultOpenCodeGoModel = reviewProviderRoutes["opencode-go"].model;
 
-/** Chat models supported by the drawing-review runtime; SAM remains a tool. */
+/**
+ * Chat models the drawing-review runtime can read and route; SAM remains a tool. Earlier reviews
+ * and saved connections can name retired models, so those stay decodable and routable.
+ */
 export const ReviewModelId = Schema.Literals([
   "muse-spark-1.3",
   "muse-wonder-1.0",
@@ -85,23 +80,37 @@ export const reviewModels = [
   },
 ] as const;
 
+/** Earlier OpenCode Go models that are not Meta's. No menu offers them for new work. */
+const retiredReviewModels: ReadonlySet<string> = new Set([
+  "mimo-v2.6-flash",
+  "glm-5.3-flash",
+  "gpt-6-luna",
+]);
+
 /** Whether a reviewer must be told that sending drawings to this model trains on them. */
 export const trainsOnDrawings = (model: string) => model === "muse-spark-1.3-contributor";
 
 /**
  * Connecting OpenCode Go leaves it and a custom endpoint the only chat routes, so a review cannot spend another provider's
  * credits by accident. Meta stays connected for SAM and count checks, which do not use this list.
+ * Retired models are never offered.
  */
 export function offeredReviewModels<
-  Model extends { readonly provider: typeof ReviewProvider.Type; readonly available: boolean },
+  Model extends {
+    readonly id: string;
+    readonly provider: typeof ReviewProvider.Type;
+    readonly available: boolean;
+  },
 >(models: ReadonlyArray<Model>): ReadonlyArray<Model> {
-  return models.some((model) => model.provider === "opencode-go" && model.available)
-    ? models.filter(
+  const current = models.filter((model) => !retiredReviewModels.has(model.id));
+
+  return current.some((model) => model.provider === "opencode-go" && model.available)
+    ? current.filter(
         (model) =>
           model.provider === "opencode-go" ||
           (model.provider === "openai-compatible" && model.available),
       )
-    : models;
+    : current;
 }
 
 /**

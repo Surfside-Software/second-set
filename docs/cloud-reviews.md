@@ -118,8 +118,7 @@ finding.
 
 Upload time is set by the reviewer's uplink, about 1.8 MiB/s on the measured
 development host, so Send no longer uploads files that Modal already holds. See
-[the fast initial review research](research/fast-initial-review.md) for the
-measurements.
+[the fast initial review measurements](validation/fast-initial-review.md).
 
 Each workspace has its own Modal Volume (v2), named `<appName>-cache-<id>`, where
 `<id>` is a random 16-hex-digit identifier saved in `<dataDirectory>.cloud/cache.json`.
@@ -333,17 +332,12 @@ The previous image is `moke-review-engine:v0.2.0`,
 desktop fails the identity probe against `latest`, before any transfer, so it must
 select that immutable tag in its private operator configuration.
 
-Protocol 3 was deployed from `d7ba4f874` as `moke-review-engine:d7ba4f874`.
-That immutable tag, `moke-review-engine:latest` and this checkout's private
-operator selection resolve to `im-01M630XTWWQWB3FM0K4NY8NR0D`.
-The published image passed strict identity, migration-hash and native PDF
-readiness checks. The bounded protocol-3 live run verified ownership fencing,
-backend close/reopen, RPC progress and automatic verified-package return.
-Its single sent Meta request remains uncertain, with no successful response
-receipt, counts or final answer. It was not retried. The strict live validator
-exited nonzero; successful inference remains unverified. See
-[the deployment record](research/protocol-3-deployment.md) for identities,
-receipts, cleanup and the retained rollback image.
+Protocol 3 was deployed from `d7ba4f874` as `moke-review-engine:d7ba4f874`,
+image `im-01M630XTWWQWB3FM0K4NY8NR0D`. The image passed strict identity,
+migration-hash and native PDF readiness checks. Its bounded live run verified
+ownership fencing, backend close/reopen, RPC progress and automatic
+verified-package return. Its single sent Meta request remained uncertain, with no
+successful response receipt, and was not retried.
 
 `cloud-reviews.test.ts` exercises persisted ownership, duplicate commands,
 ambiguous dispatch, stop failures, wrong job identity, required checkpoints,
@@ -377,7 +371,7 @@ proposed **2 / 3** counts, plus its final conversation response, in 34.1 seconds
 Recovery of that completed review through its stopped sandbox's exit snapshot
 also passed. A separate live probe with zero model calls verified stale candidate
 skipping, rejected sandbox cleanup, name-based claim recovery, and cold fallback.
-See [the recorded cloud validation](research/cloud-validation.md).
+See [the recorded cloud validation](validation/cloud-validation.md).
 
 ## Troubleshooting
 
@@ -508,8 +502,6 @@ describes the entire workspace, although cached files are not uploaded again: a 
 it could safely replace the local database. The selected project, model, scope,
 package bytes and live sheet/finding/coverage totals identify the active job.
 Terminal receipts stay in their originating conversation and can be dismissed.
-See [Audit 3 cloud research](research/audit-3-cloud.md) for resource pricing,
-capacity decisions and regression evidence.
 
 Cloud requests retain the selected scope through transfer
 and automatic return. Local steering and editing remain fenced while the cloud

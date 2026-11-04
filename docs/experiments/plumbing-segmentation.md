@@ -1,6 +1,6 @@
 # SAM for Moke plumbing coordination
 
-This study applies Moke's [plumbing review instructions](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/plumbing.md): reconcile fixture marks and quantities, room uses, and existing/new scope across drawings.
+This study applies Moke's [plumbing review instructions](../../backend/review/prompts/assets/disciplines/plumbing.md): reconcile fixture marks and quantities, room uses, and existing/new scope across drawings.
 
 ## Result
 
@@ -86,7 +86,7 @@ has been completed, so review-speed improvements remain unmeasured.
 ## Correcting evidence
 
 Four additional live tests are preserved in
-[plumbing-refinement-cases.json](../experiments/sam/plumbing-refinement-cases.json):
+[plumbing-refinement-cases.json](../../experiments/sam/plumbing-refinement-cases.json):
 
 - A fresh positive toilet click and negative wall click recovered the private
   restroom fixture after the earlier Muse pixel box selected a wall.
@@ -114,8 +114,8 @@ or accuracy savings. Check held-out rooms, overlapping crop coverage, missed
 Muse candidates, visible marks, and new/removed scope. Keep schedule quantities
 out of grounding prompts.
 
-Moke source: `sc-frederick/skills` revision
-`8a0e2648738018631eaa6d24ee0b6ebaa239afb1`, master instructions, shared method,
+Moke source: the [review instructions](../../backend/review/prompts/README.md) at revision
+`8a0e2648738018631eaa6d24ee0b6ebaa239afb1`: master instructions, shared method,
 and plumbing discipline. API grounding follows Meta's
 [normalized coordinate guidance](https://dev.meta.ai/docs/image-understanding#perception-grounding)
 and [SAM location prompts](https://dev.meta.ai/docs/sam/segmenting).
@@ -123,9 +123,9 @@ Local records, raw responses, and focused evidence are in
 `.local/sam/iteration-2/`. This iteration used six Muse calls and 97 SAM calls.
 No billing total is established.
 
-## Council-directed experiments
+## Follow-up experiments
 
-Sol recommended testing imperfect geometry. Four fixtures each received a box
+The first follow-up tests imperfect geometry. Four fixtures each received a box
 expanded 20% around its center and one shifted horizontally 20% of its width.
 All eight masks retained fixture association, but two private-restroom shifts
 also absorbed substantial wall geometry. This misses the proposed pilot bar of
@@ -148,6 +148,6 @@ Points alone clipped the patient and staff toilets and fell just outside the
 15-pixel tolerance on the private toilet. Counts may still be usable with those
 partial masks; solid equipment footprints need a stricter review.
 
-The single pipe-exclusion probe is in `plumbing-pipe-case.json`. Every council
+The single pipe-exclusion probe is in `plumbing-pipe-case.json`. Every follow-up
 experiment keeps original colored inputs, object IDs, raw responses, and failed
 outcomes. The recommended two-person review-time comparison has not been run.

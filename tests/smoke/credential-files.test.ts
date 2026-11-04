@@ -1,4 +1,4 @@
-import { offeredReviewModels, reviewModels } from "#lib/review/models.ts";
+import { offeredReviewModels, reviewModels, reviewProviderRoutes } from "#lib/review/models.ts";
 import { expect, test } from "bun:test";
 import { Redacted } from "effect";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   CredentialError,
+  parseProviderConfiguration,
   readProviderConfiguration,
   readProviderConfigurations,
 } from "../../desktop/credential-files.ts";
@@ -116,6 +117,32 @@ test("connecting OpenCode Go makes it the only chat route on offer", () => {
   expect(new Set(offered(["opencode-go", "openai-compatible"]))).toEqual(
     new Set(["opencode-go", "openai-compatible"]),
   );
+});
+
+test("menus offer no retired OpenCode Go model, and a saved connection naming one still opens", () => {
+  const retired = ["mimo-v2.6-flash", "glm-5.3-flash", "gpt-6-luna"];
+
+  const offered = (connected: ReadonlyArray<string>) =>
+    offeredReviewModels(
+      reviewModels.map((model) => ({ ...model, available: connected.includes(model.provider) })),
+    ).map((model) => model.id);
+
+  for (const connected of [["opencode-go"], ["meta"], []]) {
+    expect(offered(connected)).toContain("muse-spark-1.3-contributor");
+    expect(offered(connected).filter((id) => retired.includes(id))).toEqual([]);
+  }
+
+  for (const model of retired)
+    expect(
+      parseProviderConfiguration(
+        JSON.stringify({
+          provider: "opencode-go",
+          apiKey: "saved-key",
+          baseUrl: reviewProviderRoutes["opencode-go"].endpoint,
+          model,
+        }),
+      ).model,
+    ).toBe(model);
 });
 
 test("accepted trailing-slash routes are saved in the canonical form cloud dispatch requires", async () => {

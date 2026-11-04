@@ -49,7 +49,7 @@ metadata and is excluded from model-visible tool results.
 The work-area annotation write completed at 22:51:25 UTC, before the run started;
 an evaluator read at 22:51:45 also precedes the blind response at 22:51:54.
 Formatting at 22:52:13 replaced the JSON inode, so its later filesystem birth
-time is not its first-write time. The parent execution records and a controlled
+time is not its first-write time. The execution records and a controlled
 formatter reproduction are retained in `.local/sam/iteration-4/workarea-parent-chronology.json`
 and `formatter-inode-evidence.json`. Annotation timing is explicit in the fixture;
 the evaluator labels absent timing as unknown rather than inferring it.
@@ -77,8 +77,7 @@ the evaluator labels absent timing as unknown rather than inferring it.
 The hosted contract uses ordinary per-object box/point guidance. This does not
 implement SAM's research image-exemplar mode that discovers every similar object.
 See Meta's [tool calling documentation](https://dev.meta.ai/docs/tool-calling)
-and [Responses protocol](https://dev.meta.ai/docs/protocols/responses). These were
-checked through Executor Exa; Firecrawl could not scrape the developer site.
+and [Responses protocol](https://dev.meta.ai/docs/protocols/responses).
 Only `tool_choice: "auto"` is supported by the checked contract. The adapter
 uses `store: false` with `include: ["reasoning.encrypted_content"]`, replaying
 encrypted reasoning, prior calls/results and images on subsequent turns. A
@@ -128,7 +127,7 @@ The earlier frozen-center evaluation against the hash-linked
 extras / zero misses; exam two hits / nine extras / two misses; fresh lighting
 10 hits / zero extras / zero misses. Procedure annotations are a post-run visual
 audit; exam and lighting expectations were recorded before their SAM runs. These
-are implementation-agent annotations independently audited by Sol, not a human
+are annotations by an AI agent, checked by a second model, not a human
 benchmark or an estimate of performance on unseen drawings.
 
 The initial adaptive attempt stopped after its blind observer used all 7,000

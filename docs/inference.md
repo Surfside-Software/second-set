@@ -10,19 +10,18 @@ OPENCODE_API_KEY=
 
 Bun loads the root `.env` when `bun run dev` starts. Restart after changing it.
 Configured providers are available together in the Model menu, except that a Go
-key makes Go the only chat choice; see [OpenCode Go](#opencode-go). Keep each
+key limits chat to Go and any saved custom endpoint; see [OpenCode Go](#opencode-go). Keep each
 key with its own provider and endpoint; keys never enter renderer code or logs.
 The repository ignores `.env` and `.env.*` except the blank `.env.example`.
 
 ## Models and routes
 
-| Model                                            | Provider    | Canonical endpoint                    | Credential         |
-| ------------------------------------------------ | ----------- | ------------------------------------- | ------------------ |
-| `muse-spark-1.3`                                 | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
-| `muse-wonder-1.0`                                | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
-| `meta-models/muse-spark-open-1026`               | Baseten     | `https://inference.baseten.co/v1`     | `BASETEN_API_KEY`  |
-| `muse-spark-1.3-contributor`                     | OpenCode Go | `https://opencode.ai/inference/go/v1` | `OPENCODE_API_KEY` |
-| `mimo-v2.6-flash`, `glm-5.3-flash`, `gpt-6-luna` | OpenCode Go | `https://opencode.ai/inference/go/v1` | `OPENCODE_API_KEY` |
+| Model                              | Provider    | Canonical endpoint                    | Credential         |
+| ---------------------------------- | ----------- | ------------------------------------- | ------------------ |
+| `muse-spark-1.3`                   | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
+| `muse-wonder-1.0`                  | Meta        | `https://api.meta.ai/v1`              | `MODEL_API_KEY`    |
+| `meta-models/muse-spark-open-1026` | Baseten     | `https://inference.baseten.co/v1`     | `BASETEN_API_KEY`  |
+| `muse-spark-1.3-contributor`       | OpenCode Go | `https://opencode.ai/inference/go/v1` | `OPENCODE_API_KEY` |
 
 ## OpenCode Go
 
@@ -33,19 +32,19 @@ Meta's Muse Spark 1.3 otherwise. Go is a subscription with monthly dollar allowa
 **Muse Spark Contributor trains on your drawings.** Go sells it at a discount in exchange for using
 prompts and completions to train Meta's models, and it is not zero-retention. An owner must turn on
 **Allow paid endpoints that train on request data** in the workspace's Settings > Privacy, or Go
-refuses it. The other three Go models here do not train: MiMo-V2.6-Flash and GLM-5.3-Flash keep
-nothing, and GPT-6 Luna keeps abuse logs for 30 days. They have not been tried on drawings.
+refuses it.
 
 - **Traffic.** Go is designed for coding agents and monitors traffic for abuse. Parallel drawing
   reviews are not typical coding traffic. Moke identifies itself as `moke/<version>`, sends a session
-  ID per conversation and runs 3 sheet reviewers at a time. See [OpenCode Go](#opencode-go).
+  ID per conversation and runs 3 sheet reviewers at a time. See [OpenCode Go](#opencode-go-1).
 - **Images.** Go has no Files API, so images travel inline. Reviews keep the eight-image window Baseten
   uses, so a reviewer inspects a batch before requesting the next.
 - **The only chat route once connected.** With a Go key present, the model menu and the Initial Review
-  button offer only Go models, so a review cannot spend Meta or Baseten credits by accident.
+  button offer only Muse Spark 1.3 Contributor and any saved custom endpoint, so a review cannot
+  spend Meta or Baseten credits by accident.
 - **What stays on Meta.** SAM runs only on Meta, so object counting needs `MODEL_API_KEY`. Selected
   count checks run on Meta or Baseten, because their table admits only those two; a check started while
-  a Go model is selected uses that default route.
+  the Go model is selected uses that default route.
 - **Search.** There is no built-in web search; reviewers use `search_sources` and `read_source`.
 
 Keep the `-1026` suffix for the supplied Baseten hackathon key. Public examples
@@ -57,7 +56,7 @@ key is configured, packet reviews use it with either chat provider; see
 `MOKE_PROVIDER` chooses the preferred startup provider, with `meta` as the
 default. Each review saves the model selected in the workbench. Changing the menu
 does not change an existing run. When Go is connected, a follow-up whose earlier
-model the menu no longer offers moves to the first Go model. The
+model the menu no longer offers moves to the first model it does. The
 other endpoint and model variables in `.env.example` support experiment scripts;
 they do not override the desktop's canonical routes.
 
@@ -184,7 +183,7 @@ least 90% of prompt tokens served from cache (`cacheRead / (input + cacheRead)`)
   one `x-session-affinity` value was never reused by requests with a different value,
   so each extra key would pay the full prefix again. Twelve parallel 4-turn
   conversations on one key had 91.7% of prompt tokens cached, against 88.7% with no
-  header. See [Baseten rate limits and caching](research/baseten-rate-limits.md).
+  header. See [Baseten rate limits and caching](validation/baseten-rate-limits.md).
 - **Shared fields first.** A sheet reviewer's opening message lists the request,
   scope, inventory, project configuration and sources before its own sheet, so
   peers reuse the same prefix.
@@ -213,17 +212,13 @@ share, and **Copy review diagnostics** includes it for every finished review.
 
 Review settings → OpenCode Go connects an [OpenCode Go](https://opencode.ai/docs/go/)
 subscription, so reviews need not spend Meta or Baseten credits. Paste a key from
-the Console harnesses page (`oc_sk_...`) and pick the model to test it with. In
-development, `OPENCODE_API_KEY` in `.env` does the same; Pi and OpenCode read the
-same variable. The model menu then offers these Go models, which read images and
-call tools:
+the Console harnesses page (`oc_sk_...`). In development, `OPENCODE_API_KEY` in
+`.env` does the same; Pi and OpenCode read the same variable. The model menu then
+offers `muse-spark-1.3-contributor`, which reads images and calls tools over Responses.
 
-| Review model                 | OpenCode Go wire format |
-| ---------------------------- | ----------------------- |
-| `glm-5.3-flash`              | Chat Completions        |
-| `muse-spark-1.3-contributor` | Responses               |
-| `mimo-v2.6-flash`            | Chat Completions        |
-| `gpt-6-luna`                 | Responses               |
+Moke offers only Meta's model through Go. Earlier reviews on MiMo-V2.6-Flash,
+GLM-5.3-Flash or GPT-6 Luna stay readable, and a saved connection that names one of
+them still opens, but no menu offers them for new reviews.
 
 Requests go through Pi's built-in `opencode-go` provider, which OpenCode lists as
 a supported harness. Its catalog picks each model's wire format, reasoning field
@@ -266,10 +261,10 @@ least typical part of this traffic. Model images are at most 2048 pixels on thei
 long edge; OpenCode's catalog suggests 2000, so a model that receives them
 resized could place an image box up to about 2% off.
 
-Some models need Console settings first.
 Muse Spark 1.3 Contributor needs "Allow paid endpoints that train on request
 data" under Settings › Privacy. Meta may then train on those reviews' drawings and
-text. **Test and save** sends one tool-calling Chat Completions request (OpenCode
+text. Without that setting Go refuses the model; turn it on, or remove the Go
+connection to return to Meta's and Baseten's models. **Test and save** sends one tool-calling Chat Completions request (OpenCode
 translates the format for every model) and reports a refused key, a refused
 model or a usage limit. The key is stored and removed like a custom endpoint's,
 in `opencode-go-credential.json`. Count checks stay on Meta and Baseten, and SAM
@@ -279,7 +274,7 @@ in `opencode-go-credential.json`. Count checks stay on Meta and Baseten, and SAM
 
 Review settings → Model connections chooses the model the Initial Review button
 and new conversations use. Until it is set, a connected OpenCode Go key selects
-Muse Spark 1.3 Contributor, then a connected custom endpoint, then Muse Spark 1.3.
+Muse Spark 1.3 Contributor, then Muse Spark 1.3, then a connected custom endpoint.
 The choice is stored
 in the window's local storage and holds no credential. A review records the model
 it started with. Initial Review runs on this computer whenever its model's key

@@ -1,6 +1,6 @@
 {
   "name": "moke-meta-hackathon",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "A desktop workbench for evidence-backed engineering drawing review",
   "homepage": "https://github.com/sc-frederick/moke-meta-hackathon",

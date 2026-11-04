@@ -11,8 +11,8 @@ fire alarm, sprinklers and related coordination inputs.
 
 Two source-only agent audits saved electrical/alarm and structural observations
 at 23:15:00 and 23:15:27 UTC on 2026-10-27, before those crops' first inference.
-The parent separately recorded civil observations before its probes. These are
-implementation-agent observations, not a human benchmark. Annotation points,
+Civil observations were recorded separately before the civil probes. These are
+AI agent observations, not a human benchmark. Annotation points,
 quantities and timing are retained in `experiments/sam/expanded/expectations.json`.
 Inference used original source images; it did not read that evaluation file.
 
@@ -101,10 +101,10 @@ calls. Historical scores for the 15 branches remain in `captured-locations.json`
 and `expected-metrics.json`; the test suite no longer reruns the scoring helper.
 
 Source review methods: Moke's
-[electrical](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/electrical.md),
-[structural](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/structural.md),
-[civil](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/civil.md),
-[fire alarm](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/fire_alarm.md)
-and [sprinkler](https://github.com/sc-frederick/skills/blob/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review/references/disciplines/fire_sprinkler.md)
+[electrical](../../backend/review/prompts/assets/disciplines/electrical.md),
+[structural](../../backend/review/prompts/assets/disciplines/structural.md),
+[civil](../../backend/review/prompts/assets/disciplines/civil.md),
+[fire alarm](../../backend/review/prompts/assets/disciplines/fire_alarm.md)
+and [sprinkler](../../backend/review/prompts/assets/disciplines/fire_sprinkler.md)
 instructions. This study tests selected supporting workflows; it is not a full
 permit review or a claim of complete sheet coverage.

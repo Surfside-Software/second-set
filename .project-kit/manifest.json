@@ -26,13 +26,11 @@
   },
   "design": {
     "status": "production-workbench",
-    "selection": "design/selection.json",
-    "surface": "design/DESIGN.md"
+    "surface": "docs/design.md"
   },
   "reviewRuntime": {
     "status": "implemented-local-and-cloud-review",
     "documentation": "docs/review-runtime.md",
-    "comparisonDocumentation": "docs/research/agent-harness-comparison.md",
     "harness": "@earendil-works/pi-durable",
     "applicationRuntime": "bun",
     "localExecutionDefault": true,
@@ -46,7 +44,7 @@
         "automaticReturn": "live-transport-and-recovery-with-uncertain-model-outcome",
         "drawingSetReview": "recorded-provider-and-real-package-roundtrip"
       },
-      "validationDocumentation": "docs/research/cloud-validation.md",
+      "validationDocumentation": "docs/validation/cloud-validation.md",
       "documentation": "docs/cloud-reviews.md",
       "sdk": "modal@0.11.1",
       "language": "TypeScript on Bun",
@@ -76,7 +74,7 @@
       "https://modal.com/docs/guide/sandbox-snapshots",
       "https://modal.com/docs/guide/volumes"
     ],
-    "implementationDocumentation": "docs/research/pi-runtime.md",
+    "implementationDocumentation": "docs/architecture/pi-runtime.md",
     "versions": {
       "pi": "1.4.0",
       "pi-ai": "1.4.0",
@@ -86,8 +84,8 @@
     "heroCase": "docs/fixtures/hero-case.md",
     "primaryDemoPlatform": "linux-x64",
     "promptInstructions": {
-      "version": "moke-packet-review-v8",
-      "source": "https://github.com/sc-frederick/skills/tree/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review",
+      "version": "moke-packet-review-v10",
+      "source": "Author's private review-instruction repository at revision 8a0e2648738018631eaa6d24ee0b6ebaa239afb1",
       "provenance": "backend/review/prompts/provenance.json",
       "scope": "Whole supplied packet or selected discipline with explicit coverage, governing sources, findings and offline HTML report",
       "legacyCountVersion": "moke-selected-coordination-v2",
@@ -95,7 +93,6 @@
       "findingStyle": {
         "instructions": "backend/review/prompts/finding-style.md",
         "contract": "src/lib/review/finding-summary.ts",
-        "examples": "docs/research/meta-vs-sonnet-unslop-findings.md",
         "purpose": "Validated short display summaries with complete technical findings retained"
       }
     },
@@ -113,14 +110,13 @@
       ]
     },
     "firmMemory": {
-      "decision": "docs/firm-memory-plan.md",
       "decidedOn": "2026-10-30",
       "implemented": ["finding decisions", "firm checklist", "jurisdiction leads"],
       "deferred": "firm detail library, visual precedent retrieval, learned playbook",
       "migration": "migrations/0011_firm_checklist.sql"
     },
     "codeIndex": {
-      "version": "florida-code-index-v2",
+      "version": "florida-code-index-v3",
       "module": "backend/review/code-index/code-index.ts",
       "provenance": "backend/review/code-index/provenance.json",
       "tool": "search_code",
@@ -138,9 +134,6 @@
     }
   },
   "hackathon": {
-    "bonusDocumentation": "docs/hackathon-bonuses.md",
-    "primaryBonusTarget": "Best Agentic Use-Case",
-    "secondaryBonusTarget": "Best Build on Meta Open Weight Models",
     "sourcesCheckedOn": "2026-10-27",
     "sources": [
       "https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details",
@@ -150,19 +143,19 @@
   "segmentationExperiment": {
     "entrypoint": "scripts/test-sam.ts",
     "cases": "experiments/sam/cases.json",
-    "documentation": "docs/segmentation-test.md",
+    "documentation": "docs/experiments/segmentation-test.md",
     "model": "sam-3.1",
     "parser": "@meta-sam/parser@0.1.0",
     "pdfRenderer": "Poppler pdftoppm, external test dependency",
     "fixtureManifest": "Moke-Hackathon-Drawings/drawing-manifest.json",
     "artifactDirectory": ".local/sam",
     "plumbingStudy": {
-      "documentation": "docs/plumbing-segmentation.md",
+      "documentation": "docs/experiments/plumbing-segmentation.md",
       "cropRecipe": "experiments/sam/plumbing-crops.json",
       "candidateCases": "experiments/sam/plumbing-cases.json",
       "refinementCases": "experiments/sam/plumbing-refinement-cases.json",
       "reconciliationEntrypoint": "scripts/reconcile-fixtures.ts",
-      "mokeInstructions": "https://github.com/sc-frederick/skills/tree/8a0e2648738018631eaa6d24ee0b6ebaa239afb1/moke-review"
+      "mokeInstructions": "backend/review/prompts/assets"
     },
     "sourcesCheckedOn": "2026-10-27",
     "sources": [
@@ -171,12 +164,8 @@
       "https://dev.meta.ai/docs/sam/client-libraries"
     ],
     "drawingExpansion": {
-      "documentation": "docs/sam-drawing-expansion.md",
+      "documentation": "docs/experiments/sam-drawing-expansion.md",
       "recipes": "experiments/sam/symbols",
-      "researchTools": [
-        "Executor Exa",
-        "Executor Firecrawl"
-      ],
       "sourcesCheckedOn": "2026-10-27",
       "sources": [
         "https://arxiv.org/html/2511.16719v2",
@@ -189,7 +178,7 @@
     },
     "adaptiveReview": {
       "entrypoint": "scripts/test-review-agent.ts",
-      "documentation": "docs/adaptive-meta-review.md",
+      "documentation": "docs/experiments/adaptive-meta-review.md",
       "cases": "experiments/sam/adaptive-cases.json",
       "models": [
         "muse-spark-1.3",
@@ -205,7 +194,7 @@
       ]
     },
     "additionalDisciplineSets": {
-      "documentation": "docs/sam-expanded-sets.md",
+      "documentation": "docs/experiments/sam-expanded-sets.md",
       "recipes": "experiments/sam/expanded",
       "fixtureManifest": "Moke-Hackathon-Drawings/expanded/drawing-manifest.json",
       "artifactDirectory": ".local/sam/iteration-5",
@@ -230,7 +219,7 @@
     "hackathonOverride": {
       "provider": "baseten",
       "model": "meta-models/muse-spark-open-1026",
-      "source": "User-provided Baseten hackathon onboarding screenshot, image.png"
+      "source": "Baseten hackathon onboarding"
     }
   }
 }

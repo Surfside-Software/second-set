@@ -1,9 +1,8 @@
 # Moke review instructions
 
-`assets/` contains unmodified files from `sc-frederick/skills/moke-review` at
-revision `8a0e2648738018631eaa6d24ee0b6ebaa239afb1`. `provenance.json` records
-the upstream paths and SHA-256 hashes. Read the original skill repository to
-update them; this application does not edit that source repository.
+`assets/` contains unmodified files from the author's private review-instruction
+repository at revision `8a0e2648738018631eaa6d24ee0b6ebaa239afb1`. `provenance.json` records
+the upstream paths and SHA-256 hashes. This application does not edit that source.
 
 `review-prompt.ts` imports the files with Bun's text loader, embedding them in the
 compiled backend. Packet review version `moke-packet-review-v10` supplies the full
@@ -14,10 +13,9 @@ instruction revision.
 
 `finding-style.md` is application-owned guidance, embedded in every packet
 reviewer's instructions for both Meta and Baseten, including coordinator and
-sheet roles. It uses the short Sonnet 5.5 rewrites in
-`docs/research/meta-vs-sonnet-unslop-findings.md`, rows 28, 36 and 41, as wording
-examples. The calculation example expands the circuit abbreviation; a fourth
-example illustrates an uncertain reading. The comparison is a style reference,
+sheet roles. Its wording examples are short Sonnet 5.5 rewrites of earlier Meta
+findings. The calculation example expands the circuit abbreviation; a fourth
+example illustrates an uncertain reading. They are a style reference,
 not a technical validation of those earlier findings.
 
 The authoritative contract is `src/lib/review/finding-summary.ts`. A display
@@ -103,7 +101,7 @@ own project/conversation root. Both paths preserve reviewer acceptance of
 engineering count inputs; general model findings and prose do not become
 accepted count facts.
 
-Audit 3 adds a page-by-page contradiction search before missing-content claims.
+The method adds a page-by-page contradiction search before missing-content claims.
 The tool boundary requires current-run inspection of every source page, targeted
 inspection at the claimed location, an explicit source search and permit-stage
 basis. This is an evidence gate, not proof that model interpretation is correct;
@@ -126,7 +124,7 @@ coordinator's guidance describes setup's sheet and request limits, and
 
 Packet review `moke-packet-review-v8` leaves quotes empty for unread ICC and Florida rule text, and notes empty except for project-specific facts. The host records the access limit required by REVIEW_METHOD.md.
 
-Packet review `moke-packet-review-v9` tells every reviewer to log a citation when a finding rests on a code requirement or a sheet prints one, as REVIEW_METHOD.md requires. A real 46-sheet review on v8 recorded 3 citations in 698 calls, none from a sheet reviewer, because the sheet role never mentioned them. Search is now for when the section is unknown, since naming the document, edition and section gets the same link. See [the research note](../../../docs/research/citation-links-real-set.md).
+Packet review `moke-packet-review-v9` tells every reviewer to log a citation when a finding rests on a code requirement or a sheet prints one, as REVIEW_METHOD.md requires. A real 46-sheet review on v8 recorded 3 citations in 698 calls, none from a sheet reviewer, because the sheet role never mentioned them. Search is now for when the section is unknown, since naming the document, edition and section gets the same link. See [the research note](../../../docs/validation/citation-links-real-set.md).
 
 Packet review `moke-packet-review-v10` has models mark finding locations and crops with
 `imageBox`, a pixel box in an image they received, which the host converts to PDF points.

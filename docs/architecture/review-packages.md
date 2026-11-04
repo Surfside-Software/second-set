@@ -1,6 +1,6 @@
 # Review package export, restore, and restart recovery
 
-Status: local behavior tested on Linux x64 through WSL2. This is the whole-application package used before a parent wires it into the desktop shell. It is not a single-project subset, and it does not start Pi or dispatch a model call.
+Status: local behavior tested on Linux x64 through WSL2. This is the whole-application package behind the desktop's export and restore. It is not a single-project subset, and it does not start Pi or dispatch a model call.
 
 Primary demo target: Linux x64. The writer uses same-filesystem rename, directory fsync, and `O_NOFOLLOW`. Those were not re-checked on Windows or macOS.
 
@@ -79,7 +79,7 @@ A successful restore writes phase `complete` and then clears the journal. If tha
 
 `interruptAfter` of `prepared` or `first-replaced` is a test seam. Production callers omit it.
 
-## Parent integration
+## Application integration
 
 `PackagesConfig` is the whole dependency set:
 
@@ -105,20 +105,18 @@ Suggested export and restore order:
 
 `hasReviewBearingRows(filename)` opens one short read-only connection and does not take the semaphore. Call it while the semaphore is already held, before the legacy database-file restore. If it returns true, refuse that database-only restore. This package module does not replace that path.
 
-This module does not edit `application.ts`, the RPC contracts, or migrations. A second runtime is not created.
+A second runtime is not created.
 
 ## Limitations
 
 - Schema drift in `review_execution_runs`, `review_execution_attempts`, or `review_execution_events` fails closed. The column list is the 0003 list, not a guessed superset.
 - There is no remote-owner column. Foreign means a different `owner_generation`, or no generation was supplied.
-- `paused` remains resumable by the current execution service until the parent blocks that call.
 - Database-only packages are refused here even when they contain no review rows.
 - Orphan artifacts and journals are not deleted.
 - The retained pre-restore directories are not pruned.
 - Windows and macOS package behavior was not run.
-- Full `bun run verify`, packaged E2E, and the desktop shell wiring are left to the parent.
 
-## Council recovery corrections
+## Recovery corrections
 
 A replacement journal now blocks public review mutations, note operations, and
 package/database maintenance until startup recovery completes. The barrier is

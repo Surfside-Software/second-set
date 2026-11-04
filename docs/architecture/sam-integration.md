@@ -2,16 +2,16 @@
 
 `backend/inference/segmentation.ts` provides `ReviewSegmentation.layer(config)`.
 Its public operations are `segment(fence, request)` and `list(projectId)`. Both
-return Effect values with `ExecutionError`; the parent owns their ManagedRuntime
+return Effect values with `ExecutionError`; the application owns their ManagedRuntime
 and cancellation. No background runtime, fallback provider, automatic retry,
 accepted fact, finding mutation, or new artifact directory is introduced.
 
-## Parent integration
+## Application integration
 
 The configuration is:
 
 - `dataDirectory`: the directory containing migrated `app.sqlite`.
-- `queries`: the parent's shared `Semaphore.Semaphore` for SQL and recovery.
+- `queries`: the application's shared `Semaphore.Semaphore` for SQL and recovery.
 - `owner`: the held `DataDirectoryOwnership.Service` with its generation.
 - `apiKey`: `Redacted.Redacted<string>`, unwrapped only for Authorization.
 - `loadArtifact(projectId, artifactId): Effect<Artifact, ExecutionError>`.
@@ -39,7 +39,7 @@ allowed rendered `artifactId` and `prompt`, a discriminated union:
 Points are limited to 32, coordinates to 0–2048, and the official prompt builder
 checks actual image bounds and nonempty boxes. The supported subset deliberately
 omits the experiment's multi-object prompt. The model chooses a rendered source
-and guidance; the parent combines the result with the same source image for
+and guidance; the application combines the result with the same source image for
 subsequent model interpretation. SAM returns proposed instances and masks only.
 An empty completed result is a zero-match proposal, never a coverage guarantee
 or a deterministic no-issue finding.
@@ -74,7 +74,7 @@ than encoding the immutable source again.
 An existing uncertain intent, including `sent=0`, never dispatches on retry or
 reopen. Failures after admission persistently mark the run uncertain and append
 an execution event, retaining a cancelled state if cancellation already won.
-The parent must not convert an uncertain SAM error into ordinary model progress.
+The application must not convert an uncertain SAM error into ordinary model progress.
 Malformed provider output retains the raw HTTP body and any successfully parsed
 response ID in the attempt. SQL connections are scoped to short transactions
 under `queries`; each reads back foreign key enforcement and FULL synchronous
@@ -94,9 +94,9 @@ finishes; the service does not detach a callback or resend to recover it.
 The full review package already contains `app.sqlite`, including these private
 requests and raw responses. No additional export artifact type is needed.
 
-### Required parent SQL changes
+### SQL changes outside the adapter
 
-The parent owns these changes outside this adapter's assigned files:
+The application owns these changes:
 
 1. `ExecutionStore.status`: add the following count to the existing unresolved
    execution-attempt count, for the same run:
@@ -126,7 +126,7 @@ The parent owns these changes outside this adapter's assigned files:
 3. Completion and driver error handling must preserve an uncertain run or an
    existing cancellation after a SAM failure, including a tool error the model
    would otherwise treat as recoverable. Shared `admitted_calls` already includes
-   SAM; do not add its count a second time. The parent also owns maintenance
+   SAM; do not add its count a second time. The application also owns maintenance
    admission while an operation or unresolved intent exists.
 
 ## Geometry and parser evidence
@@ -161,5 +161,4 @@ malformed responses; paused/cancelled/old-owner receipt replay; uncertain intent
 reopen; correction/cancellation/revision/owner changes during inference; project,
 finding, source, journal and owner admission; shared and SAM-specific call limits;
 pre-send revalidation; concurrent delivery; and Effect abort during fetch headers
-and body consumption. No paid request runs in these tests. The parent owns live
-SAM validation, final integration, full verification, council, and publishing.
+and body consumption. No paid request runs in these tests.

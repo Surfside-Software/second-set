@@ -49,6 +49,15 @@ Regulatory findings need applicable governing sources; unavailable sources and
 unknown editions remain Needs input. SAM geometry does not establish physical
 dimensions.
 
+## Install
+
+Download the installer for Windows, macOS (Apple silicon) or Linux from
+[GitHub Releases](https://github.com/sc-frederick/moke-meta-hackathon/releases/latest).
+The installers are unsigned. macOS can block the first launch; allow it under
+System Settings › Privacy & Security › Open Anyway. On Linux, make the AppImage
+executable or install the `.deb`. Model reviews need a provider key; see
+[inference setup](docs/inference.md).
+
 ## How it works
 
 | Process            | Owns                                                                                           |
@@ -69,8 +78,8 @@ optional call budget. The default packet review has no application call ceiling;
 long conversations use Pi compaction. Complete packages export and restore the
 database, original PDFs, rendered evidence and execution journals together.
 
-Projects run locally, but inference uses hosted Meta or Baseten APIs and sends
-selected drawing evidence to the provider. **Push to cloud** transfers the complete
+Projects run locally, but inference uses hosted Meta, Baseten or OpenCode Go APIs,
+or a custom endpoint you add, and sends selected drawing evidence to that provider. **Push to cloud** transfers the complete
 workspace for a new bounded review, streams progress, and automatically syncs results with local
 ownership checks. See [cloud setup and limits](docs/cloud-reviews.md),
 [the runtime decision](docs/review-runtime.md), and
@@ -88,7 +97,9 @@ bun run dev
 You can import drawings and use manual count checks without provider keys.
 For model review, copy [.env.example](.env.example) to `.env` and set
 `OPENCODE_API_KEY`, `MODEL_API_KEY` or `BASETEN_API_KEY`. With a Go key, reviews run
-on OpenCode Go, and Meta is used only for SAM and count checks. Otherwise choose
+on Muse Spark 1.3 Contributor through OpenCode Go, and Meta's API is used only for
+SAM and count checks. Contributor trains on your drawings, and Go refuses it until
+a workspace owner allows that. Otherwise choose
 Muse Spark, Muse Wonder or Baseten Muse Spark Open in the app.
 Restart after changing credentials. See [inference setup](docs/inference.md) for
 packaged-app credentials, model capabilities and optional review budgets.
@@ -125,12 +136,11 @@ migrations/   Immutable SQLite migrations
 tests/       Smoke tests, Electron end-to-end flows, and synthetic fixtures
 scripts/      Development, build, packaged checks, and opt-in model experiments
 docs/        Setup, architecture, screenshots, and validation evidence
-design/       Forge design selection, adaptation notes, and icon license
 experiments/  SAM recipes, captured proposals, and research evidence
 ```
 
 The [documentation index](docs/README.md) separates setup and architecture from
-hackathon research and drawing experiments. The [workbench design notes](design/DESIGN.md)
+validation records and drawing experiments. The [workbench design notes](docs/design.md)
 record the Forge design system, its adaptations, and third-party asset attribution.
 
 ## Hackathon provenance
@@ -138,11 +148,16 @@ record the Forge design system, its adaptations, and third-party asset attributi
 The Moke name and review prompts predate this entry. This repository implements
 a fresh application from the project-kit desktop starter, with drawing evidence,
 corrections, and revision tracking built for the hackathon. It does not reuse the
-earlier Moke application. Prompt and dependency provenance live in
+earlier Moke application. Pi Durable provides agent execution as an MIT-licensed
+dependency; the new work is the drawing-review application, evidence handling,
+corrections, revision behavior and portable review execution. Prompt and
+dependency provenance live in
 [the project manifest](.project-kit/manifest.json) and
 [the review prompt sources](backend/review/prompts/README.md).
 
 ## License
 
-Moke is released under the [MIT License](LICENSE). Vendored code and design
-assets keep their own licenses, which sit beside them in the repository.
+Moke is released under the [MIT License](LICENSE). Vendored code and third-party
+assets keep their own licenses. The styles in `src/lib/forge.css` are adapted from
+Uiverse Design's Forge and remain under its license; see
+[the design notes](docs/design.md).

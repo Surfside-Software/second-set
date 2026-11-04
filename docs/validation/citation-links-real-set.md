@@ -112,5 +112,3 @@ want to correct the reference itself.
   request and receipts do not keep the field. The console shows the real figure.
 - **A full set on OpenCode Go.** Only six sheets have run there. At run B's token counts a 46-sheet
   review would cost about $1.26 at Go's rates, but tokens vary from run to run.
-- **OpenCode Go's other models.** MiMo-V2.6-Flash, GLM-5.3-Flash and GPT-6 Luna are offered and have
-  not been tried on drawings.

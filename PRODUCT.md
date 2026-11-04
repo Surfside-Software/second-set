@@ -37,8 +37,8 @@ are known, and its wording stays unconfirmed until the engineer opens the link.
 Its stored status remains unverified.
 Calculations retain formulas, input values and declared units; units are not
 automatically reconciled. Model findings are review results, not professional
-approval. Sequential discipline passes are supported; the app does not claim to
-launch parallel reviewers.
+approval. A packet with four or more sheets runs as a coordinator plus one
+reviewer per sheet.
 
 The conversation presents a short review summary with compact findings. Opening
 a finding shows readable details and source evidence in the central canvas.
@@ -96,7 +96,8 @@ Until a revised set arrives, an **Initial Review** button sits above the compose
 One click posts the preset first-submittal request (`initial-review-v1`, in
 `src/lib/review/initial-review.ts`) as the reviewer's message and starts a review
 of every sheet in the first set, with all disciplines and the four passes, on
-Muse Spark 1.3. It runs in the cloud when cloud review is set up and can take the
+the reviewer's preferred model. The default is Muse Spark 1.3, or Muse Spark 1.3
+Contributor when OpenCode Go is connected. It runs in the cloud when cloud review is set up and can take the
 workspace, and on this computer otherwise; one line beside the button says which.
 The review records the preset's identity. The button is disabled while a review
 runs in the conversation and can run again during the initial phase, for example
@@ -105,11 +106,9 @@ span several PDFs: the phase ends when a PDF is linked to earlier sheets through
 revision correspondence, or when a PDF is imported after the project's first
 drawing-set review started. After that, reviewers use typed requests.
 
-The original desktop UI study established chat as the main work surface.
-Projects group their conversations in navigation, and selecting a conversation
-updates the project and conversation breadcrumb. Closing the source pane restores
-the chat's width. The user referenced T3 Code's information menu and the existing
-result-to-evidence behavior in the aec_pgrep codebase.
+Chat is the main work surface. Projects group their conversations in navigation,
+and selecting a conversation updates the project and conversation breadcrumb.
+Closing the source pane restores the chat's width.
 
 The application uses persisted projects, conversations, review requests, findings
 and source evidence. Sheet confirmation and revision correspondence remain
@@ -117,8 +116,6 @@ explicit for count checks.
 
 ## Brand Commitments
 
-The user named OpenCode, T3 Code and Cloudflare OS as visual references, with
-particular emphasis on T3 Code's desktop polish. The current workbench adapts the
-Forge design system selected from the Uiverse catalog: a dark, industrial
-interface with hairline panels, one ember accent, compact navigation and
-evidence beside the conversation.
+The workbench adapts the Forge design system: a dark, industrial interface with
+hairline panels, one ember accent, compact navigation and evidence beside the
+conversation. See [the design notes](docs/design.md).
