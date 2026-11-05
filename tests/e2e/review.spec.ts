@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { electron } from "./isolated-electron.ts";
 import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Schema } from "effect";
 import { ResponseReceipt } from "../../backend/inference/response.ts";
@@ -93,9 +93,8 @@ test("desktop proves supported, corrected, unchanged-control, revision, media, a
       }
 
       await page.evaluate(() => document.fonts.ready);
-      await mkdir(resolve("docs/screenshots"), { recursive: true });
       await page.screenshot({
-        path: resolve("docs/screenshots", `${name}.png`),
+        path: test.info().outputPath(`${name}.png`),
         animations: "disabled",
       });
     };
