@@ -17,7 +17,7 @@ by `svelte-check --tsgo` for Effect diagnostics.
 | `bun run verify`           | Run checks, smoke tests, builds, and Electron flows                      |
 | `bun run package:desktop`  | Build installers without publishing                                      |
 | `bun run test:packaged`    | Run the desktop flows against exactly one packaged executable            |
-| `bun run test:screenshots` | Refresh the screenshots linked from the README                           |
+| `bun run test:screenshots` | Capture the offline Electron fixture in `test-results/`                  |
 
 Local Electron tests run only on Linux, through `scripts/isolated-desktop.ts`.
 It never uses an existing desktop. It needs unprivileged user namespaces for
@@ -67,8 +67,8 @@ tests use the upstream runner and are not part of this repository's commands.
 
 Run one smoke suite with `bun test ./tests/smoke/review.test.ts`. Electron tests
 need `bun run build` first. The Playwright `desktop` project runs the regular
-suite; the `screenshots` project repeats the review flow and writes documentation
-images. The packaged command requires exactly one application under `release/`,
+suite; the `screenshots` project repeats the review flow and writes offline fixture
+images to test output. The packaged command requires exactly one application under `release/`,
 so remove obsolete build output before repackaging.
 
 Live checks are opt-in and may spend API credits. See [inference setup](inference.md)
@@ -76,7 +76,13 @@ and the [recorded validation](validation/core-validation.md). A passing offline
 suite establishes application behavior with controlled responses, not current
 provider availability or model accuracy.
 
-## Screenshot refresh
+## README screenshots
+
+The README uses frames from the narrated demo. See
+[screenshot sources](screenshots/README.md) for the source video, timestamps, and
+extraction commands. These images show actual model reviews and saved decisions.
+
+## Offline fixture captures
 
 ```sh
 bun run build
@@ -88,15 +94,13 @@ The screenshot run uses the same private Linux display runner as `test:e2e`.
 The Electron flow creates its own two-sheet PDFs and browser profile in a
 temporary data directory.
 It captures the real workbench at 1440 × 1000, a corrected finding, and a
-revision recheck. Screenshots go to `docs/screenshots/`.
+revision recheck. Screenshots go to each test's output directory under
+`test-results/`, leaving the demo frames in `docs/screenshots/` intact.
 No model inspection starts. The test refuses screenshot mode with live inference
 enabled, checks renderer errors, and removes its temporary project after closing.
 
-The captures include the [workbench](screenshots/workbench.png),
-[correction history](screenshots/correction.png), and
-[revision history](screenshots/revision.png).
-
-Inspect the generated PNGs before committing them.
+The captures include `workbench.png`, `correction.png`, and `revision.png` for
+inspecting the offline workflow.
 
 ## Design and experiments
 

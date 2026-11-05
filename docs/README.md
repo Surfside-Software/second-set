@@ -4,7 +4,7 @@ Start with [Moke's README](../README.md) for the product, workflow, and screensh
 
 ## Setup and development
 
-- [Development and testing](development.md): commands, smoke/Electron suites, and screenshot refresh.
+- [Development and testing](development.md): commands, smoke/Electron suites, demo frames, and offline fixture captures.
 - [Inference setup](inference.md): provider keys, canonical routes, and manual API checks.
 - [Cloud reviews](cloud-reviews.md): Push to cloud, operator setup, sandbox lifetimes, and recovery limits.
 - [Model reference](models.md): the Meta catalog and the Baseten hackathon endpoint.
@@ -24,6 +24,9 @@ Start with [Moke's README](../README.md) for the product, workflow, and screensh
 - [Project choices and dependency provenance](../.project-kit/manifest.json)
 
 ## Validation records
+
+The [hackathon rules and repository evidence](validation/hackathon-readiness.md)
+records the participant guide check and what this repository can verify.
 
 These record specific live runs on the dates they state. They are not benchmarks
 for unseen drawings. Raw request and response receipts stayed in the ignored

@@ -6,7 +6,9 @@ pass or a discipline review. Moke reads source images, follows its review
 instructions, records findings and coverage, and produces an offline HTML report.
 Follow-up requests can deepen the review while retaining earlier issue IDs.
 
-![Moke's desktop workbench with source evidence and findings navigation](docs/screenshots/workbench.png)
+[Watch the narrated demo on YouTube](https://youtu.be/wl8wwq_Tlrw).
+
+![Moke's five-sheet review with 19 findings, coverage gaps, and findings navigation](docs/screenshots/workbench.png)
 
 ## The review workflow
 
@@ -35,13 +37,18 @@ Follow-up requests can deepen the review while retaining earlier issue IDs.
    status and reviewer-verified closure. Export a complete package to preserve
    the source files and execution history as well.
 
+![A saved false-alarm decision beside the source drawing and SAM highlight](docs/screenshots/correction.png)
+
+Revision reviews carry earlier findings into the revised sheets. The demo also
+shows a finding that remained open on a 13-sheet set reviewed on October 31.
+
+![A revision recheck retains an unresolved area discrepancy and the reviewer's decision](docs/screenshots/revision.png)
+
 Drawn-to-schedule count comparisons remain available as specialized checks.
 Reviewers accept their count inputs and coverage before deterministic comparison;
 corrections and revision rechecks retain their history. The
 [two-sheet count demonstration](docs/fixtures/hero-case.md) exercises a supported
 issue, corrected false alarm, unchanged control and revision recheck.
-
-![A count-check revision recheck retains its earlier results](docs/screenshots/revision.png)
 
 A review report states what was actually inspected. Model findings are review
 results, and a finished execution does not provide professional approval.
@@ -113,7 +120,7 @@ Build installers with `bun run package:desktop`. See [desktop builds and release
 ```sh
 bun run verify          # checks, smoke tests, builds, and Electron end-to-end tests
 bun run test:packaged   # after packaging, repeat the desktop flow against the packaged executable
-bun run test:screenshots
+bun run test:screenshots # offline fixture captures in test-results/
 ```
 
 Tests use real local databases, RPC, PDF workers, and Electron. Hosted-provider
@@ -122,9 +129,10 @@ no paid requests. Headless Linux needs an X display, for example
 `xvfb-run -a bun run verify`. Install Poppler for the optional experiment smoke
 tests; they skip explicitly when `pdftoppm` is unavailable.
 
-Screenshots come from the same Electron workflow using authored synthetic PDFs,
-without inference. [Development and testing](docs/development.md) explains the
-suite layout, screenshot refresh, and toolchain.
+The README screenshots are frames from the narrated demo, showing actual review
+results and saved decisions. The [screenshot source notes](docs/screenshots/README.md)
+record the video and frame timestamps. [Development and testing](docs/development.md)
+explains the suite layout, offline fixture captures, and toolchain.
 
 ## Repository layout
 
@@ -145,8 +153,16 @@ record the Forge design system, its adaptations, and third-party asset attributi
 
 ## Hackathon provenance
 
-The Moke name and review prompts predate this entry. This repository implements
-a fresh application from the project-kit desktop starter, with drawing evidence,
+This entry addresses **Build for Your World**. The application work in this
+repository began on October 27, 2026. The [rules and evidence review](docs/validation/hackathon-readiness.md)
+maps the public repository, Meta model integration, demo, and source attribution
+to the participant guide checked on November 4.
+
+The Moke name, review prompts, and the owner's 2023 Florida Building Code
+plan-review reference predate this entry. The code index tooling and
+`florida-code-additions.md` were added during the hackathon; see the
+[code index provenance](backend/review/code-index/README.md).
+This repository implements a fresh application from the project-kit desktop starter, with drawing evidence,
 corrections, and revision tracking built for the hackathon. It does not reuse the
 earlier Moke application. Pi Durable provides agent execution as an MIT-licensed
 dependency; the new work is the drawing-review application, evidence handling,
