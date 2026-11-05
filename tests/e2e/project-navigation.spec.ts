@@ -227,7 +227,9 @@ test("replayed reviews and a progress burst share bounded snapshot refreshes", a
     const panel = page.getByTestId("packet-review-panel");
     await expect(panel).toContainText("Alpha saved review 12");
     await expect(page.locator(".previous-reviews > div")).toHaveCount(11);
-    expect(await page.evaluate(() => window.rpcControl.held())).toEqual(["ReviewSnapshot"]);
+    await expect
+      .poll(() => page.evaluate(() => window.rpcControl.held()))
+      .toEqual(["ReviewSnapshot"]);
     // The selection's snapshot plus one refresh for the whole replay.
     expect((await snapshotProjects(page)).slice(before)).toEqual([
       alpha.project.id,

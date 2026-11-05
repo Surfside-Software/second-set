@@ -622,6 +622,7 @@ test("document QA needs no count check and persisted findings support evidence, 
       .filter({ hasText: /^Elapsed/ });
 
     await expect(lockTiming).toHaveAttribute("data-tip", /Local edits are paused until then/);
+    await page.mouse.move(0, 0);
     await lockTiming.hover();
     await expect(page.getByTestId("review-tooltip")).toBeVisible();
     await expect(page.getByTestId("review-tooltip")).toContainText("Local edits are paused");
