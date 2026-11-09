@@ -95,7 +95,7 @@ The Electron flow creates its own two-sheet PDFs and browser profile in a
 temporary data directory.
 It captures the real workbench at 1440 × 1000, a corrected finding, and a
 revision recheck. Screenshots go to each test's output directory under
-`test-results/`, leaving the demo frames in `docs/screenshots/` intact.
+`test-results/`, leaving the README screenshots in `docs/screenshots/` intact.
 No model inspection starts. The test refuses screenshot mode with live inference
 enabled, checks renderer errors, and removes its temporary project after closing.
 

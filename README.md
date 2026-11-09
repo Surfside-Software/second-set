@@ -41,9 +41,8 @@ MOKE until November 9, 2026, so the demo and earlier records use that name.
 ![A saved false-alarm decision beside the source drawing and SAM highlight](docs/screenshots/correction.png)
 
 Revision reviews carry earlier findings into the revised sheets. The demo also
-shows a finding that remained open on a 13-sheet set reviewed on October 31.
-
-![A revision recheck retains an unresolved area discrepancy and the reviewer's decision](docs/screenshots/revision.png)
+shows [a finding that remained open](https://youtu.be/wl8wwq_Tlrw?t=122) on a
+13-sheet set reviewed on October 31.
 
 Drawn-to-schedule count comparisons remain available as specialized checks.
 Reviewers accept their count inputs and coverage before deterministic comparison;

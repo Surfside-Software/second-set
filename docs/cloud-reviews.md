@@ -312,11 +312,19 @@ it. Queue messages use JSON to preserve millisecond expiry times through the SDK
 
 ## Validation
 
-The current worker is `moke-review-engine:9f4e2fb67`, image
-`im-01M6KD1KYF0PJZMCQJXBRPKRHX`, with protocol 5, packet prompt v10 and code index
-v3. `moke-review-engine:latest` resolves to the same image. On 2026-11-04 it reported
-the expected identity in a fresh sandbox with no network; no cloud review has run on
-it yet. The `moke-reviews-opencode-go-api` Modal Secret was created the same day.
+The current worker is `second-set-review-engine:latest` in the `second-set-reviews`
+App, image `im-01M7137QNPVEHAETCAYGKX9EV8`, with protocol 6, packet prompt
+`second-set-packet-review-v11` and code index v3. It was published from `bc722cb` on
+2026-11-09 and reported the expected identity in a fresh sandbox with no network; no
+cloud review has run on it yet. The `second-set-reviews-meta-api` and
+`second-set-reviews-baseten-api` Secrets were created the same day and are reachable
+with `SECOND_SET_API_KEY`. `second-set-reviews-opencode-go-api` does not exist yet, so
+cloud reviews on OpenCode Go fail preflight until it is created.
+
+The last protocol-5 worker is `moke-review-engine:9f4e2fb67`, image
+`im-01M6KD1KYF0PJZMCQJXBRPKRHX`, with packet prompt v10 and code index v3, in the
+`moke-reviews` App. It reported the expected identity on 2026-11-04, and the
+`moke-reviews-opencode-go-api` Secret was created the same day.
 
 The previous worker is `moke-review-engine:4cc8c03`, image
 `im-01M6DBQX7M1HEP05AA68MHBW7R`, with packet prompt v8 and code index v2, kept for
