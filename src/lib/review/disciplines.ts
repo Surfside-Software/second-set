@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-/** Discipline routing preserves the four distinct fire responsibilities from Moke. */
+/** Discipline routing preserves the four distinct fire responsibilities from the vendored review instructions. */
 export const ReviewDiscipline = Schema.Literals([
   "general",
   "civil",

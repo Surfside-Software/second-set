@@ -903,7 +903,7 @@ for (const boundary of [
   "after-original-return-invalid-identity",
 ] as const) {
   test(`rollback can restart at ${boundary} with the original database intact`, async () => {
-    const root = await mkdtemp(join(tmpdir(), "moke-rollback-cut-"));
+    const root = await mkdtemp(join(tmpdir(), "second-set-rollback-cut-"));
     const source = join(root, "source");
     const current = join(root, "current");
     const destination = join(root, "package");
@@ -982,7 +982,7 @@ for (const boundary of [
 }
 
 test("pending replacement blocks application writes until restart recovery completes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-admission-after-restore-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-admission-after-restore-"));
   const source = join(root, "source");
   const current = join(root, "current");
   const destination = join(root, "package");
@@ -1221,7 +1221,7 @@ test("pre-packet packages remain readable when the new packet tables are absent"
 }, 60000);
 
 test("invalid package preflight reports the missing manifest before maintenance", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-invalid-package-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-invalid-package-"));
 
   try {
     const error = await Effect.runPromise(

@@ -67,7 +67,7 @@ const program = Effect.gen(function* () {
         projectId,
         expectedVersion: version(),
         source,
-        name: "Original Moke schematic, Rev A",
+        name: "Original Second Set schematic, Rev A",
       });
       state = yield* api.ReviewSnapshot({ projectId, afterSequence: 0 });
 

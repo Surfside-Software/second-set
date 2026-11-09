@@ -41,7 +41,7 @@ test("device count wording needs a counted noun, not an identifier number", () =
 });
 
 test("a device count needs SAM, and each recorded finding gets a SAM zoom of its problem area", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-sam-focus-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-sam-focus-"));
   const samInputs: Array<string> = [];
   const modelInputs: Array<string> = [];
   let step = 0;
@@ -207,7 +207,7 @@ test.each([
 ] as const)(
   "a finding zoom whose SAM request is %s settles without stopping the review",
   async (_label, refusals, zoomed) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-packet-sam-refusal-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-packet-sam-refusal-"));
     let samSends = 0;
     let step = 0;
     let sheetId = "";

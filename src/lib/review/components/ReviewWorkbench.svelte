@@ -904,7 +904,7 @@
 
     if (!result.ok) return result.error.message;
 
-    return result.value ? "Saved. MOKE is restarting to connect the endpoint." : "Not saved.";
+    return result.value ? "Saved. Second Set is restarting to connect the endpoint." : "Not saved.";
   }
 
   async function removeCustomEndpoint() {
@@ -912,7 +912,7 @@
 
     if (!result.ok) return result.error.message;
 
-    return result.value ? "Removed. MOKE is restarting." : "The endpoint is still connected.";
+    return result.value ? "Removed. Second Set is restarting." : "The endpoint is still connected.";
   }
 
   async function saveOpenCodeGo(settings: typeof OpenCodeGoSettingsInput.Type) {
@@ -920,7 +920,7 @@
 
     if (!result.ok) return result.error.message;
 
-    return result.value ? "Saved. MOKE is restarting to connect OpenCode Go." : "Not saved.";
+    return result.value ? "Saved. Second Set is restarting to connect OpenCode Go." : "Not saved.";
   }
 
   async function removeOpenCodeGo() {
@@ -928,7 +928,7 @@
 
     if (!result.ok) return result.error.message;
 
-    return result.value ? "Removed. MOKE is restarting." : "OpenCode Go is still connected.";
+    return result.value ? "Removed. Second Set is restarting." : "OpenCode Go is still connected.";
   }
 
   function choosePreferredModel(value: string) {
@@ -1247,7 +1247,8 @@
         steeringCommand = null;
         receivePacketReview(result.value);
         clearSubmittedDraft(submitted);
-        notice = "Follow-up queued for this review. MOKE will apply it at the next tool boundary.";
+        notice =
+          "Follow-up queued for this review. Second Set will apply it at the next tool boundary.";
         await refresh();
       } else error = result.error.message;
 
@@ -2079,7 +2080,7 @@
 <svelte:window onkeydown={handleKey} onresize={positionFindings} onscroll={positionFindings} />
 
 {#snippet mark(size = 24)}
-  <span class="brand-mark" style:--mark-size={`${size}px`} aria-hidden="true">M</span>
+  <span class="brand-mark" style:--mark-size={`${size}px`} aria-hidden="true">S</span>
 {/snippet}
 
 {#snippet packetPanel(review: PacketReview, historical = false)}
@@ -2127,7 +2128,7 @@
           aria-label="Toggle conversation sidebar"
           {...tip("Show or hide projects and conversations.")}
           onclick={toggleSidebar}><ReviewIcon name="layout-sidebar" size={18} /></button
-        >{@render mark()}<span class="brand-name">MOKE</span>
+        >{@render mark()}<span class="brand-name">Second Set</span>
       </div>
       <nav class="breadcrumbs" aria-label="Breadcrumb">
         {#if project}<span class="project-crumb" {...tip(project.name)}
@@ -2169,7 +2170,7 @@
             data-testid="open-create-finding"
             disabled={busy || cloudBlocked}
             {...tip(
-              "Compare how many of something are drawn on one sheet with how many its schedule lists, such as Type A lights in Room 101. MOKE flags any mismatch.",
+              "Compare how many of something are drawn on one sheet with how many its schedule lists, such as Type A lights in Room 101. Second Set flags any mismatch.",
               "New count check",
             )}
             onclick={() => openSetup("sheets", true)}
@@ -2347,7 +2348,7 @@
             class="icon-btn"
             aria-label="About cloud reviews"
             {...tip(
-              "Choose Push to cloud in the composer. Results sync automatically, even after you reopen Moke. Local edits pause during the review. Model usage is billed separately from cloud compute.",
+              "Choose Push to cloud in the composer. Results sync automatically, even after you reopen Second Set. Local edits pause during the review. Model usage is billed separately from cloud compute.",
             )}><ReviewIcon name="info-circle" size={14} /></button
           >
         </h3>
@@ -2575,7 +2576,7 @@
             {:else if conversationMessages.length === 0}
               <div class="chat-empty">
                 {@render mark(40)}
-                <h1>What should MOKE review?</h1>
+                <h1>What should Second Set review?</h1>
                 {#if sheets.length === 0}<button
                     class="btn md primary"
                     disabled={busy}
@@ -2600,7 +2601,7 @@
                 <div class="byline">
                   {#if message.role === "reviewer"}<span class="user-mark">S</span
                     >{:else}{@render mark(20)}{/if}<strong
-                    >{message.role === "reviewer" ? "You" : "MOKE"}</strong
+                    >{message.role === "reviewer" ? "You" : "Second Set"}</strong
                   >{#if message.origin}<span class="message-provenance selectable"
                       >Inspection · {message.origin.discipline?.replaceAll("_", " ") ??
                         "general"}</span
@@ -2758,7 +2759,7 @@
                 placeholder={reviewMode === "review"
                   ? activePacketReview?.state === "running"
                     ? "Steer this review…"
-                    : "Ask MOKE to review these drawings…"
+                    : "Ask Second Set to review these drawings…"
                   : "Add a project note…"}
                 onkeydown={(event) => {
                   if (

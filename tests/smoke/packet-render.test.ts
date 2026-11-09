@@ -8,7 +8,7 @@ import { PacketReview } from "#lib/review/packet.ts";
 import { decodeRequest, open, outputs, response, until } from "../fixtures/packet-review.ts";
 
 test("a Spark Open tool batch retains eight fresh images and rejects the ninth before adding evidence", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit3-image-batch-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit3-image-batch-"));
   let page = Schema.decodeUnknownSync(SheetId)(crypto.randomUUID());
   let step = 0;
   let deliveredImages = 0;
@@ -85,7 +85,7 @@ test("a Spark Open tool batch retains eight fresh images and rejects the ninth b
 }, 120000);
 
 test("a cropped render tells the reviewer that content can continue past its edge", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit3-crop-note-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit3-crop-note-"));
   const notes: Array<string | undefined> = [];
   let step = 0;
   let inventory: PacketReview | undefined;

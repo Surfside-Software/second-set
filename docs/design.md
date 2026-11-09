@@ -1,6 +1,6 @@
 # Workbench design
 
-MOKE adapts [Forge](https://design.uiverse.io), an industrial dark design system
+Second Set adapts [Forge](https://design.uiverse.io), an industrial dark design system
 from Uiverse Design. Forge's license allows adapted application use and forbids
 republishing or repackaging the pack, so the pack itself stays out of the
 repository and application distributions. Only this adaptation ships.

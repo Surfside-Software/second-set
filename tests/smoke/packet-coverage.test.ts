@@ -194,7 +194,7 @@ test.each([
 ] as const)(
   "an early finish is returned for unopened sheets once unless the user set a call budget (%j)",
   async ({ maxCalls, rejections }) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-audit3-finish-gate-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-audit3-finish-gate-"));
     let step = 0;
     let history: ReadonlyArray<string> = [];
 

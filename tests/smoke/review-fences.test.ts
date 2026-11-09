@@ -22,7 +22,7 @@ import {
 const id = () => Schema.decodeUnknownSync(CommandId)(crypto.randomUUID());
 
 test("parent port commits correction while an admitted response waits, rejects stale promotion, and replays its earlier receipt", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-parent-fence-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-parent-fence-"));
 
   try {
     await Effect.runPromise(

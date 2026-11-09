@@ -13,7 +13,7 @@ import {
 } from "../../backend/segmentation/reconciliation.ts";
 
 test("offline fixture worksheet supports correction, completion, persistence, and revision isolation", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-reconcile-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-reconcile-"));
 
   const schedule = Schema.decodeUnknownSync(FixtureSchedule)({
     rows: [{ mark: "WC", description: "Water closet", quantity: 1 }],

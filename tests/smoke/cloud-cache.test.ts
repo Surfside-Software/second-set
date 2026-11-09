@@ -100,7 +100,7 @@ test("Send uploads only files the workspace cache lacks and reports reused bytes
 });
 
 test("the worker fills skipped files from the cache and refuses a mismatched cache file", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-cloud-materialize-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-cloud-materialize-"));
   const input = join(root, "input");
   const cache = join(root, "cache");
 
@@ -139,7 +139,7 @@ test("the worker fills skipped files from the cache and refuses a mismatched cac
 });
 
 test("result download copies matching local artifacts and downloads everything else", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-cloud-reuse-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-cloud-reuse-"));
   const data = join(root, "data");
   const destination = join(root, "output");
   const crop = packageFile((hash) => `artifacts/${hash}.png`, "new crop rendered in the cloud");
@@ -182,7 +182,7 @@ test("result download copies matching local artifacts and downloads everything e
 });
 
 async function cacheFixture() {
-  const root = await mkdtemp(join(tmpdir(), "moke-cloud-cache-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-cloud-cache-"));
   const directory = join(root, "data.cloud");
   const data = join(root, "data");
   const seeds: CloudCacheSeed[] = [];

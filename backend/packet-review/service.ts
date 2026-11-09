@@ -575,7 +575,7 @@ interface Configuration {
   ) => Promise<A>;
 }
 
-/** Project-first durable Moke reviews, with frozen source inventory and persistent tool records. */
+/** Project-first durable packet reviews, with frozen source inventory and persistent tool records. */
 export class PacketReviews extends Context.Service<
   PacketReviews,
   {
@@ -915,7 +915,7 @@ export class PacketReviews extends Context.Service<
           });
 
           yield* sql`INSERT INTO review_commands(command_id,project_id,fingerprint,receipt) VALUES (${commandId},${row.project_id},${fingerprint},${JSON.stringify(receipt)})`;
-          yield* sql`INSERT INTO review_events(project_id,command_id,kind,message,created_at) VALUES (${row.project_id},${commandId},'packet_review','MOKE review response saved.',${message.createdAt})`;
+          yield* sql`INSERT INTO review_events(project_id,command_id,kind,message,created_at) VALUES (${row.project_id},${commandId},'packet_review','Second Set review response saved.',${message.createdAt})`;
         });
 
         const recordTool = async (
@@ -4402,7 +4402,7 @@ export class PacketReviews extends Context.Service<
                   if (pending.length)
                     return yield* error(
                       "conflict",
-                      "MOKE is still finishing the request it sent before the pause. Its result will be kept; try Resume again in a minute.",
+                      "Second Set is still finishing the request it sent before the pause. Its result will be kept; try Resume again in a minute.",
                     );
                 }),
               );

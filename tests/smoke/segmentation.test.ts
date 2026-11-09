@@ -71,7 +71,7 @@ function syntheticPdf(): string {
 }
 
 async function preparePack() {
-  const directory = await mkdtemp(join(tmpdir(), "moke-sam-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-sam-"));
   temporary.push(directory);
   await Bun.write(join(directory, "drawing.pdf"), syntheticPdf());
   await Bun.write(join(directory, "drawing-manifest.json"), JSON.stringify({ crops: [crop] }));

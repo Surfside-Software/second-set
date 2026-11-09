@@ -16,7 +16,7 @@ export const reportedRateLimits = {
   meta: { requestsPerMinute: 3000, tokensPerMinute: 4_000_000 },
   baseten: { requestsPerMinute: 100, tokensPerMinute: 2_000_000 },
   // OpenCode Go publishes no request rate; it asks for typical coding agent traffic and monitors for
-  // abuse. This ceiling is MOKE's own choice, well above three reviewers' measured 8 requests a
+  // abuse. This ceiling is Second Set's own choice, well above three reviewers' measured 8 requests a
   // minute, so a burst of quick answers still looks like one person's agents.
   "opencode-go": { requestsPerMinute: 60, tokensPerMinute: 5_000_000 },
   // A custom endpoint's limits are unknown until it sends these headers. A 429 starts the shared

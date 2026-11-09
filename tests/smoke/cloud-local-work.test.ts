@@ -12,7 +12,7 @@ import { canvasNativeFileName, canvasNativePackage } from "../../scripts/prepare
 import { open as openPacketFixture, response, until } from "../fixtures/packet-review.ts";
 
 test("the cloud estimate names projects whose local reviews must finish first", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-cloud-local-work-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-cloud-local-work-"));
   const data = join(root, "local");
 
   // A call budget of one pauses a real local review after its first receipted request.

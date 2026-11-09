@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { openRegularFile } from "../../backend/review/package-files.ts";
 
 test("package reads without O_NOFOLLOW retain regular-file identity and reject links", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-package-file-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-package-file-"));
 
   try {
     const source = join(directory, "source");

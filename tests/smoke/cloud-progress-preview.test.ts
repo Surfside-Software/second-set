@@ -262,7 +262,7 @@ test("older progress without a preview still decodes and oversized previews are 
 });
 
 test("the finding preview survives refresh and restart and is dropped once results import", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-preview-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-preview-"));
   const input = request();
   let phase: "running" | "ready" = "running";
 

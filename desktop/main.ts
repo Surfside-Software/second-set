@@ -34,6 +34,7 @@ import { CredentialError, customEndpointUrl } from "./credential-files.ts";
 import { checkConnection, describeEndpointCheck, openCodeHeaders } from "./connection-check.ts";
 import { readModalConfiguration } from "./modal-credentials.ts";
 import { createDropImports } from "./drop-imports.ts";
+import { legacyUserData } from "./data-directory.ts";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -57,6 +58,16 @@ if (
   !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(developmentUrl)
 ) {
   throw new Error("Desktop development requires a loopback Vite URL.");
+}
+
+// The single-instance lock lives in userData, so choose it first. Explicit locations win.
+if (
+  !app.commandLine.hasSwitch("user-data-dir") &&
+  process.env.PROJECT_KIT_DATA_DIRECTORY === undefined
+) {
+  const legacy = legacyUserData(app.getPath("appData"), app.getPath("userData"));
+
+  if (legacy !== null) app.setPath("userData", legacy);
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -98,10 +109,22 @@ if (!app.requestSingleInstanceLock()) {
         ),
       )(await readFile(join(assetDirectory, "layout.json"), "utf8"));
 
+      // macOS and Linux store the credential key under the app's name, so 0.2.2 keys can stop
+      // unlocking after the rename. Start without them rather than exit, and say how to restore them.
       const [inference, ...inferenceAlternatives] = await readInferenceConfigurations(
         dataDirectory,
         app.isPackaged,
-      );
+      ).catch(async (cause: unknown) => {
+        if (!(cause instanceof CredentialError)) throw cause;
+
+        await dialog.showMessageBox({
+          type: "warning",
+          message: "A saved provider key could not be unlocked",
+          detail: `${cause.message} Model reviews stay unavailable until you enter the key again in Review settings or import it from the File menu. This can happen once after updating from version 0.2.2 or earlier on macOS or Linux.`,
+        });
+
+        return [];
+      });
 
       const modal = await Effect.runPromise(readModalConfiguration(app.isPackaged));
 
@@ -193,7 +216,7 @@ if (!app.requestSingleInstanceLock()) {
                 cancelId: 0,
                 message: `Remove ${name}?`,
                 detail:
-                  "Its saved key is deleted and MOKE restarts. Reviews already run on it keep their results.",
+                  "Its saved key is deleted and Second Set restarts. Reviews already run on it keep their results.",
               }),
             catch: () =>
               new ReviewStorageError({ message: "The remove confirmation could not open." }),
@@ -271,8 +294,8 @@ if (!app.requestSingleInstanceLock()) {
               Effect.tryPromise({
                 try: () =>
                   dialog.showSaveDialog({
-                    title: "Save MOKE review report",
-                    defaultPath: "MOKE-review.html",
+                    title: "Save Second Set review report",
+                    defaultPath: "Second-Set-review.html",
                     filters: [{ name: "HTML report", extensions: ["html"] }],
                   }),
                 catch: () =>
@@ -372,7 +395,7 @@ if (!app.requestSingleInstanceLock()) {
 
                   const destination = join(
                     parent,
-                    `MOKE-review-${new Date().toISOString().replaceAll(":", "-")}`,
+                    `Second-Set-review-${new Date().toISOString().replaceAll(":", "-")}`,
                   );
 
                   return api.ExportReviewPackage({ destination }).pipe(
@@ -392,7 +415,7 @@ if (!app.requestSingleInstanceLock()) {
                 const selection = yield* Effect.tryPromise({
                   try: () =>
                     dialog.showOpenDialog({
-                      title: "Choose a complete MOKE review package",
+                      title: "Choose a complete Second Set review package",
                       properties: ["openDirectory"],
                     }),
                   catch: () =>
@@ -468,7 +491,7 @@ if (!app.requestSingleInstanceLock()) {
                       defaultId: check.kind === "ready" ? 1 : 0,
                       cancelId: 0,
                       message: "Save this custom endpoint?",
-                      detail: `${describeEndpointCheck(check)} MOKE restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
+                      detail: `${describeEndpointCheck(check)} Second Set restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
                     }),
                   catch: () =>
                     new ReviewStorageError({ message: "The save confirmation could not open." }),
@@ -508,7 +531,7 @@ if (!app.requestSingleInstanceLock()) {
                   baseUrl: reviewProviderRoutes["opencode-go"].endpoint,
                   model: upstream,
                   apiKey: settings.apiKey,
-                  headers: openCodeHeaders(app.getVersion(), `moke-check-${randomUUID()}`),
+                  headers: openCodeHeaders(app.getVersion(), `second-set-check-${randomUUID()}`),
                 });
 
                 const confirmation = yield* Effect.tryPromise({
@@ -519,7 +542,7 @@ if (!app.requestSingleInstanceLock()) {
                       defaultId: check.kind === "ready" ? 1 : 0,
                       cancelId: 0,
                       message: "Save this OpenCode Go key?",
-                      detail: `${describeEndpointCheck(check, "opencode-go")} Tested with ${upstream}. MOKE restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
+                      detail: `${describeEndpointCheck(check, "opencode-go")} Tested with ${upstream}. Second Set restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
                     }),
                   catch: () =>
                     new ReviewStorageError({ message: "The save confirmation could not open." }),
@@ -661,7 +684,7 @@ if (!app.requestSingleInstanceLock()) {
                                   .ExportReviewPackage({
                                     destination: join(
                                       selection.filePaths[0],
-                                      `MOKE-review-${new Date().toISOString().replaceAll(":", "-")}`,
+                                      `Second-Set-review-${new Date().toISOString().replaceAll(":", "-")}`,
                                     ),
                                   })
                                   .pipe(Effect.asVoid),

@@ -1,6 +1,6 @@
 import { deliveredImageSize } from "#lib/review/geometry.ts";
 
-/** Largest decoded image Moke sends a model or SAM. */
+/** Largest decoded image Second Set sends a model or SAM. */
 export const modelImageBytes = 1024 * 1024;
 
 /**

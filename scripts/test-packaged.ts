@@ -1,9 +1,9 @@
 import { Match } from "effect";
 
 const patterns = {
-  linux: "release/linux*-unpacked/moke-meta-hackathon",
-  win32: "release/win*-unpacked/moke-meta-hackathon.exe",
-  darwin: "release/mac*/moke-meta-hackathon.app/Contents/MacOS/moke-meta-hackathon",
+  linux: "release/linux*-unpacked/second-set",
+  win32: "release/win*-unpacked/Second Set.exe",
+  darwin: "release/mac*/Second Set.app/Contents/MacOS/Second Set",
 };
 
 const pattern = Match.value(process.platform).pipe(

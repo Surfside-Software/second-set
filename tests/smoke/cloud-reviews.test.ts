@@ -51,7 +51,7 @@ const provider = Schema.decodeUnknownSync(CloudProvider)({
 });
 
 test("cloud download retries reuse only complete files matching the result identity", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-resume-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-resume-"));
   const path = join(directory, "artifact.png");
   const content = Buffer.from("verified result bytes");
 
@@ -149,7 +149,7 @@ test("the cloud worker protocol rejects pre-scope workers and incompatible deadl
 });
 
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-test-"));
   const operations: string[] = [];
   let dispatchLost = false;
   let preflightFailure = false;
@@ -1090,7 +1090,7 @@ test("already-dispatched packet prompt v1 jobs remain recoverable without admitt
 });
 
 test("a non-canonical provider route fails cloud start before allocation or upload", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-route-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-route-"));
   const operations: Array<string> = [];
   const unused = Effect.die("Cloud work must not start for a non-canonical route.");
 
@@ -1152,7 +1152,7 @@ test("the current cloud compatibility guide names the admitted identity and rece
 
 test("a one-minute cloud limit fails before any cloud work and longer limits keep their deadline", async () => {
   for (const timeoutMinutes of [1, 2]) {
-    const directory = await mkdtemp(join(tmpdir(), "moke-cloud-limit-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-limit-"));
     const operations: Array<string> = [];
     const admitted: Array<CloudReviewRecord> = [];
 

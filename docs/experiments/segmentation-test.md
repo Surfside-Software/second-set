@@ -1,7 +1,7 @@
 # SAM 3.1 drawing experiment
 
 The subsequent [plumbing coordination study](plumbing-segmentation.md) tests
-Moke fixture inventory, schedule reconciliation, and corrective prompts.
+fixture inventory, schedule reconciliation, and corrective prompts.
 
 This is the first perception experiment from the October 26 planning thread.
 It tests proposed object boundaries on six drawing crops before choosing an

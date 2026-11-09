@@ -18,7 +18,7 @@ const SavedProviders = Schema.fromJsonString(
 );
 
 test("importing a provider credential uses OS encryption and keeps saved providers", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-credentials-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-credentials-"));
   const source = join(directory, "baseten.json");
   const stored = join(directory, "provider-credential.json");
 

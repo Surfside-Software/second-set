@@ -6,7 +6,7 @@ import { isHostedDesktopRunner } from "./desktop-test-environment.ts";
 // Hosted runners are disposable OS test sessions, including native Windows/macOS.
 // This gate deliberately excludes generic CI and self-hosted Actions runners.
 if (isHostedDesktopRunner(process.env)) {
-  const directory = await mkdtemp(join(tmpdir(), "moke-hosted-desktop-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-hosted-desktop-"));
 
   try {
     const child = Bun.spawn(
@@ -56,7 +56,7 @@ if (process.platform === "linux" && process.env.MOKE_TEST_MOUNT_NAMESPACE !== "1
       "/bin/sh",
       "-c",
       'set -eu; mount -t tmpfs -o mode=1777 tmpfs /tmp/.X11-unix; if [ -d /mnt/wslg ]; then mount -t tmpfs -o mode=0700 tmpfs /mnt/wslg; fi; ip link set lo up; exec "$@"',
-      "moke-private-session",
+      "second-set-private-session",
       process.execPath,
       import.meta.path,
       ...process.argv.slice(2),
@@ -73,7 +73,7 @@ if (process.platform === "linux" && process.env.MOKE_TEST_MOUNT_NAMESPACE !== "1
 }
 
 // Never inherit a user's graphical session. Xvfb chooses and owns a fresh display.
-const directory = await mkdtemp(join(tmpdir(), "moke-private-display-"));
+const directory = await mkdtemp(join(tmpdir(), "second-set-private-display-"));
 const runtime = join(directory, "runtime");
 
 await mkdir(runtime, { mode: 0o700 });

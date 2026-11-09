@@ -25,7 +25,7 @@ const codeSectionUrl =
 
 test("document QA needs no count check and persisted findings support evidence, completion, and reopen", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-desktop-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-desktop-"));
   const fixture = join(directory, "Drawing packet.pdf");
   const credentialFile = join(directory, "offline-provider-config.json");
   await writeFile(fixture, createHeroPdf("A"));

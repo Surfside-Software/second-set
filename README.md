@@ -1,14 +1,15 @@
-# Moke
+# Second Set
 
-Moke is a desktop workbench for reviewing engineering drawing packets, built for
+Second Set is a desktop workbench for reviewing engineering drawing packets, built for
 the Meta AI Developer Hackathon. Import the drawings and ask for a whole-set QA
-pass or a discipline review. Moke reads source images, follows its review
+pass or a discipline review. Second Set reads source images, follows its review
 instructions, records findings and coverage, and produces an offline HTML report.
 Follow-up requests can deepen the review while retaining earlier issue IDs.
 
-[Watch the narrated demo on YouTube](https://youtu.be/wl8wwq_Tlrw).
+[Watch the narrated demo on YouTube](https://youtu.be/wl8wwq_Tlrw). Second Set was called
+MOKE until November 9, 2026, so the demo and earlier records use that name.
 
-![Moke's five-sheet review with 19 findings, coverage gaps, and findings navigation](docs/screenshots/workbench.png)
+![Second Set's five-sheet review with 19 findings, coverage gaps, and findings navigation](docs/screenshots/workbench.png)
 
 ## The review workflow
 
@@ -18,7 +19,7 @@ Follow-up requests can deepen the review while retaining earlier issue IDs.
    drawing set" or "Review the electrical design and supporting calculations."
    Choose a model and reviewer, or let Auto route the request. A saved note does
    not start inference.
-3. **Follow the inspection.** Moke inventories the supplied sheets, opens source
+3. **Follow the inspection.** Second Set inventories the supplied sheets, opens source
    images and detail crops, and records the four review passes: document
    completeness, code and agency requirements, coordination, and prior comments.
    A Florida code index points each check to its code section, statute or rule.
@@ -59,7 +60,7 @@ dimensions.
 ## Install
 
 Download the installer for Windows, macOS (Apple silicon) or Linux from
-[GitHub Releases](https://github.com/sc-frederick/moke-meta-hackathon/releases/latest).
+[GitHub Releases](https://github.com/Surfside-Software/second-set/releases/latest).
 The installers are unsigned. macOS can block the first launch; allow it under
 System Settings › Privacy & Security › Open Anyway. On Linux, make the AppImage
 executable or install the `.deb`. Model reviews need a provider key; see
@@ -78,7 +79,7 @@ over authorized Electron MessagePorts; Electron forwards application requests to
 Bun over authenticated loopback HTTP. Database access and provider credentials
 stay outside the renderer.
 
-Pi Durable journals the review and runs the full Moke system instructions. A
+Pi Durable journals the review and runs the full vendored review instructions. A
 separate ledger records model and SAM intent before dispatch, preserving unknown
 outcomes without automatic resends. Reviews have pause and cancel controls and an
 optional call budget. The default packet review has no application call ceiling;
@@ -158,13 +159,14 @@ repository began on October 27, 2026. The [rules and evidence review](docs/valid
 maps the public repository, Meta model integration, demo, and source attribution
 to the participant guide checked on November 4.
 
-The Moke name, review prompts, and the owner's 2023 Florida Building Code
-plan-review reference predate this entry. The code index tooling and
+The review prompts and the owner's 2023 Florida Building Code plan-review
+reference predate this entry. The code index tooling and
 `florida-code-additions.md` were added during the hackathon; see the
 [code index provenance](backend/review/code-index/README.md).
 This repository implements a fresh application from the project-kit desktop starter, with drawing evidence,
 corrections, and revision tracking built for the hackathon. It does not reuse the
-earlier Moke application. Pi Durable provides agent execution as an MIT-licensed
+earlier MOKE application. The project was renamed from MOKE to Second Set on
+November 9, 2026, and no longer uses the MOKE name. Pi Durable provides agent execution as an MIT-licensed
 dependency; the new work is the drawing-review application, evidence handling,
 corrections, revision behavior and portable review execution. Prompt and
 dependency provenance live in
@@ -173,7 +175,7 @@ dependency provenance live in
 
 ## License
 
-Moke is released under the [MIT License](LICENSE). Vendored code and third-party
+Second Set is released under the [MIT License](LICENSE). Vendored code and third-party
 assets keep their own licenses. The styles in `src/lib/forge.css` are adapted from
 Uiverse Design's Forge and remain under its license; see
 [the design notes](docs/design.md).

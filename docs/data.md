@@ -12,6 +12,16 @@ queries use Effect SQL with the Bun SQLite driver. The migration and backup code
 uses Bun's node:sqlite compatibility API so the existing backup format, migration
 hashes, and recovery behavior remain intact. No separate SQLite addon is required.
 
+Releases through 0.2.2 shipped as `moke-meta-hackathon` and stored this directory
+under that name. When the old folder holds app.sqlite and the Second Set folder
+does not, Electron keeps using the old folder in place and moves or copies nothing.
+See [desktop/data-directory.ts](../desktop/data-directory.ts). An explicit
+`--user-data-dir` or `PROJECT_KIT_DATA_DIRECTORY` takes precedence. On Windows,
+saved keys still unlock from that folder. On macOS and Linux the encryption key is
+stored under the app's name, so a key saved by 0.2.2 may not unlock after the
+rename. Startup then continues without saved keys and asks the user to enter them
+again.
+
 A process holds the canonical data-directory ownership lock before recovery or
 migrations. Queries open scoped Effect SQL connections with foreign keys and FULL
 synchronization. A shared short semaphore serializes SQL and replacement; PDF

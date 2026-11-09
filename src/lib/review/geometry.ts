@@ -37,10 +37,10 @@ export function containsRegion(page: Region, region: Region) {
   );
 }
 
-/** Moke delivers source images to models at most 2,048 pixels on either side. */
+/** Second Set delivers source images to models at most 2,048 pixels on either side. */
 export const modelImageLimit = 2048;
 
-/** The pixel size Moke delivers to a model for a rendered artifact of this size. */
+/** The pixel size Second Set delivers to a model for a rendered artifact of this size. */
 export function deliveredImageSize(width: number, height: number) {
   const scale = Math.min(1, modelImageLimit / Math.max(width, height));
 

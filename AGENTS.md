@@ -1,4 +1,4 @@
-# moke-meta-hackathon
+# second-set
 
 Use the Bun version in .bun-version. Run bun run verify before handing back implementation changes.
 Use Bun for installs, scripts, checking, formatting, tests, and desktop/backend builds.

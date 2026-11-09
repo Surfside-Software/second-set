@@ -69,7 +69,7 @@ test.each([
 ] as const)(
   "the application fences writes across reopen and handles real returned packages (%j)",
   async ({ corrupt, legacyPhase }) => {
-    const root = await mkdtemp(join(tmpdir(), "moke-cloud-workspace-"));
+    const root = await mkdtemp(join(tmpdir(), "second-set-cloud-workspace-"));
     const data = join(root, "local");
     const remoteData = join(root, "remote");
     const uploaded = join(root, "uploaded");
@@ -499,7 +499,7 @@ test.each([
 test.each(["legacy", "whole_set", "selected_sheets", "discipline", "legacy_worker"] as const)(
   "a cloud drawing-set review preserves %s scope and returns its real packet without a count check",
   async (scopeMode) => {
-    const root = await mkdtemp(join(tmpdir(), "moke-cloud-packet-"));
+    const root = await mkdtemp(join(tmpdir(), "second-set-cloud-packet-"));
     const notifications = Effect.runSync(PubSub.unbounded<void>());
     let remote: Awaited<ReturnType<typeof openPacketFixture>> | undefined;
     let local: ReturnType<typeof openApplication> | undefined;

@@ -12,7 +12,7 @@ import { CloudReviewSynchronization } from "../../backend/cloud/sync.ts";
 import type { CloudSandboxPort } from "../../backend/cloud/sandbox-port.ts";
 
 async function fixture(dropSignals = false) {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-sync-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-sync-"));
   const signals = Effect.runSync(PubSub.unbounded<void>({ replay: 1 }));
   const restored = Effect.runSync(Deferred.make<void>());
   const releaseReturn = Effect.runSync(Deferred.make<void>());

@@ -8,7 +8,7 @@ import { id, open, response } from "../fixtures/packet-review.ts";
 import { createHeroPdf } from "../fixtures/hero-case.ts";
 
 test("a drop claim rejects fresh-command reuse and preserves same-command receipts across response loss", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-drop-claim-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-drop-claim-"));
   const api = await open(directory, async () => response());
 
   try {

@@ -2,7 +2,7 @@
 
 ## Question and inputs
 
-Can the current SAM 3.1 API help Moke count electrical devices, inspect other
+Can the current SAM 3.1 API help Second Set count electrical devices, inspect other
 drawing objects, and review revisions? This continues the
 [plumbing study](plumbing-segmentation.md). Research dates from
 2026-10-27. Drawing experiments use the original
@@ -17,7 +17,7 @@ The fixture pack has these relevant sheets:
 | C                       | E-2, page 7                           | E-3, page 8  | M-2 page 5; P-1/P-2 pages 1/2               |
 | B                       | No electrical sheets in supplied pack | None         | B-2 page 2, sparse residential architecture |
 
-Moke's [electrical method](../../backend/review/prompts/assets/disciplines/electrical.md)
+The vendored [electrical method](../../backend/review/prompts/assets/disciplines/electrical.md)
 calls for fixture marks, circuits, controls, room use and schedule coordination.
 Its [mechanical method](../../backend/review/prompts/assets/disciplines/mechanical.md)
 calls for terminal airflow, equipment marks and system tracing. An object count

@@ -1,4 +1,4 @@
-# Moke review instructions
+# Review instructions
 
 `assets/` contains unmodified files from the author's private review-instruction
 repository at revision `8a0e2648738018631eaa6d24ee0b6ebaa239afb1`. `provenance.json` records

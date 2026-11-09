@@ -57,7 +57,7 @@ function manualClock() {
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 test("ended progress streams reload missed durable records, reconnect automatically, clear the warning, and stop on abort", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-progress-audit-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-progress-audit-"));
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
 

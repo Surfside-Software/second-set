@@ -36,7 +36,7 @@ test("explicit reviewer choice and an individual discipline request remain scope
 
 // These exercise real SQLite, Pi journals, public operations and provider admission; no model is called.
 test("sheet assignments persist without confirming count coverage and explicit scopes freeze only selected revision sheets", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-scope-audit-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-scope-audit-"));
   const api = await open(directory, async () => response([], "Scoped fixture completed."));
 
   try {

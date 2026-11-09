@@ -35,7 +35,7 @@ prompts and completions to train Meta's models, and it is not zero-retention. An
 refuses it.
 
 - **Traffic.** Go is designed for coding agents and monitors traffic for abuse. Parallel drawing
-  reviews are not typical coding traffic. Moke identifies itself as `moke/<version>`, sends a session
+  reviews are not typical coding traffic. Second Set identifies itself as `second-set/<version>`, sends a session
   ID per conversation and runs 3 sheet reviewers at a time. See [OpenCode Go](#opencode-go-1).
 - **Images.** Go has no Files API, so images travel inline. Reviews keep the eight-image window Baseten
   uses, so a reviewer inspects a batch before requesting the next.
@@ -64,7 +64,7 @@ Import the PDF packet and send a natural-language review request. Auto routes a
 whole-set QA request or a named discipline; an explicit reviewer selects that
 discipline. No count check or manual sheet confirmation is required to start a
 packet review. A note is saved without calling a model. The model receives the
-full Moke AGENTS.md, shared method and applicable discipline instructions as its
+full vendored AGENTS.md, shared method and applicable discipline instructions as its
 Pi system instructions. See the [prompt documentation](../backend/review/prompts/README.md).
 
 ## Model capabilities and operational budgets
@@ -169,7 +169,7 @@ for compatibility. Those limits do not define ordinary packet review.
 
 ## Prompt caching and request images
 
-Meta and Baseten cache prompt prefixes automatically. Moke routes requests that
+Meta and Baseten cache prompt prefixes automatically. Second Set routes requests that
 share a prefix to the same cache and keeps earlier turns unchanged, aiming for at
 least 90% of prompt tokens served from cache (`cacheRead / (input + cacheRead)`).
 
@@ -216,7 +216,7 @@ the Console harnesses page (`oc_sk_...`). In development, `OPENCODE_API_KEY` in
 `.env` does the same; Pi and OpenCode read the same variable. The model menu then
 offers `muse-spark-1.3-contributor`, which reads images and calls tools over Responses.
 
-Moke offers only Meta's model through Go. Earlier reviews on MiMo-V2.6-Flash,
+Second Set offers only Meta's model through Go. Earlier reviews on MiMo-V2.6-Flash,
 GLM-5.3-Flash or GPT-6 Luna stay readable, and a saved connection that names one of
 them still opens, but no menu offers them for new reviews.
 
@@ -227,7 +227,7 @@ clients for a stable `x-opencode-session` per conversation and rejects requests
 without one (HTTP 400 `MissingSessionID`, checked 2026-11-01). Pi sends it from
 each durable conversation's session ID, so every sheet reviewer keeps its own
 session across restarts; Baseten's shared prefix key is not used. Requests also
-identify MOKE with `User-Agent: moke/<version>` and `x-opencode-client: moke`,
+identify Second Set with `User-Agent: second-set/<version>` and `x-opencode-client: second-set`,
 as OpenCode asks of third-party clients. Free Go models are not offered: OpenCode
 answers them with HTTP 403 outside its own app.
 
@@ -238,14 +238,14 @@ other coding agents", ask clients to "send typical coding agent traffic", and
 monitor "for abuse that degrades the experience for other users". OpenCode's
 [terms](https://opencode.ai/legal/terms-of-service) also bar "placing an
 unreasonable load" on its infrastructure and using the service on behalf of a
-third party. MOKE is an agent but not a coding agent, so it keeps its traffic
+third party. Second Set is an agent but not a coding agent, so it keeps its traffic
 modest, identifies itself honestly, and should not run client work on a Go key:
 
 - A packet review starts three sheet reviewers at once, about one person's agents.
   One reviewer sends about three requests a minute (measured on Muse Spark 1.3,
   2026-10-30), so a 29-sheet review takes about an hour at that speed.
 - The pacer caps every use of the key at 60 requests and 5M tokens a minute. This
-  is MOKE's own ceiling, not a published limit.
+  is Second Set's own ceiling, not a published limit.
 - A `GoUsageLimitError`, `BudgetLimitError` or `CreditLimitExceeded` 429 is never
   resent, matching OpenCode's own client. The review pauses until the reviewer
   resumes it.

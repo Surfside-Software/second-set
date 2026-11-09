@@ -42,7 +42,7 @@ const disciplines: Record<typeof ReviewDiscipline.Type, string> = {
   fire_protection: fireProtection,
 };
 
-/** Adapt Moke to the selected-count engine without promising unavailable checks. */
+/** Adapt the vendored review instructions to the selected-count engine without promising unavailable checks. */
 export function selectedReviewPrompt(context: typeof ExecutionReviewContext.Type | null): string {
   const discipline =
     context?.request.discipline === "auto"
@@ -130,7 +130,7 @@ const roleGuidance: Record<PacketPromptRole, ReadonlyArray<string>> = {
   ],
 };
 
-/** Full Moke system instructions for project-first review; original source files stay intact. */
+/** Full vendored system instructions for project-first review; original source files stay intact. */
 export function packetReviewPrompt(
   scope: import("../../../src/lib/review/packet.ts").PacketReview["scope"],
   options: {

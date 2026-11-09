@@ -12,7 +12,7 @@ import { installRpcBoundary } from "./rpc-boundary.ts";
 
 test("audit workbench imports native and dropped revisions, assigns compact sheets, fits drawings and submits with Enter", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-ui-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-ui-"));
   const fixture = join(directory, "36x48.pdf");
   const droppedDirectory = join(directory, "revisions");
   const droppedFixture = join(droppedDirectory, "36x48.pdf");
@@ -43,9 +43,9 @@ test("audit workbench imports native and dropped revisions, assigns compact shee
     });
     await page.setViewportSize({ width: 1600, height: 1000 });
     await page.getByRole("button", { name: "Create a project", exact: true }).click();
-    await page.getByTestId("project-name-input").fill("MOKE audit drawing set");
+    await page.getByTestId("project-name-input").fill("Second Set audit drawing set");
     await page.getByTestId("create-project-button").click();
-    await expect(page.locator(".brand-name")).toHaveText("MOKE");
+    await expect(page.locator(".brand-name")).toHaveText("Second Set");
     await page.getByRole("button", { name: "Review settings", exact: true }).click();
     const settings = page.getByRole("dialog", { name: "Review settings", exact: true });
     await settings.getByText("Optional call budget", { exact: true }).click();
@@ -190,7 +190,7 @@ test("audit workbench imports native and dropped revisions, assigns compact shee
 });
 
 test("52 sheets stay compact and bulk discipline assignments drive explicit scope counts without confirmation", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-large-set-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-large-set-"));
   const fixture = join(directory, "52-sheet-set.pdf");
   await writeFile(fixture, buildMinimalPdf(0, 612, 792, 1, 52));
 
@@ -256,7 +256,7 @@ test("52 sheets stay compact and bulk discipline assignments drive explicit scop
 
 test("existing generic names have explicit proposals and preserve prior sheet verification after apply and reopen", async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-3-existing-sheet-names-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-3-existing-sheet-names-"));
   const source = join(directory, "lighting.pdf");
   await writeFile(source, createHeroPdf("A"));
 

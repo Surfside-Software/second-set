@@ -10,7 +10,7 @@ import { id, open, response } from "../fixtures/packet-review.ts";
 test.each(["during-render", "during-next-inference"] as const)(
   "host tool activity observes real rendering and clears on pause %s",
   async (pauseAt) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-cloud-activity-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-activity-"));
     const firstAdmitted = Promise.withResolvers<void>();
     const releaseFirst = Promise.withResolvers<void>();
     const observerReady = Promise.withResolvers<void>();

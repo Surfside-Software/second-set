@@ -215,8 +215,8 @@ test.each([
     expect(request.headers.get("authorization")).toBe("Bearer oc_sk_fixture");
     // One session per conversation, as OpenCode asks, rather than the prefix shared by sheets.
     expect(request.headers.get("x-opencode-session")).toBe("conversation-session-7");
-    expect(request.headers.get("x-opencode-client")).toBe("moke");
-    expect(request.headers.get("user-agent")).toBe(`moke/${packageInfo.version}`);
+    expect(request.headers.get("x-opencode-client")).toBe("second-set");
+    expect(request.headers.get("user-agent")).toBe(`second-set/${packageInfo.version}`);
     expect(request.headers.get("x-session-affinity")).toBeNull();
     expect(JSON.parse(request.body)).toMatchObject({ model: upstream });
   },
@@ -320,6 +320,6 @@ test("the OpenCode Go key check sends the session, client and user agent OpenCod
 
   expect(check).toEqual({ kind: "rejected", status: 403 });
   expect(seen[0]?.get("x-opencode-session")).toBe("moke-check-1");
-  expect(seen[0]?.get("x-opencode-client")).toBe("moke");
-  expect(seen[0]?.get("user-agent")).toBe("moke/0.1.0");
+  expect(seen[0]?.get("x-opencode-client")).toBe("second-set");
+  expect(seen[0]?.get("user-agent")).toBe("second-set/0.1.0");
 });

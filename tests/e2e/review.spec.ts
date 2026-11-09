@@ -275,7 +275,7 @@ test("desktop proves supported, corrected, unchanged-control, revision, media, a
         await expect(reviewPanel).toContainText("Review cancelled");
       }
 
-      await page.screenshot({ path: test.info().outputPath("packaged-live-moke.png") });
+      await page.screenshot({ path: test.info().outputPath("packaged-live-review.png") });
     }
 
     await accept("drawn", 2, "Counted the two type A symbols within Room 101 on L-101.");
@@ -416,7 +416,8 @@ test("desktop proves supported, corrected, unchanged-control, revision, media, a
     await expect
       .poll(
         async () =>
-          (await readdir(packageParent)).filter((name) => name.startsWith("MOKE-review-")).length,
+          (await readdir(packageParent)).filter((name) => name.startsWith("Second-Set-review-"))
+            .length,
       )
       .toBe(1);
     await expect(

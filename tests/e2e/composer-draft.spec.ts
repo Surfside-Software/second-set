@@ -22,7 +22,7 @@ import {
 // Draft checks are soft so each send path reports on its own.
 test("text typed while a send is pending stays in the composer for notes, review requests and follow-ups", async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-composer-draft-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-composer-draft-"));
   const source = join(directory, "Drawing set.pdf");
   await writeFile(source, createHeroPdf("A"));
   const options = await offlineDesktop(directory, ["meta"]);

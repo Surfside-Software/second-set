@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "moke-meta-hackathon",
+      "name": "second-set",
       "dependencies": {
         "effect": "4.1.1",
         "electron-effect-rpc": "1.0.1",

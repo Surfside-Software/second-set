@@ -362,8 +362,8 @@ test("OpenCode Go sends Muse Spark through its route, names itself and uses no M
 
   expect(captured.url).toBe("https://opencode.ai/inference/go/v1/responses");
   expect(captured.authorization).toBe("Bearer packet-opencode-go-fixture-key");
-  expect(captured.headers.get("user-agent")).toBe(`moke/${packageInfo.version}`);
-  expect(captured.headers.get("x-opencode-client")).toBe("moke");
+  expect(captured.headers.get("user-agent")).toBe(`second-set/${packageInfo.version}`);
+  expect(captured.headers.get("x-opencode-client")).toBe("second-set");
   // Each conversation has its own session, as OpenCode asks; the shared cache key does not replace it.
   expect(captured.headers.get("x-opencode-session")).not.toBe("moke-sheet-fixture");
 

@@ -1,6 +1,6 @@
 # Muse Spark Open reviews
 
-Muse Spark Open is one of Meta's open-weight models. Moke runs it through Baseten as
+Muse Spark Open is one of Meta's open-weight models. Second Set runs it through Baseten as
 `meta-models/muse-spark-open-1026`.
 
 ## Completed reviews

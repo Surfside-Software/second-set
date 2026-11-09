@@ -74,7 +74,7 @@ permit.
 The inspect tool delivers up to two full selected-sheet overview images,
 rendering missing overviews through that port. Targeted render delivers the newly
 rendered image. Both return actual SDK image blocks and text metadata with exact
-delivered dimensions/transforms. Moke owns resizing and provenance.
+delivered dimensions/transforms. Second Set owns resizing and provenance.
 
 ## Persistence and admission
 

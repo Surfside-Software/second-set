@@ -89,7 +89,7 @@ const technicalFinding = (findingId: string) => ({
 });
 
 test("summaries bind to their technical revision and correcting one finding leaves other candidates pending", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-summary-revisions-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-summary-revisions-"));
   const first = id();
   const second = id();
   let step = 0;
@@ -207,7 +207,7 @@ test("summaries bind to their technical revision and correcting one finding leav
 test.each(["muse-spark-1.3", "meta-models/muse-spark-open-1026"] as const)(
   "%s saves full facts before rejecting a summary, accepts a corrected revision and reopens losslessly",
   async (model) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-short-findings-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-short-findings-"));
     const findingId = id();
     let step = 0;
     let inventory: PacketReview | undefined;
@@ -391,7 +391,7 @@ test.each(["muse-spark-1.3", "meta-models/muse-spark-open-1026"] as const)(
 test.each(["finding-first", "finish-first"] as const)(
   "ignored invalid summaries never complete or lose the full finding: %s",
   async (order) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-pending-summary-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-pending-summary-"));
     const findingId = id();
     let step = 0;
 
@@ -450,7 +450,7 @@ test.each(["finding-first", "finish-first"] as const)(
 test.each(["muse-spark-1.3", "meta-models/muse-spark-open-1026"] as const)(
   "%s cannot introduce an unsupported absence claim through a short summary",
   async (model) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-summary-evidence-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-summary-evidence-"));
     const findingId = id();
     let step = 0;
     let revision = "";

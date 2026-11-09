@@ -21,7 +21,7 @@ import {
 
 test("Initial Review stays through a split first set and leaves once a revision is linked", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-initial-review-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-initial-review-"));
   const fixture = join(directory, "First set.pdf");
   const credentialFile = join(directory, "offline-provider-config.json");
   await writeFile(fixture, createHeroPdf("A"));
@@ -133,7 +133,7 @@ test("Initial Review stays through a split first set and leaves once a revision 
 
 test("With OpenCode Go connected, Go models are the only chat choice while Meta stays connected for SAM", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-opencode-go-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-opencode-go-"));
   const fixture = join(directory, "First set.pdf");
   const credentialFile = join(directory, "offline-provider-config.json");
   await writeFile(fixture, createHeroPdf("A"));
@@ -236,7 +236,7 @@ test("With OpenCode Go connected, Go models are the only chat choice while Meta 
 
 test("Initial Review sends every first-set sheet once, on Muse Spark 1.3 with no call budget and its preset", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-initial-review-send-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-initial-review-send-"));
   const first = join(directory, "First half.pdf");
   const second = join(directory, "Second half.pdf");
   await writeFile(first, createHeroPdf("A"));

@@ -94,7 +94,7 @@ async function snapshotProjects(page: Page) {
 
 test("navigation stays on the most recently selected project when earlier progress and snapshots arrive late", async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-project-navigation-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-project-navigation-"));
   const { app, page, errors, alpha, beta, gamma } = await threeProjects(directory);
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
   const [alphaThread] = alpha.conversations;
@@ -200,7 +200,7 @@ test("navigation stays on the most recently selected project when earlier progre
 
 test("replayed reviews and a progress burst share bounded snapshot refreshes", async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-snapshot-coalescing-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-snapshot-coalescing-"));
   const { app, page, errors, alpha, beta } = await threeProjects(directory);
   const [alphaThread] = alpha.conversations;
   const [betaThread] = beta.conversations;

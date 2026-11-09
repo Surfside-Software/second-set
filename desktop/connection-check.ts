@@ -122,8 +122,8 @@ export const checkConnection = Effect.fn("checkConnection")(function* (endpoint:
  */
 export function openCodeHeaders(version: string, session: string) {
   return {
-    "user-agent": `moke/${version}`,
-    "x-opencode-client": "moke",
+    "user-agent": `second-set/${version}`,
+    "x-opencode-client": "second-set",
     "x-opencode-session": session,
   };
 }

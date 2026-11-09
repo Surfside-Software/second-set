@@ -189,7 +189,7 @@ test.each([
 ])(
   "a citation names a search_code result and the host attaches its link: %s",
   async ({ section, document, edition, target }) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-code-citation-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-code-citation-"));
 
     const SearchOutput = Schema.Struct({
       index: Schema.String,

@@ -1,6 +1,6 @@
-# SAM for Moke plumbing coordination
+# SAM for plumbing coordination
 
-This study applies Moke's [plumbing review instructions](../../backend/review/prompts/assets/disciplines/plumbing.md): reconcile fixture marks and quantities, room uses, and existing/new scope across drawings.
+This study applies the vendored [plumbing review instructions](../../backend/review/prompts/assets/disciplines/plumbing.md): reconcile fixture marks and quantities, room uses, and existing/new scope across drawings.
 
 ## Result
 
@@ -114,7 +114,7 @@ or accuracy savings. Check held-out rooms, overlapping crop coverage, missed
 Muse candidates, visible marks, and new/removed scope. Keep schedule quantities
 out of grounding prompts.
 
-Moke source: the [review instructions](../../backend/review/prompts/README.md) at revision
+Instruction source: the [review instructions](../../backend/review/prompts/README.md) at revision
 `8a0e2648738018631eaa6d24ee0b6ebaa239afb1`: master instructions, shared method,
 and plumbing discipline. API grounding follows Meta's
 [normalized coordinate guidance](https://dev.meta.ai/docs/image-understanding#perception-grounding)

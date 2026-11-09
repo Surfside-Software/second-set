@@ -3,7 +3,7 @@
 The workbench calls this **Push to cloud**. A reviewer chooses it beside the
 message composer, chooses a whole-set or discipline review, and sends their instructions.
 The same cloud protocol also supports selected count-check requests.
-Moke transfers the workspace, runs a new bounded review away from the computer,
+Second Set transfers the workspace, runs a new bounded review away from the computer,
 and automatically syncs verified results back when the review finishes.
 The infrastructure provider is Modal; that name belongs in operator setup rather
 than the review controls.
@@ -261,13 +261,13 @@ limit, and no warm pool. The operator can choose 1–60 minutes. The sandbox get
 an additional two minutes for transfer/checkpoint cleanup. Selected count reviews
 retain their call/token admission budget. Drawing-set reviews honor the optional call budget and the shared time limit. Inference remains on the
 selected Meta/Baseten service; Modal credits pay for the sandbox, storage, and
-related Modal usage. Moke does not read a Modal wallet or promise a dollar cap.
+related Modal usage. Second Set does not read a Modal wallet or promise a dollar cap.
 Configure account budgets in Modal separately from these runtime limits.
 Transfer and setup consume the same deadline used to claim warm capacity.
 Exec timeouts are rounded down to whole seconds, as required by the SDK; a
 transfer leaving less than one minute fails before inference dispatch. A 1-minute
 limit can therefore never dispatch, so Send refuses it before preflight,
-allocation or upload and asks for 2 minutes or more. Moke does not add review
+allocation or upload and asks for 2 minutes or more. Second Set does not add review
 time beyond the configured limit; whether a minimum above 1 minute or a full
 minute after setup is wanted is an open product decision.
 
@@ -382,7 +382,7 @@ WARP for the review, or remove the entry with `warp-cli dns fallback remove host
 (`warp-cli dns fallback reset` restores the defaults).
 
 **A finished review stops at "Sync paused" with "A package file could not be written."** Windows
-antivirus and indexing briefly hold files Moke has just written, and replacing such a file fails
+antivirus and indexing briefly hold files Second Set has just written, and replacing such a file fails
 until they let go. Restores, transfers and database replacement now retry that rename for about
 ten seconds (`backend/rename.ts`). A paused sync keeps the downloaded result; choose Retry sync.
 
@@ -403,7 +403,7 @@ it does not deploy Harbor or a parallel evaluation fleet.
 ## Compatibility with drawing-set reviews
 
 The cloud composer follows the whole-set and discipline workflow introduced in
-[PR #9](https://github.com/sc-frederick/moke-meta-hackathon/pull/9); it does not require
+[PR #9](https://github.com/Surfside-Software/second-set/pull/9); it does not require
 an existing count check. The chosen model selects its own provider connection.
 Configured Meta tools remain available with Baseten chat through separate
 outbound header policies. Packet findings, coverage, evidence and reports return

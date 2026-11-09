@@ -44,7 +44,7 @@ const id = () => Schema.decodeUnknownSync(CommandId)(crypto.randomUUID());
 
 import { buildMinimalPdf } from "../fixtures/generated/minimal-pdf.ts";
 
-const fixtureDirectory = await mkdtemp(join(tmpdir(), "moke-pdf-fixtures-"));
+const fixtureDirectory = await mkdtemp(join(tmpdir(), "second-set-pdf-fixtures-"));
 
 beforeAll(async () => {
   await writeFile(join(fixtureDirectory, "original.pdf"), buildMinimalPdf());
@@ -61,7 +61,7 @@ const nativeFile = join(
 );
 
 test("direct crops contain the source mark through every rotation, nonzero page box, and UserUnit", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-crop-pixels-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-crop-pixels-"));
 
   try {
     for (const rotation of [0, 90, 180, 270] as const) {
@@ -181,7 +181,7 @@ function largeImagePdf() {
 }
 
 test("embedded images above the output pixel limit still render", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-large-image-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-large-image-"));
 
   try {
     const original = join(directory, "large-image.pdf");
@@ -246,7 +246,7 @@ function documentsLayer(dataDirectory: string) {
 }
 
 test("extracts retrieved PDF text by whole pages, from a requested page, and stores the original", async () => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "moke-documents-text-"));
+  const dataDirectory = await mkdtemp(join(tmpdir(), "second-set-documents-text-"));
   const pdf = createHeroPdf("A");
 
   try {
@@ -264,7 +264,7 @@ test("extracts retrieved PDF text by whole pages, from a requested page, and sto
     );
 
     expect(whole.pageCount).toBe(2);
-    expect(whole.text).toContain("[Page 1]\nMOKE COORDINATION LAB");
+    expect(whole.text).toContain("[Page 1]\nSECOND SET COORDINATION LAB");
     expect(whole.text).toContain("[Page 2]");
     expect(whole.truncated).toBe(false);
     expect(fromSecond.text.startsWith("[Page 2]")).toBe(true);
@@ -283,7 +283,7 @@ test("extracts retrieved PDF text by whole pages, from a requested page, and sto
 }, 60000);
 
 test("a retrieved PDF without embedded text stays unavailable", async () => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "moke-documents-scanned-"));
+  const dataDirectory = await mkdtemp(join(tmpdir(), "second-set-documents-scanned-"));
 
   try {
     const source = await Effect.runPromise(
@@ -310,7 +310,7 @@ test("a retrieved PDF without embedded text stays unavailable", async () => {
 }, 60000);
 
 test("import stores the original hash and inventories pages", async () => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "moke-documents-"));
+  const dataDirectory = await mkdtemp(join(tmpdir(), "second-set-documents-"));
   const source = join(fixtureDirectory, "original.pdf");
 
   try {
@@ -334,7 +334,7 @@ test("import stores the original hash and inventories pages", async () => {
 });
 
 test("malformed PDFs and mismatched source metadata are rejected", async () => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "moke-documents-reject-"));
+  const dataDirectory = await mkdtemp(join(tmpdir(), "second-set-documents-reject-"));
   const badSource = join(fixtureDirectory, "malformed.pdf");
   const goodSource = join(fixtureDirectory, "original.pdf");
 
@@ -406,7 +406,7 @@ test("malformed PDFs and mismatched source metadata are rejected", async () => {
 });
 
 test("read returns bounded chunks for stored artifacts", async () => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "moke-documents-read-"));
+  const dataDirectory = await mkdtemp(join(tmpdir(), "second-set-documents-read-"));
   const source = join(fixtureDirectory, "original.pdf");
 
   try {
@@ -427,8 +427,8 @@ test("read returns bounded chunks for stored artifacts", async () => {
 });
 
 test("import interruption stops each started worker and releases every PDF job slot", async () => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "moke-documents-cancel-"));
-  const started = await mkdtemp(join(tmpdir(), "moke-documents-started-"));
+  const dataDirectory = await mkdtemp(join(tmpdir(), "second-set-documents-cancel-"));
+  const started = await mkdtemp(join(tmpdir(), "second-set-documents-started-"));
   const source = join(fixtureDirectory, "original.pdf");
   // Workers report each accepted job, then hold it far beyond this test.
   process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY = started;
@@ -504,7 +504,7 @@ function running(pid: number) {
 }
 
 test("render refuses an original replaced by another valid PDF and records nothing", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-documents-integrity-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-documents-integrity-"));
   const source = join(directory, "plans.pdf");
   await writeFile(source, createHeroPdf("A"));
 
@@ -567,7 +567,7 @@ test("render refuses an original replaced by another valid PDF and records nothi
 }, 60000);
 
 test("chunked artifact reads hash the file once and still reject altered or truncated files", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-documents-chunks-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-documents-chunks-"));
   const bytes = crypto.getRandomValues(new Uint8Array(1024 * 1024 + 4321));
   const sha256 = Bun.SHA256.hash(bytes, "hex");
   const path = join(directory, "artifacts", `${sha256}.png`);
@@ -637,7 +637,7 @@ test("chunked artifact reads hash the file once and still reject altered or trun
 });
 
 test("drawing-sized sheets and focused boxes fit the hard pixel ceiling with accurate actual-DPI transforms", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-large-drawing-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-large-drawing-"));
 
   try {
     for (const rotation of [0, 90] as const) {
@@ -697,7 +697,7 @@ test("drawing-sized sheets and focused boxes fit the hard pixel ceiling with acc
 }, 60000);
 
 test("PDF import proposes printed sheet identities and retains original page references", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-3-labels-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-3-labels-"));
   const source = join(directory, "lighting.pdf");
   await writeFile(source, createHeroPdf("A"));
 
@@ -750,7 +750,7 @@ test("PDF import proposes printed sheet identities and retains original page ref
 });
 
 test("existing generic sheet names are suggested without mutation and applied without changing verification or count evidence", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-3-existing-labels-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-3-existing-labels-"));
   const source = join(directory, "lighting.pdf");
   await writeFile(source, createHeroPdf("A"));
 

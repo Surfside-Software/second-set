@@ -12,7 +12,7 @@ import { createHeroPdf } from "../fixtures/hero-case.ts";
 const Licenses = Schema.fromJsonString(Schema.Struct({ pdfjs: Schema.String }));
 
 test("staged PDF.js assets are the runtime allowlist and render rotated text on their own", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-pdf-assets-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-pdf-assets-"));
   const assets = join(root, "pdf-assets");
   const data = join(root, "data");
 

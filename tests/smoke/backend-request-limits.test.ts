@@ -101,7 +101,7 @@ test("every bounded large command fits the backend request limit after JSON esca
 });
 
 test("maximum messages cross the HTTP RPC and an oversized request is an input error", async () => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "moke-request-limits-"));
+  const dataDirectory = await mkdtemp(join(tmpdir(), "second-set-request-limits-"));
 
   const launch = BackendApi.layer({
     command: [process.execPath, "--no-orphans", resolve("backend/main.ts")],

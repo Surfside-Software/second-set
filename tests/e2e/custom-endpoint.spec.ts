@@ -12,7 +12,7 @@ import { createProject, importPdf, offlineDesktop, openWindow } from "./workbenc
 
 test("OpenCode Go and a custom endpoint are set up in Review settings and run Initial Review on this computer", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-custom-endpoint-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-custom-endpoint-"));
   const source = join(directory, "First set.pdf");
   await writeFile(source, createHeroPdf("A"));
 

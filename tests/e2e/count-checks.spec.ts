@@ -12,7 +12,7 @@ import { installRpcBoundary } from "./rpc-boundary.ts";
 
 test("accepting a count on a fitted 36x48 source refreshes with the requested integer DPI", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-large-count-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-large-count-"));
   const fixture = join(directory, "36x48.pdf");
   await writeFile(fixture, buildMinimalPdf(0, 2592, 3456, 1, 2));
 
@@ -132,7 +132,7 @@ test("accepting a count on a fitted 36x48 source refreshes with the requested in
 
 test("a fresh project can create a count check by verifying its sources in the form", async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-3-fresh-count-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-3-fresh-count-"));
   const source = join(directory, "two-pages.pdf");
   await writeFile(source, buildMinimalPdf(0, 612, 792, 1, 2));
 

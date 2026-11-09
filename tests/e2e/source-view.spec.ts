@@ -49,7 +49,7 @@ const held = (page: Page) => page.evaluate(() => window.rpcControl.held());
 
 test("late source loads after close, a finding switch or a project switch show nothing and release their images", async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-source-view-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-source-view-"));
   const source = join(directory, "Drawing set.pdf");
   await writeFile(source, createHeroPdf("A"));
   const options = await offlineDesktop(directory, ["meta"]);

@@ -180,7 +180,7 @@ test("jurisdiction history ranks locality matches first and prefers verified cit
 });
 
 test("reviewer decisions survive model updates, reach follow-ups and appear in the report", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-decisions-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-decisions-"));
   const script = scripted();
   const session = await open(directory, script.transport);
 
@@ -304,7 +304,7 @@ test("reviewer decisions survive model updates, reach follow-ups and appear in t
 }, 120000);
 
 test("new reviews apply the saved firm checklist revision; saves are versioned", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-checklist-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-checklist-"));
   const script = scripted();
   const session = await open(directory, script.transport);
 
@@ -372,7 +372,7 @@ test("new reviews apply the saved firm checklist revision; saves are versioned",
 }, 120000);
 
 test("record_project offers earlier reviews' sources, citations and comments for the same jurisdiction once", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-jurisdiction-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-jurisdiction-"));
   const script = scripted();
   const session = await open(directory, script.transport);
 
