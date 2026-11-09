@@ -246,7 +246,7 @@ export function jurisdictionHistory(
   return {
     history: {
       jurisdiction,
-      note: "Leads from earlier MOKE reviews in this workspace, matched by state or locality. They are not evidence for this project. Read a source again with read_source and confirm its edition and applicability before citing it. Check an earlier agency comment against the current drawings before recording anything.",
+      note: "Leads from earlier Second Set reviews in this workspace, matched by state or locality. They are not evidence for this project. Read a source again with read_source and confirm its edition and applicability before citing it. Check an earlier agency comment against the current drawings before recording anything.",
       earlierReviews: reviews.map(({ review, value, match }) => ({
         projectName: review.projectName,
         jurisdiction: clip(value, 200),

@@ -75,7 +75,7 @@ export const writeCloudCacheState = (path: string, state: CloudCacheState) =>
  * letters, digits, dashes, periods and underscores, and must be shorter than 64 characters.
  */
 export const cloudCacheVolumeName = (appName: string, id: string) =>
-  `${appName}-cache-${id}`.length < 64 ? `${appName}-cache-${id}` : `moke-cache-${id}`;
+  `${appName}-cache-${id}`.length < 64 ? `${appName}-cache-${id}` : `second-set-cache-${id}`;
 
 /** Content-addressed originals and renders in the local artifact store. */
 export const listLocalArtifacts = (dataDirectory: string) =>

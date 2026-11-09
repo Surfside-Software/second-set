@@ -66,7 +66,11 @@ export function inventoryReport(
     )
     .join("");
 
-  const key = JSON.stringify(`moke-fixture-reconciliation:${revision}`).replaceAll("<", "\\u003c");
+  const key = JSON.stringify(`second-set-fixture-reconciliation:${revision}`).replaceAll(
+    "<",
+    "\\u003c",
+  );
+
   const reportRevision = JSON.stringify(revision).replaceAll("<", "\\u003c");
   const candidates = JSON.stringify(fixtures).replaceAll("<", "\\u003c");
 
@@ -84,7 +88,7 @@ function persist(){try{localStorage.setItem(key,JSON.stringify(Object.fromEntrie
 controls.forEach(c=>c.addEventListener('change',()=>{update();persist();}));
 document.getElementById('reset').addEventListener('click',()=>{controls.forEach((c,i)=>c.checked=original[i]);update();persist();});
 document.getElementById('toggle-masks').addEventListener('click',event=>{const button=event.currentTarget;const show=button.getAttribute('aria-pressed')!=='true';button.setAttribute('aria-pressed',String(show));button.textContent=show?'Show Muse boxes only':'Show SAM masks';document.getElementById('evidence-mode').textContent=show?'Muse candidate; SAM geometry. Compare with the original proposal.':'Muse candidate boxes; SAM masks hidden.';document.querySelectorAll('img[data-evidence]').forEach(img=>img.src=show?img.dataset.maskSrc:img.dataset.boxesSrc);});
-document.getElementById('export-review').addEventListener('click',()=>{const decisions=controls.filter(c=>c.hasAttribute('data-include')).map(c=>({id:c.id.slice(8),decision:c.disabled?'unresolved':c.checked?'included':'excluded'}));const completed=controls.filter(c=>c.hasAttribute('data-completed')).map(c=>({id:c.id,completed:c.checked}));const body=JSON.stringify({reportRevision,candidates,decisions,completed,review:'user tracking; no verified finding closure'},null,2);const url=URL.createObjectURL(new Blob([body],{type:'application/json'}));const anchor=document.createElement('a');anchor.href=url;anchor.download='moke-fixture-review.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+document.getElementById('export-review').addEventListener('click',()=>{const decisions=controls.filter(c=>c.hasAttribute('data-include')).map(c=>({id:c.id.slice(8),decision:c.disabled?'unresolved':c.checked?'included':'excluded'}));const completed=controls.filter(c=>c.hasAttribute('data-completed')).map(c=>({id:c.id,completed:c.checked}));const body=JSON.stringify({reportRevision,candidates,decisions,completed,review:'user tracking; no verified finding closure'},null,2);const url=URL.createObjectURL(new Blob([body],{type:'application/json'}));const anchor=document.createElement('a');anchor.href=url;anchor.download='second-set-fixture-review.json';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 update();
 </script></html>`;
 }

@@ -25,7 +25,7 @@ It never uses an existing desktop. It needs unprivileged user namespaces for
 `Xvfb` and `xdpyinfo`. Inside private user, mount, network, PID and IPC
 namespaces it starts its own Xvfb on `:99`, strips inherited display, D-Bus and
 audio variables, and refuses to run while the desktop display `:0` is reachable.
-Set `MOKE_XVFB_BINARY` when `Xvfb` is not on `PATH`. Setting `DISPLAY` or wrapping
+Set `SECOND_SET_XVFB_BINARY` when `Xvfb` is not on `PATH`. Setting `DISPLAY` or wrapping
 the command in `xvfb-run` has no effect: the runner discards inherited display
 variables, and the Playwright fixtures refuse runs that bypass it. The fixed
 display's lock is `/tmp/.X99-lock`, so run one desktop suite per host at a time.

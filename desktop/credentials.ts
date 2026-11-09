@@ -86,7 +86,7 @@ async function writeStored(path: string, plain: string) {
 
 /** Session file, imported credentials, or (in development only) the environment. */
 async function readImportedConfigurations(directory: string, packaged: boolean) {
-  const sessionFile = process.env.MOKE_SESSION_CREDENTIAL_FILE;
+  const sessionFile = process.env.SECOND_SET_SESSION_CREDENTIAL_FILE;
 
   if (sessionFile !== undefined) return readProviderConfigurations(sessionFile, true);
   const storedFile = join(directory, importedFile);
@@ -106,7 +106,8 @@ async function readImportedConfigurations(directory: string, packaged: boolean) 
 
   const order = (["meta", "baseten", "opencode-go"] as const).toSorted(
     (left, right) =>
-      Number(right === process.env.MOKE_PROVIDER) - Number(left === process.env.MOKE_PROVIDER),
+      Number(right === process.env.SECOND_SET_PROVIDER) -
+      Number(left === process.env.SECOND_SET_PROVIDER),
   );
 
   return order.flatMap((entry) => {
@@ -134,7 +135,10 @@ export async function readInferenceConfigurations(directory: string, packaged: b
   let configs = await readImportedConfigurations(directory, packaged);
 
   // A session-only launch must still start when the keyring is down.
-  if (process.env.MOKE_SESSION_CREDENTIAL_FILE !== undefined && !(await secureStorageAvailable()))
+  if (
+    process.env.SECOND_SET_SESSION_CREDENTIAL_FILE !== undefined &&
+    !(await secureStorageAvailable())
+  )
     return configs;
 
   for (const [provider, file] of Object.entries(settingsFiles)) {

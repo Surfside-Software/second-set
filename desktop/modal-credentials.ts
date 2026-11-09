@@ -7,7 +7,7 @@ import { CredentialError } from "./credential-files.ts";
 export const readModalConfiguration = Effect.fn("readModalConfiguration")(function* (
   packaged: boolean,
 ) {
-  const sessionFile = process.env.MOKE_MODAL_CONFIG;
+  const sessionFile = process.env.SECOND_SET_MODAL_CONFIG;
 
   if (sessionFile !== undefined) {
     const text = yield* Effect.tryPromise({
@@ -55,11 +55,11 @@ export const readModalConfiguration = Effect.fn("readModalConfiguration")(functi
   return yield* Schema.decodeUnknownEffect(ModalConfiguration)({
     tokenId,
     tokenSecret,
-    appName: process.env.MOKE_MODAL_APP ?? "moke-reviews",
+    appName: process.env.SECOND_SET_MODAL_APP ?? "second-set-reviews",
     environment: process.env.MODAL_ENVIRONMENT ?? "main",
-    imageName: process.env.MOKE_MODAL_IMAGE ?? "moke-review-engine:latest",
-    timeoutMinutes: Number(process.env.MOKE_MODAL_TIMEOUT_MINUTES ?? "15"),
-    poolQueue: process.env.MOKE_MODAL_POOL_QUEUE ?? null,
+    imageName: process.env.SECOND_SET_MODAL_IMAGE ?? "second-set-review-engine:latest",
+    timeoutMinutes: Number(process.env.SECOND_SET_MODAL_TIMEOUT_MINUTES ?? "15"),
+    poolQueue: process.env.SECOND_SET_MODAL_POOL_QUEUE ?? null,
   }).pipe(
     Effect.mapError(() => new CredentialError({ message: "The Modal configuration is invalid." })),
   );

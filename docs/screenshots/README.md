@@ -26,14 +26,14 @@ It is from a different review than the five-sheet civil example.
 ## Extract the frames
 
 With FFmpeg installed, run these commands from the repository root. Set
-`MOKE_DEMO_VIDEO` to the local copy of the source video; the video itself is not
+`SECOND_SET_DEMO_VIDEO` to the local copy of the source video; the video itself is not
 stored in this repository.
 
 ```sh
-export MOKE_DEMO_VIDEO=/path/to/moke-demo-voiceover-final.mp4
-ffmpeg -hide_banner -loglevel error -y -ss 92 -i "$MOKE_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/workbench.png
-ffmpeg -hide_banner -loglevel error -y -ss 108 -i "$MOKE_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/correction.png
-ffmpeg -hide_banner -loglevel error -y -ss 122 -i "$MOKE_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/revision.png
+export SECOND_SET_DEMO_VIDEO=/path/to/moke-demo-voiceover-final.mp4
+ffmpeg -hide_banner -loglevel error -y -ss 92 -i "$SECOND_SET_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/workbench.png
+ffmpeg -hide_banner -loglevel error -y -ss 108 -i "$SECOND_SET_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/correction.png
+ffmpeg -hide_banner -loglevel error -y -ss 122 -i "$SECOND_SET_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/revision.png
 ```
 
 `bun run test:screenshots` captures the offline synthetic fixture into

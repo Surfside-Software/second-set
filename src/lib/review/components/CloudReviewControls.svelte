@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { readStoredSetting, storedSettingKeys } from "#lib/review/stored-setting.ts";
   import type { ReviewClient } from "#lib/review/client.ts";
   import { createCloudResultDelivery } from "#lib/review/cloud-delivery.ts";
   import { packetActivityStageLabels } from "#lib/review/packet.ts";
@@ -40,8 +41,8 @@
   let acknowledge = $state(false);
 
   // Only the latest receipt is shown, so remembering its dismissal survives a restart.
-  const dismissedKey = "moke.cloudReview.dismissed";
-  let dismissedId = $state<string | null>(globalThis.localStorage?.getItem(dismissedKey) ?? null);
+  const dismissedKey = storedSettingKeys.dismissedCloudReview;
+  let dismissedId = $state<string | null>(readStoredSetting(dismissedKey));
   let showReceiptDetails = $state(false);
   let now = $state(Date.now());
   const deliver = createCloudResultDelivery((action) => onReturned(action));
@@ -268,7 +269,7 @@
             onclick={() => {
               if (status === null) return;
               dismissedId = status.id;
-              globalThis.localStorage?.setItem(dismissedKey, status.id);
+              globalThis.localStorage?.setItem(dismissedKey.key, status.id);
             }}>Dismiss</button
           >{/if}
       </div>

@@ -187,6 +187,10 @@ test.each([
                   legacyPhase !== null && record.workerProtocol === undefined
                     ? 2
                     : cloudEngineIdentity.protocol,
+                prompt:
+                  legacyPhase !== null && record.workerProtocol === undefined
+                    ? "moke-selected-coordination-v2"
+                    : cloudEngineIdentity.prompt,
                 packetPrompt:
                   legacyPhase !== null && record.workerProtocol === undefined
                     ? "moke-packet-review-v3"
@@ -647,6 +651,10 @@ test.each(["legacy", "whole_set", "selected_sheets", "discipline", "legacy_worke
                   scopeMode === "legacy_worker" && record.workerProtocol === undefined
                     ? 2
                     : cloudEngineIdentity.protocol,
+                prompt:
+                  scopeMode === "legacy_worker" && record.workerProtocol === undefined
+                    ? "moke-selected-coordination-v2"
+                    : cloudEngineIdentity.prompt,
                 packetPrompt:
                   scopeMode === "legacy_worker" && record.workerProtocol === undefined
                     ? "moke-packet-review-v3"

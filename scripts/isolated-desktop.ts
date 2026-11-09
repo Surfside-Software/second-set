@@ -14,9 +14,9 @@ if (isHostedDesktopRunner(process.env)) {
       {
         env: {
           ...process.env,
-          MOKE_TEST_RUNTIME: directory,
-          MOKE_TEST_HOSTED_RUNNER: "1",
-          MOKE_E2E_LIVE: "0",
+          SECOND_SET_TEST_RUNTIME: directory,
+          SECOND_SET_TEST_HOSTED_RUNNER: "1",
+          SECOND_SET_E2E_LIVE: "0",
         },
         stdin: "inherit",
         stdout: "inherit",
@@ -36,7 +36,7 @@ if (process.platform !== "linux")
   throw new Error("Local desktop proof requires the private Linux isolation runner.");
 
 // Separate network and mount namespaces hide both abstract and filesystem X11 sockets.
-if (process.platform === "linux" && process.env.MOKE_TEST_MOUNT_NAMESPACE !== "1") {
+if (process.platform === "linux" && process.env.SECOND_SET_TEST_MOUNT_NAMESPACE !== "1") {
   const sandbox = Bun.which("unshare");
 
   if (!sandbox) throw new Error("unshare is required for a private X11 socket namespace.");
@@ -62,7 +62,7 @@ if (process.platform === "linux" && process.env.MOKE_TEST_MOUNT_NAMESPACE !== "1
       ...process.argv.slice(2),
     ],
     {
-      env: { ...process.env, MOKE_TEST_MOUNT_NAMESPACE: "1" },
+      env: { ...process.env, SECOND_SET_TEST_MOUNT_NAMESPACE: "1" },
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",
@@ -78,17 +78,17 @@ const runtime = join(directory, "runtime");
 
 await mkdir(runtime, { mode: 0o700 });
 
-const executable = process.env.MOKE_XVFB_BINARY ?? Bun.which("Xvfb");
+const executable = process.env.SECOND_SET_XVFB_BINARY ?? Bun.which("Xvfb");
 
 if (!executable)
   throw new Error(
-    "Private Xvfb is required. Set MOKE_XVFB_BINARY; desktop tests never use the inherited display.",
+    "Private Xvfb is required. Set SECOND_SET_XVFB_BINARY; desktop tests never use the inherited display.",
   );
 
 const environment = Object.fromEntries(
   Object.entries(process.env).flatMap(([key, value]) =>
     value === undefined ||
-    /^(DISPLAY|WAYLAND_DISPLAY|DBUS_|SESSION_MANAGER|PULSE_|PIPEWIRE_|XDG_CURRENT_DESKTOP|DESKTOP_SESSION|XAUTHORITY|ELECTRON_RUN_AS_NODE|MOKE_E2E_LIVE)/.test(
+    /^(DISPLAY|WAYLAND_DISPLAY|DBUS_|SESSION_MANAGER|PULSE_|PIPEWIRE_|XDG_CURRENT_DESKTOP|DESKTOP_SESSION|XAUTHORITY|ELECTRON_RUN_AS_NODE|SECOND_SET_E2E_LIVE)/.test(
       key,
     )
       ? []
@@ -160,8 +160,8 @@ try {
       env: {
         ...environment,
         DISPLAY: privateDisplay,
-        MOKE_TEST_ISOLATED_DISPLAY: privateDisplay,
-        MOKE_TEST_RUNTIME: runtime,
+        SECOND_SET_TEST_ISOLATED_DISPLAY: privateDisplay,
+        SECOND_SET_TEST_RUNTIME: runtime,
         XDG_RUNTIME_DIR: runtime,
         XDG_SESSION_TYPE: "x11",
         GDK_BACKEND: "x11",

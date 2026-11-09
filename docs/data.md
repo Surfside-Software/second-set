@@ -117,6 +117,14 @@ The renderer version changes with the pinned PDF.js or canvas version. Rendering
 checks the original's hash on the exact bytes given to PDF.js; a replaced
 original fails and stores no image.
 
+Migration 0014 follows the rename from MOKE to Second Set. Saved run prompt versions,
+packet review and record payloads, command receipts and execution responses take the
+`second-set-` instruction names, so `moke-packet-review-v10` reads
+`second-set-packet-review-v10`. Provider attempts, tool results and SAM records are left
+byte for byte as the record of what was sent and returned. Renderer identities stay
+unchanged: `moke-render-2` is hashed into every stored render's identity, and renaming it
+would rasterize every sheet again for the same pixels.
+
 PDF.js removes an embedded image larger than its image limit from the page without an error.
 Renderer `moke-render-1` used the 16-megapixel output limit there, so scanned schedules and
 details above it rendered as blank paper; a 17.6-megapixel panel schedule on a sample sheet

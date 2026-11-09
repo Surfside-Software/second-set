@@ -231,7 +231,7 @@ test("a request outside a durable conversation still sends a stable OpenCode ses
     );
 
   const sessions = session.requests.map((request) => request.headers.get("x-opencode-session"));
-  expect(sessions[0]).toMatch(/^moke-/);
+  expect(sessions[0]).toMatch(/^second-set-/);
   expect(sessions[1]).toBe(sessions[0]);
 });
 

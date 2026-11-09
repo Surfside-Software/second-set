@@ -53,7 +53,10 @@ export async function offlineDesktop(
 
   const options: Parameters<typeof electron.launch>[0] = {
     args: [".", `--user-data-dir=${join(directory, "profile")}`],
-    env: { PROJECT_KIT_DATA_DIRECTORY: directory, MOKE_SESSION_CREDENTIAL_FILE: credentialFile },
+    env: {
+      PROJECT_KIT_DATA_DIRECTORY: directory,
+      SECOND_SET_SESSION_CREDENTIAL_FILE: credentialFile,
+    },
   };
 
   if (process.env.PROJECT_KIT_EXECUTABLE !== undefined) {

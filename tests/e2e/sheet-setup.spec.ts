@@ -24,7 +24,7 @@ test("audit workbench imports native and dropped revisions, assigns compact shee
     args: ["."],
     env: {
       PROJECT_KIT_DATA_DIRECTORY: directory,
-      MOKE_SESSION_CREDENTIAL_FILE: "",
+      SECOND_SET_SESSION_CREDENTIAL_FILE: "",
       MODEL_API_KEY: "",
       BASETEN_API_KEY: "",
       OPENCODE_API_KEY: "",

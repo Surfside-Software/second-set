@@ -17,6 +17,7 @@
     RevisionId,
   } from "#lib/review/contracts.ts";
   import { newCommandId, reviewCommand, type ReviewClient } from "#lib/review/client.ts";
+  import { readStoredSetting, storedSettingKeys } from "#lib/review/stored-setting.ts";
   import CitationRow from "./CitationRow.svelte";
   import CloudReviewControls from "./CloudReviewControls.svelte";
   import {
@@ -170,13 +171,11 @@
   let firmChecklistMessage = $state("");
 
   // The reviewer's model for Initial Review and new conversations, kept in this window's storage.
-  const preferredModelKey = "moke.preferredReviewModel";
+  const preferredModelKey = storedSettingKeys.preferredReviewModel;
 
   let preferredModelChoice = $state(
     Option.getOrUndefined(
-      Schema.decodeUnknownOption(ReviewModelId)(
-        globalThis.localStorage?.getItem(preferredModelKey),
-      ),
+      Schema.decodeUnknownOption(ReviewModelId)(readStoredSetting(preferredModelKey)),
     ),
   );
 
@@ -936,7 +935,7 @@
 
     if (Option.isNone(chosen)) return;
     preferredModelChoice = chosen.value;
-    globalThis.localStorage?.setItem(preferredModelKey, chosen.value);
+    globalThis.localStorage?.setItem(preferredModelKey.key, chosen.value);
   }
 
   function openPacketFocus(focus: typeof PacketFindingFocus.Type) {
@@ -1446,7 +1445,7 @@
     }
 
     try {
-      const staged = await window.mokeFiles.stageDrop(file);
+      const staged = await window.secondSetFiles.stageDrop(file);
 
       if (request !== dropRequest || !importDialog?.open) return;
       droppedPdf = staged;

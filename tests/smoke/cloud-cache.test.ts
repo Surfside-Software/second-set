@@ -318,7 +318,7 @@ test("the workspace cache seeds local files, prunes only unreferenced files and 
   }
 
   expect(cloudCacheVolumeName("a".repeat(60), "0123456789abcdef")).toBe(
-    "moke-cache-0123456789abcdef",
+    "second-set-cache-0123456789abcdef",
   );
 });
 

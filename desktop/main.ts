@@ -172,7 +172,7 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       const drops = createDropImports();
-      ipcMain.handle("moke:stage-pdf", async (event, value) => {
+      ipcMain.handle("second-set:stage-pdf", async (event, value) => {
         if (
           !event.senderFrame ||
           event.senderFrame !== event.sender.mainFrame ||

@@ -15,8 +15,8 @@ test("desktop guards accept only dedicated hosted runners or the private display
     expect(() =>
       assertDesktopTestEnvironment({
         ...env,
-        MOKE_TEST_RUNTIME: "/private",
-        MOKE_TEST_HOSTED_RUNNER: "1",
+        SECOND_SET_TEST_RUNTIME: "/private",
+        SECOND_SET_TEST_HOSTED_RUNNER: "1",
         DISPLAY: ":0",
       }),
     ).toThrow("Inherited desktops");
@@ -28,14 +28,14 @@ test("desktop guards accept only dedicated hosted runners or the private display
   expect(() =>
     assertDesktopTestEnvironment({
       ...hosted,
-      MOKE_TEST_RUNTIME: "/private",
-      MOKE_TEST_HOSTED_RUNNER: "1",
+      SECOND_SET_TEST_RUNTIME: "/private",
+      SECOND_SET_TEST_HOSTED_RUNNER: "1",
     }),
   ).not.toThrow();
 
   const isolated = {
-    MOKE_TEST_RUNTIME: "/private",
-    MOKE_TEST_ISOLATED_DISPLAY: ":99",
+    SECOND_SET_TEST_RUNTIME: "/private",
+    SECOND_SET_TEST_ISOLATED_DISPLAY: ":99",
     DISPLAY: ":99",
     DBUS_SESSION_BUS_ADDRESS: "unix:path=/dev/null",
   };

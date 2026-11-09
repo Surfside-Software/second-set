@@ -116,7 +116,7 @@ export const importProject = Effect.fn("test.importProject")(function* (
   return project.projectId;
 });
 
-/** Worker jobs of one kind that started while `MOKE_PDF_WORKER_STARTED_DIRECTORY` named a directory. */
+/** Worker jobs of one kind that started while `SECOND_SET_PDF_WORKER_STARTED_DIRECTORY` named a directory. */
 export async function startedJobs(directory: string, kind: "Inspect" | "Render" | "Text") {
   return (await readdir(directory)).filter((name) => name.startsWith(`${kind}.`)).length;
 }

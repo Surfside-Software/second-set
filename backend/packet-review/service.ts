@@ -1833,7 +1833,7 @@ export class PacketReviews extends Context.Service<
             ),
             tool(
               "search_code",
-              "Search Moke's Florida code index for the section, statute or rule that governs a check: 2023 FBC sections with plan review notes, Florida Statutes, Florida Administrative Code rules, and 9th Edition volumes. Results are pointers with links, not code text. Cite one with record_citation and its id as codeReferenceId.",
+              "Search Second Set's Florida code index for the section, statute or rule that governs a check: 2023 FBC sections with plan review notes, Florida Statutes, Florida Administrative Code rules, and 9th Edition volumes. Results are pointers with links, not code text. Cite one with record_citation and its id as codeReferenceId.",
               Schema.Struct({
                 query: Schema.Trim.check(Schema.isMinLength(2), Schema.isMaxLength(500)),
                 limit: Schema.optionalKey(
@@ -2857,6 +2857,7 @@ export class PacketReviews extends Context.Service<
             );
           registry.install(
             defineExtension({
+              // Journals may name this extension, so it keeps the name it shipped with.
               name: "moke-packet-review-v1",
               tools,
               hooks: [

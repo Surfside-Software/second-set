@@ -39,7 +39,7 @@ const directory = async (prefix: string) => {
 };
 
 afterEach(async () => {
-  delete process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY;
+  delete process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY;
   await Promise.all(
     directories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
   );
@@ -77,7 +77,7 @@ test("equal crops under new tool operations share one worker render and keep a r
   const started = await directory("second-set-render-jobs-");
   const source = join(data, "plans.pdf");
   await writeFile(source, createHeroPdf("A"));
-  process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY = started;
+  process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY = started;
 
   const renders = () => Effect.promise(() => startedJobs(started, "Render"));
 
@@ -282,7 +282,7 @@ test("reopening previews keeps one artifact record per view across launches and 
   const started = await directory("second-set-preview-jobs-");
   const source = join(data, "plans.pdf");
   await writeFile(source, createHeroPdf("A"));
-  process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY = started;
+  process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY = started;
 
   const renders = () => Effect.promise(() => startedJobs(started, "Render"));
 
@@ -443,7 +443,7 @@ test("renders recorded before migration 0013 still replay by operation and are n
     ),
   );
 
-  process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY = started;
+  process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY = started;
 
   await Effect.runPromise(
     Effect.scoped(

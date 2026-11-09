@@ -253,7 +253,7 @@ function refusalDelay(retryAfterMs: number | undefined, retry: number) {
 export function promptCacheKey(role: string, ...prefix: ReadonlyArray<string>) {
   const digest = createHash("sha256").update(JSON.stringify(prefix)).digest("hex");
 
-  return `moke-${role}-${digest.slice(0, 32)}`;
+  return `second-set-${role}-${digest.slice(0, 32)}`;
 }
 
 /**
@@ -646,7 +646,7 @@ export function createAdmittedModels(
   const serverOutputLimit = selected.provider === "baseten" || custom !== null;
 
   // Pi supplies each conversation's durable session; a request outside one gets this adapter's.
-  const fallbackSession = `moke-${randomUUID()}`;
+  const fallbackSession = `second-set-${randomUUID()}`;
 
   /** Send one image to the Files API once a slot is free; any failure or stop leaves it inline. */
   const uploadImage = (image: string, sha256: string, signal: AbortSignal) =>

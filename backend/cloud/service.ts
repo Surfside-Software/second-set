@@ -623,7 +623,7 @@ export class CloudReviews extends Context.Service<
                 sandboxId: null,
                 inputSnapshotId: null,
                 resultSnapshotId: null,
-                sandboxName: `moke-review-${id}`,
+                sandboxName: `second-set-review-${id}`,
                 appName: config.modal.appName,
                 environment: config.modal.environment,
                 ...versions,

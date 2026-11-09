@@ -6,7 +6,7 @@ The primary route is Meta Responses, `muse-spark-1.3`. SAM uses its separate
 
 ## Packaged acceptance
 
-`MOKE_E2E_LIVE=1 MOKE_SESSION_CREDENTIAL_FILE=/private/session.json DISPLAY=:0
+`SECOND_SET_E2E_LIVE=1 SECOND_SET_SESSION_CREDENTIAL_FILE=/private/session.json DISPLAY=:0
 bun run test:packaged` passed both desktop tests. The production flow took
 41.8 seconds. Electron loaded the explicit session credential and passed it to
 the compiled Bun backend through its private stdin channel. The installed app

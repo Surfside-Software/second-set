@@ -41,7 +41,7 @@ const main = Effect.scoped(
       return yield* new CloudReviewError({
         reason: "configuration",
         message:
-          "Configure Modal using MOKE_MODAL_CONFIG or MODAL_TOKEN_ID and MODAL_TOKEN_SECRET first. See docs/cloud-reviews.md.",
+          "Configure Modal using SECOND_SET_MODAL_CONFIG or MODAL_TOKEN_ID and MODAL_TOKEN_SECRET first. See docs/cloud-reviews.md.",
       });
 
     const client = yield* Effect.acquireRelease(
@@ -84,7 +84,7 @@ const main = Effect.scoped(
       const base = client.images
         .fromRegistry("oven/bun:1.4.4")
         .dockerfileCommands([
-          "WORKDIR /opt/moke",
+          "WORKDIR /opt/second-set",
           "RUN bun add --exact @napi-rs/canvas@1.1.0 @napi-rs/canvas-linux-x64-gnu@1.1.0 pdfjs-dist@6.5.438",
         ]);
 
@@ -104,12 +104,15 @@ const main = Effect.scoped(
       );
 
       yield* call(() =>
-        sandbox.filesystem.copyFromLocal(join(output, "worker-main.mjs"), "/opt/moke/worker.mjs"),
+        sandbox.filesystem.copyFromLocal(
+          join(output, "worker-main.mjs"),
+          "/opt/second-set/worker.mjs",
+        ),
       );
       yield* call(() =>
         sandbox.filesystem.copyFromLocal(
           join(output, "pdf-worker-main.mjs"),
-          "/opt/moke/pdf-worker.mjs",
+          "/opt/second-set/pdf-worker.mjs",
         ),
       );
       const migrations = yield* call(() => readdir("migrations"));
@@ -118,12 +121,12 @@ const main = Effect.scoped(
         yield* call(() =>
           sandbox.filesystem.copyFromLocal(
             join("migrations", file),
-            `/opt/moke/migrations/${file}`,
+            `/opt/second-set/migrations/${file}`,
           ),
         );
 
       const text = yield* call(async () => {
-        const process = await sandbox.exec(["bun", "/opt/moke/worker.mjs", "--identity"]);
+        const process = await sandbox.exec(["bun", "/opt/second-set/worker.mjs", "--identity"]);
         const text = await process.stdout.readText();
 
         if ((await process.wait()) !== 0) throw failed();
@@ -143,7 +146,7 @@ const main = Effect.scoped(
       return yield* new CloudReviewError({
         reason: "configuration",
         message:
-          "Set MOKE_MODAL_POOL_QUEUE to opt into a warm sandbox. Warm capacity uses credits even before a review starts.",
+          "Set SECOND_SET_MODAL_POOL_QUEUE to opt into a warm sandbox. Warm capacity uses credits even before a review starts.",
       });
 
     const queue = yield* call(() =>
@@ -184,7 +187,7 @@ const main = Effect.scoped(
         experimentalOptions: { enable_exit_snapshot: true },
         experimentalOutboundPolicy: emptyReviewOutboundPolicy(),
         readinessProbe: modalReadinessProbe(),
-        tags: { "moke-kind": "warm" },
+        tags: { "second-set-kind": "warm" },
       }),
     );
 

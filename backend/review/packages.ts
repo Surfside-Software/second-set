@@ -27,6 +27,7 @@ import {
   PackageRunSnapshot,
   RestoredRun,
   packageEngineFormat,
+  packageFormat,
   packageFormatVersion,
 } from "#lib/review/packages.ts";
 import { exportDatabase } from "../database-files.ts";
@@ -1413,7 +1414,7 @@ const writeApplicationPackage = (
           const createdAt = new Date(yield* Clock.currentTimeMillis).toISOString();
 
           const manifest = new PackageManifest({
-            format: "moke-review-package",
+            format: packageFormat,
             formatVersion: packageFormatVersion,
             scope: "application",
             scopeLabel: "whole-application",

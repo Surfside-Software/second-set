@@ -72,12 +72,12 @@ test("importing a provider credential uses OS encryption and keeps saved provide
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] });
 
       dialog.showErrorBox = () => {
-        process.env.MOKE_E2E_CREDENTIAL = "refused";
+        process.env.SECOND_SET_E2E_CREDENTIAL = "refused";
       };
 
       // Stay open for the checks below; the next quit closes the app normally.
       app.relaunch = () => {
-        process.env.MOKE_E2E_CREDENTIAL = "saved";
+        process.env.SECOND_SET_E2E_CREDENTIAL = "saved";
 
         app.quit = () => {
           app.quit = quit;
@@ -93,7 +93,7 @@ test("importing a provider credential uses OS encryption and keeps saved provide
     }, source);
 
     await expect
-      .poll(() => app.evaluate(() => process.env.MOKE_E2E_CREDENTIAL), { timeout: 20000 })
+      .poll(() => app.evaluate(() => process.env.SECOND_SET_E2E_CREDENTIAL), { timeout: 20000 })
       .toBe(secure ? "saved" : "refused");
 
     if (!secure) {

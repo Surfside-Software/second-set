@@ -170,7 +170,7 @@ export class MetaReviewClient extends Context.Service<
       readonly results: ReadonlyArray<ReviewToolResult>;
     }) => Effect.Effect<ReviewTurn, MetaReviewError>;
   }
->()("moke/MetaReviewClient") {
+>()("second-set/MetaReviewClient") {
   /** Build a no-retry adapter with durable local request/response evidence and a call ceiling. */
   static layer(config: typeof MetaReviewConfig.Type, directory: string, maximumRequests: number) {
     return Layer.effect(

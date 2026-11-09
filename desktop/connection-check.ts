@@ -8,7 +8,7 @@ export type EndpointCheck =
   | { readonly kind: "unreachable" }
   | { readonly kind: "unexpected" };
 
-const checkTool = "moke_connection_check";
+const checkTool = "second_set_connection_check";
 
 /** Only the fields the check reads; everything else in the answer is ignored. */
 const Completion = Schema.Struct({

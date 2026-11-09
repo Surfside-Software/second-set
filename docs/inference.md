@@ -53,7 +53,7 @@ use `meta-models/muse-spark-open`, which is a different configured model ID. SAM
 key is configured, packet reviews use it with either chat provider; see
 [SAM in packet reviews](#sam-in-packet-reviews).
 
-`MOKE_PROVIDER` chooses the preferred startup provider, with `meta` as the
+`SECOND_SET_PROVIDER` chooses the preferred startup provider, with `meta` as the
 default. Each review saves the model selected in the workbench. Changing the menu
 does not change an existing run. When Go is connected, a follow-up whose earlier
 model the menu no longer offers moves to the first model it does. The
@@ -359,7 +359,7 @@ A session file accepts one provider configuration or both:
 }
 ```
 
-Set `MOKE_SESSION_CREDENTIAL_FILE` to that private file for the launch. Unix files
+Set `SECOND_SET_SESSION_CREDENTIAL_FILE` to that private file for the launch. Unix files
 must be owner-only; Windows uses file ACLs. Importing one provider preserves the
 other provider's saved connection. Restart after changing the session file.
 A model whose provider is unconfigured stays disabled. Connected in settings

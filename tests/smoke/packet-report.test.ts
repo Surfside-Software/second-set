@@ -329,8 +329,12 @@ test("completion controls share stable issue ids and isolate saved state by proj
       new RegExp(`data-completion-id="finding:${identifiers.finding}" checked`, "g"),
     ),
   ).toHaveLength(2);
-  const storageKey = `moke:packet-report:${identifiers.project}:${identifiers.review}:v3`;
+  const storageKey = `second-set:packet-report:${identifiers.project}:${identifiers.review}:v3`;
   expect(html).toContain(`data-storage-key="${storageKey}"`);
+  // Completion saved by reports exported before the rename stays readable.
+  expect(html).toContain(
+    `data-legacy-storage-key="moke:packet-report:${identifiers.project}:${identifiers.review}:v3"`,
+  );
   expect(renderPacketReport(review({ version: 4 }), new Map())).not.toContain(
     `data-storage-key="${storageKey}"`,
   );

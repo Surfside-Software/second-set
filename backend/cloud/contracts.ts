@@ -22,7 +22,8 @@ import { codeIndexVersion } from "../review/code-index/code-index.ts";
 export const cloudEngineIdentity = {
   // Protocol 4 workers read unchanged source files from the workspace cache Volume.
   // Protocol 5 workers add the Florida code index, code search and PDF source text.
-  protocol: 5,
+  // Protocol 6 workers keep their files under /second-set and read SECOND_SET_ variables.
+  protocol: 6,
   engine: packageEngineFormat,
   prompt: reviewPromptVersion,
   instructions: reviewInstructionRevision,
@@ -69,7 +70,7 @@ export const CloudReviewRecord = Schema.Struct({
   id: CloudReviewId,
   // Unmarked receipts predate protocol-aware admission and may name a running v2 worker.
   // Protocol 3 receipts remain readable so already dispatched work can still return.
-  workerProtocol: Schema.optionalKey(Schema.Literals([3, 4, cloudEngineIdentity.protocol])),
+  workerProtocol: Schema.optionalKey(Schema.Literals([3, 4, 5, cloudEngineIdentity.protocol])),
   revision: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
   syncFailure: Schema.NullOr(CloudReviewError).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed(null)),
@@ -99,6 +100,10 @@ export const CloudReviewRecord = Schema.Struct({
 
 /** Persisted record type stays private to cloud application and adapters. */
 export type CloudReviewRecord = typeof CloudReviewRecord.Type;
+
+/** Workers before protocol 6 shipped under the MOKE name and keep their files under /moke. */
+export const cloudWorkerRoot = (record: Pick<CloudReviewRecord, "workerProtocol">) =>
+  record.workerProtocol === cloudEngineIdentity.protocol ? "/second-set" : "/moke";
 
 /**
  * Provider injection uses the canonical application route and a separately supplied secret. A

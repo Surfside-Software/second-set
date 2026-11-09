@@ -232,7 +232,7 @@ export class ReviewSegmentation extends Context.Service<
       projectId: typeof ProjectId.Type,
     ) => Effect.Effect<ReadonlyArray<SamObservation>, ExecutionError>;
   }
->()("moke/ReviewSegmentation") {
+>()("second-set/ReviewSegmentation") {
   /** One parent-owned runtime supplies cancellation and callbacks; this layer starts no runtime. */
   static layer(config: ReviewSegmentationConfiguration) {
     return Layer.sync(ReviewSegmentation, () => {

@@ -23,7 +23,7 @@ import { findingSummaryInstructions } from "#lib/review/finding-summary.ts";
 import { routeReviewDiscipline } from "#lib/review/execution.ts";
 
 /** Version of the bounded runtime adaptation; upstream files are vendored unmodified. */
-export const reviewPromptVersion = "moke-selected-coordination-v2";
+export const reviewPromptVersion = "second-set-selected-coordination-v3";
 
 /** Exact upstream revision retained with runs and proposed observations. */
 export const reviewInstructionRevision = provenance.revision;
@@ -50,7 +50,7 @@ export function selectedReviewPrompt(context: typeof ExecutionReviewContext.Type
       : (context?.request.discipline ?? "general");
 
   return [
-    `Moke instruction ${reviewPromptVersion}; skills revision ${reviewInstructionRevision}.`,
+    `Second Set instruction ${reviewPromptVersion}; skills revision ${reviewInstructionRevision}.`,
     master,
     // Report rendering and browser-local completion belong to the application.
     method.split("## Report and release")[0],
@@ -74,7 +74,7 @@ export function selectedReviewPrompt(context: typeof ExecutionReviewContext.Type
 }
 
 /** Version of the project-first system prompt used for new packet reviews. */
-export const packetPromptVersion = "moke-packet-review-v10";
+export const packetPromptVersion = "second-set-packet-review-v11";
 
 /**
  * A review runs as one reviewer, or as a coordinator plus one reviewer per sheet. Large packets
@@ -144,7 +144,7 @@ export function packetReviewPrompt(
   },
 ): string {
   return [
-    `Moke instruction ${packetPromptVersion}; skills revision ${reviewInstructionRevision}.`,
+    `Second Set instruction ${packetPromptVersion}; skills revision ${reviewInstructionRevision}.`,
     master,
     method,
     general,

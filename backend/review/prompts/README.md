@@ -5,7 +5,7 @@ repository at revision `8a0e2648738018631eaa6d24ee0b6ebaa239afb1`. `provenance.j
 the upstream paths and SHA-256 hashes. This application does not edit that source.
 
 `review-prompt.ts` imports the files with Bun's text loader, embedding them in the
-compiled backend. Packet review version `moke-packet-review-v10` supplies the full
+compiled backend. Packet review version `second-set-packet-review-v11` supplies the full
 master AGENTS.md and REVIEW_METHOD.md, including Report and release, as Pi
 Durable's conversation `agent.instructions`. The reviewer request and document
 inventory are separate input data. Each run records the prompt version and
@@ -94,7 +94,7 @@ a compatible paused review and can extend its optional call budget. Follow-up
 requests in the same conversation carry prior records and stable issue IDs.
 Copied package journals remain historical and cannot resume.
 
-The earlier `moke-selected-coordination-v2` adapter remains for existing
+The earlier `second-set-selected-coordination-v3` adapter remains for existing
 selected-count executions. Its narrower tools, limits and scope apply to that
 specialized protocol. Packet review uses the full system instructions and its
 own project/conversation root. Both paths preserve reviewer acceptance of
@@ -134,3 +134,10 @@ to update by id or mark `Resolved`, and `withdraw_finding` removes a finding rec
 the same review. A finding that calls an area blank, empty or illegible must cite a focused crop
 of it, because full-sheet images are too coarse for small text. The prompt adds short severity
 definitions and forbids test findings.
+
+Packet review `second-set-packet-review-v11` and count prompt
+`second-set-selected-coordination-v3` change only the application's name, from MOKE to
+Second Set, in the opening line and the `search_code` description. Versions through v10
+shipped as `moke-packet-review-vN`; migration 0014 renamed saved records to
+`second-set-packet-review-vN`, and workers built before the rename still announce the
+older names.

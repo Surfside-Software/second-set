@@ -35,7 +35,7 @@ export const openPdfWorker = Effect.fn("openPdfWorker")(function* (config: Docum
           stderr: "inherit",
           env: {
             ...process.env,
-            MOKE_PDFJS_ASSETS: config.assetsDirectory,
+            SECOND_SET_PDFJS_ASSETS: config.assetsDirectory,
             NAPI_RS_NATIVE_LIBRARY_PATH: config.nativeLibraryPath,
             NODE_PATH: join(config.assetsDirectory, "..", "modules"),
             BUN_OPTIONS: "",

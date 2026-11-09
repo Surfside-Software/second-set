@@ -431,8 +431,8 @@ test("import interruption stops each started worker and releases every PDF job s
   const started = await mkdtemp(join(tmpdir(), "second-set-documents-started-"));
   const source = join(fixtureDirectory, "original.pdf");
   // Workers report each accepted job, then hold it far beyond this test.
-  process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY = started;
-  process.env.MOKE_PDF_WORKER_DELAY_MS = "600000";
+  process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY = started;
+  process.env.SECOND_SET_PDF_WORKER_DELAY_MS = "600000";
 
   try {
     await Effect.runPromise(
@@ -460,7 +460,7 @@ test("import interruption stops each started worker and releases every PDF job s
           yield* Effect.promise(() => readdir(join(dataDirectory, "artifacts", ".staging"))),
         ).toEqual([]);
 
-        delete process.env.MOKE_PDF_WORKER_DELAY_MS;
+        delete process.env.SECOND_SET_PDF_WORKER_DELAY_MS;
         const next = yield* documents.importPdf(source).pipe(Effect.timeout("30 seconds"));
         expect(next.pages.length).toBe(1);
         expect(
@@ -469,8 +469,8 @@ test("import interruption stops each started worker and releases every PDF job s
       }).pipe(Effect.provide(documentsLayer(dataDirectory)), Effect.scoped),
     );
   } finally {
-    delete process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY;
-    delete process.env.MOKE_PDF_WORKER_DELAY_MS;
+    delete process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY;
+    delete process.env.SECOND_SET_PDF_WORKER_DELAY_MS;
     await rm(dataDirectory, { recursive: true, force: true });
     await rm(started, { recursive: true, force: true });
   }

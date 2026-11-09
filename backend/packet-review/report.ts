@@ -168,7 +168,10 @@ export function renderPacketReport(
       ? "Review has unresolved coverage or inputs"
       : "Review in progress or incomplete";
 
-  const storageKey = `moke:packet-report:${review.projectId}:${review.id}:v${review.version}`;
+  const storageKey = `second-set:packet-report:${review.projectId}:${review.id}:v${review.version}`;
+
+  // Reports exported before the rename from MOKE saved completion under this key.
+  const legacyStorageKey = `moke:packet-report:${review.projectId}:${review.id}:v${review.version}`;
 
   const evidenceImage = (id: string, caption: string) => {
     const uri = evidence.get(id);
@@ -253,7 +256,7 @@ export function renderPacketReport(
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; object-src 'none'; form-action 'none'"><title>${escape(review.projectName)} — Second Set drawing review</title>
-<style>${styles}</style></head><body><main data-storage-key="${escape(storageKey)}">
+<style>${styles}</style></head><body><main data-storage-key="${escape(storageKey)}" data-legacy-storage-key="${escape(legacyStorageKey)}">
 <header><p class="eyebrow">Second Set · Drawing review</p><h1>${escape(review.projectName)}</h1><p class="scope">${escape(scope)}</p><div class="review-state">${escape(reviewState)}</div><dl class="metadata"><div><dt>Review</dt><dd>${escape(review.id)} · revision ${review.version}</dd></div><div><dt>Requested</dt><dd>${escape(recordedAt(review.startedAt))}</dd></div><div><dt>Last recorded</dt><dd>${escape(recordedAt(review.changedAt))}</dd></div><div><dt>Execution</dt><dd>${escape(review.state)} · ${review.admittedCalls} calls${review.maxCalls === null ? "" : ` / ${review.maxCalls} requested limit`}</dd></div></dl></header>
 <section aria-labelledby="summary"><h2 id="summary">Review summary</h2><p class="callout">${escape(coverageSummary)}</p>${paragraph(review.summary || "No review summary has been recorded.")}${review.error ? `<p class="callout">${escape(review.error)}</p>` : ""}<p>This report records the requested scope and evidence below. User completion tracking is separate from finding status, engineering acceptance and reviewer-verified prior-comment closure.</p><h3>Request</h3>${paragraph(review.request)}<h3>Missing inputs</h3>${list(review.missingInputs, "No missing inputs were recorded.")}${gaps.length ? `<h3>Coverage requiring follow-up</h3>${list(gaps, "")}` : ""}<p>${review.citations.length === 0 ? "No governing citations were recorded; regulatory conclusions remain unverified." : `${unresolvedCitations} of ${review.citations.length} citations remain unverified or incorrect.`}</p></section>
 <section aria-labelledby="configuration"><h2 id="configuration">Project configuration and governing sources</h2>${
@@ -326,6 +329,7 @@ const completionScript = `
 (() => {
   const root = document.querySelector('main');
   const key = root && root.dataset.storageKey;
+  const legacyKey = root && root.dataset.legacyStorageKey;
   const controls = Array.from(document.querySelectorAll('input[data-completion-id]'));
   const labels = Array.from(document.querySelectorAll('[data-completion-label]'));
   const notice = document.getElementById('completion-storage');
@@ -345,7 +349,7 @@ const completionScript = `
     }
   };
   try {
-    const saved = key ? localStorage.getItem(key) : null;
+    const saved = key ? (localStorage.getItem(key) ?? (legacyKey ? localStorage.getItem(legacyKey) : null)) : null;
     if (saved) {
       const value = JSON.parse(saved);
       if (value && typeof value === 'object' && !Array.isArray(value)) {

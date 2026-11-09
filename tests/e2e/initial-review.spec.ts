@@ -45,13 +45,13 @@ test("Initial Review stays through a split first set and leaves once a revision 
       value === undefined ||
       [
         "ELECTRON_RUN_AS_NODE",
-        "MOKE_SESSION_CREDENTIAL_FILE",
+        "SECOND_SET_SESSION_CREDENTIAL_FILE",
         "MODEL_API_KEY",
         "BASETEN_API_KEY",
         "OPENCODE_API_KEY",
         "MODAL_TOKEN_ID",
         "MODAL_TOKEN_SECRET",
-        "MOKE_MODAL_CONFIG",
+        "SECOND_SET_MODAL_CONFIG",
       ].includes(key)
         ? []
         : [[key, value]],
@@ -63,7 +63,7 @@ test("Initial Review stays through a split first set and leaves once a revision 
     env: {
       ...environment,
       PROJECT_KIT_DATA_DIRECTORY: directory,
-      MOKE_SESSION_CREDENTIAL_FILE: credentialFile,
+      SECOND_SET_SESSION_CREDENTIAL_FILE: credentialFile,
     },
   };
 
@@ -163,13 +163,13 @@ test("With OpenCode Go connected, Go models are the only chat choice while Meta 
       value === undefined ||
       [
         "ELECTRON_RUN_AS_NODE",
-        "MOKE_SESSION_CREDENTIAL_FILE",
+        "SECOND_SET_SESSION_CREDENTIAL_FILE",
         "MODEL_API_KEY",
         "BASETEN_API_KEY",
         "OPENCODE_API_KEY",
         "MODAL_TOKEN_ID",
         "MODAL_TOKEN_SECRET",
-        "MOKE_MODAL_CONFIG",
+        "SECOND_SET_MODAL_CONFIG",
       ].includes(key)
         ? []
         : [[key, value]],
@@ -181,7 +181,7 @@ test("With OpenCode Go connected, Go models are the only chat choice while Meta 
     env: {
       ...environment,
       PROJECT_KIT_DATA_DIRECTORY: directory,
-      MOKE_SESSION_CREDENTIAL_FILE: credentialFile,
+      SECOND_SET_SESSION_CREDENTIAL_FILE: credentialFile,
     },
   };
 

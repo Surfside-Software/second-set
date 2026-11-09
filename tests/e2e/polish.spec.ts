@@ -20,7 +20,7 @@ test("project dialogs, selectors, settings, visual evidence selection, and chat 
       value === undefined ||
       [
         "ELECTRON_RUN_AS_NODE",
-        "MOKE_SESSION_CREDENTIAL_FILE",
+        "SECOND_SET_SESSION_CREDENTIAL_FILE",
         "BASETEN_API_KEY",
         "OPENCODE_API_KEY",
         "MODEL_API_KEY",
