@@ -316,10 +316,9 @@ The current worker is `second-set-review-engine:latest` in the `second-set-revie
 App, image `im-01M7137QNPVEHAETCAYGKX9EV8`, with protocol 6, packet prompt
 `second-set-packet-review-v11` and code index v3. It was published from `bc722cb` on
 2026-11-09 and reported the expected identity in a fresh sandbox with no network; no
-cloud review has run on it yet. The `second-set-reviews-meta-api` and
-`second-set-reviews-baseten-api` Secrets were created the same day and are reachable
-with `SECOND_SET_API_KEY`. `second-set-reviews-opencode-go-api` does not exist yet, so
-cloud reviews on OpenCode Go fail preflight until it is created.
+cloud review has run on it yet. The `second-set-reviews-meta-api`,
+`second-set-reviews-baseten-api` and `second-set-reviews-opencode-go-api` Secrets were
+created the same day and are reachable with `SECOND_SET_API_KEY`.
 
 The last protocol-5 worker is `moke-review-engine:9f4e2fb67`, image
 `im-01M6KD1KYF0PJZMCQJXBRPKRHX`, with packet prompt v10 and code index v3, in the
