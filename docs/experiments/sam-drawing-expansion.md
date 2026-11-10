@@ -149,7 +149,7 @@ that reference PNG. Actual run-image hashes are saved with each result.
 
 ```sh
 bun run test:sam --live \
-  --fixtures Moke-Hackathon-Drawings \
+  --fixtures drawing-fixtures \
   --manifest experiments/sam/symbols/crops.json \
   --cases experiments/sam/symbols/holdout-cases.json \
   --output .local/sam/symbol-replay

@@ -13,7 +13,7 @@ const program = Effect.gen(function* () {
         options: {
           live: { type: "boolean", default: false },
           help: { type: "boolean", default: false },
-          fixtures: { type: "string", default: "Moke-Hackathon-Drawings" },
+          fixtures: { type: "string", default: "drawing-fixtures" },
           cases: { type: "string", default: "experiments/sam/cases.json" },
           manifest: { type: "string" },
           output: { type: "string", default: ".local/sam" },

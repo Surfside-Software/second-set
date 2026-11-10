@@ -6,7 +6,7 @@ Primary demo target: Linux x64. The writer uses same-filesystem rename, director
 
 ## Package directory
 
-Format name `second-set-review-package`, format version `1`, hash `sha256`, engine `review-pi-1.4.0-v1`. Packages exported before the rename from MOKE name `moke-review-package` and restore unchanged. The only scope this writer produces is `application` with scope label `whole-application`. That means the whole local application database plus the originals, renders, and closed Pi journals that database references.
+Format name `second-set-review-package`, format version `1`, hash `sha256`, engine `review-pi-1.4.0-v1`. Packages exported by 0.2.2 and earlier use the earlier format name and restore unchanged. The only scope this writer produces is `application` with scope label `whole-application`. That means the whole local application database plus the originals, renders, and closed Pi journals that database references.
 
 ```text
 manifest.json

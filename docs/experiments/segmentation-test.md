@@ -14,7 +14,7 @@ Install Poppler so `pdftoppm` is on `PATH`, for example `brew install poppler` o
 macOS or `sudo apt-get install poppler-utils` on Ubuntu. On Windows, install
 Poppler and add its `Library/bin` directory to `PATH`.
 
-The local `Moke-Hackathon-Drawings/` pack must include `drawing-manifest.json`
+The local `drawing-fixtures/` pack must include `drawing-manifest.json`
 and its `pdfs/` directory. These local fixtures remain excluded from Git.
 First prepare the requests without making model calls:
 

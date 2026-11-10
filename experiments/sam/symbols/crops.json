@@ -291,7 +291,7 @@
     },
     {
       "id": "sam-01-a-m2-revision-1",
-      "file": "Moke-Hackathon-Drawings/sam-crops-300dpi/sam-01-a-m2-revision-1.png",
+      "file": "drawing-fixtures/sam-crops-300dpi/sam-01-a-m2-revision-1.png",
       "pdf": "pdfs/sample-a-revision-1.pdf",
       "page": 9,
       "sheet": "M-2",
@@ -308,7 +308,7 @@
     },
     {
       "id": "sam-02-a-m2-baseline",
-      "file": "Moke-Hackathon-Drawings/sam-crops-300dpi/sam-02-a-m2-baseline.png",
+      "file": "drawing-fixtures/sam-crops-300dpi/sam-02-a-m2-baseline.png",
       "pdf": "pdfs/sample-a-baseline.pdf",
       "page": 9,
       "sheet": "M-2",

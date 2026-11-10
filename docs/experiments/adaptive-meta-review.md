@@ -1,7 +1,6 @@
 # Adaptive Meta drawing review
 
-The hackathon rubric assigns 25% to creative use of Meta AI tooling. This
-experiment combines Muse Spark 1.3 reasoning, independent visual observations,
+This experiment combines Muse Spark 1.3 reasoning, independent visual observations,
 and SAM 3.1 segmentation in an evidence-seeking electrical review. Muse chooses
 local tools through Meta's Responses API; the application executes them against
 the original PDF and returns new source images and mask feedback.
@@ -26,7 +25,7 @@ Live runs use `MODEL_API_KEY`, `META_API_BASE_URL` (default
 
 ```sh
 bun run test:review-agent --live \
-  --fixtures Moke-Hackathon-Drawings \
+  --fixtures drawing-fixtures \
   --manifest experiments/sam/symbols/crops.json \
   --cases experiments/sam/adaptive-cases.json \
   --case exam-development \

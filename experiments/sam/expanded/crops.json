@@ -2,7 +2,7 @@
   "crops": [
     {
       "id": "exp-d-lighting",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-d-lighting.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-d-lighting.png",
       "pdf": "pdfs/sample-d.pdf",
       "page": 11,
       "sheet": "E-2",
@@ -19,7 +19,7 @@
     },
     {
       "id": "exp-d-power",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-d-power.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-d-power.png",
       "pdf": "pdfs/sample-d.pdf",
       "page": 12,
       "sheet": "E-3",
@@ -36,7 +36,7 @@
     },
     {
       "id": "exp-e-lighting",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-e-lighting.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-e-lighting.png",
       "pdf": "pdfs/sample-e.pdf",
       "page": 5,
       "sheet": "E-2",
@@ -53,7 +53,7 @@
     },
     {
       "id": "exp-e-power",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-e-power.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-e-power.png",
       "pdf": "pdfs/sample-e.pdf",
       "page": 6,
       "sheet": "E-3",
@@ -70,7 +70,7 @@
     },
     {
       "id": "exp-f-power",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-f-power.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-f-power.png",
       "pdf": "pdfs/sample-f.pdf",
       "page": 2,
       "sheet": "E100",
@@ -87,7 +87,7 @@
     },
     {
       "id": "exp-f-lighting",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-f-lighting.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-f-lighting.png",
       "pdf": "pdfs/sample-f.pdf",
       "page": 2,
       "sheet": "E100",
@@ -104,7 +104,7 @@
     },
     {
       "id": "exp-g-foundation",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-g-foundation.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-g-foundation.png",
       "pdf": "pdfs/sample-g.pdf",
       "page": 2,
       "sheet": "S-2",
@@ -121,7 +121,7 @@
     },
     {
       "id": "exp-g-footing-detail",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-g-footing-detail.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-g-footing-detail.png",
       "pdf": "pdfs/sample-g.pdf",
       "page": 3,
       "sheet": "S-3",
@@ -138,7 +138,7 @@
     },
     {
       "id": "exp-h-trusses",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-h-trusses.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-h-trusses.png",
       "pdf": "pdfs/sample-h.pdf",
       "page": 1,
       "sheet": "S-1",
@@ -155,7 +155,7 @@
     },
     {
       "id": "exp-i-grading",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-i-grading.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-i-grading.png",
       "pdf": "pdfs/sample-i.pdf",
       "page": 3,
       "sheet": "C-3",
@@ -172,7 +172,7 @@
     },
     {
       "id": "exp-j-alarm",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-j-alarm.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-j-alarm.png",
       "pdf": "pdfs/sample-j.pdf",
       "page": 2,
       "sheet": "FA-2",
@@ -189,7 +189,7 @@
     },
     {
       "id": "exp-e-sprinklers",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-e-sprinklers.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-e-sprinklers.png",
       "pdf": "pdfs/sample-e.pdf",
       "page": 8,
       "sheet": "SP-2",
@@ -206,7 +206,7 @@
     },
     {
       "id": "exp-e-riser",
-      "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-e-riser.png",
+      "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-e-riser.png",
       "pdf": "pdfs/sample-e.pdf",
       "page": 9,
       "sheet": "SP-3",

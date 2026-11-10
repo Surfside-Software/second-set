@@ -48,7 +48,7 @@ input hashes, raw responses, and PDF transforms apply. Render schedule evidence:
 
 ```sh
 pdftoppm -f 1 -l 1 -r 144 -x 1584 -y 24 -W 3000 -H 636 \
-  -singlefile -png Moke-Hackathon-Drawings/pdfs/sample-c.pdf .local/c-schedule
+  -singlefile -png drawing-fixtures/pdfs/sample-c.pdf .local/c-schedule
 ```
 
 Use the resulting SAM run directory to create the offline worksheet:

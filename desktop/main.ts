@@ -143,7 +143,7 @@ if (!app.requestSingleInstanceLock()) {
               ? "A saved provider connection can't be used"
               : "Secure credential storage is unavailable",
           detail: usable
-            ? `${messages} Reviews that need it stay unavailable until you enter the key again in Review settings or import it from the File menu.${locked ? " This can happen once after updating from MOKE 0.2.2 or earlier on macOS or Linux. Forget these keys deletes only the saved copies that can't be unlocked." : ""}`
+            ? `${messages} Reviews that need it stay unavailable until you enter the key again in Review settings or import it from the File menu.${locked ? " This can happen once after updating from version 0.2.2 or earlier on macOS or Linux. Forget these keys deletes only the saved copies that can't be unlocked." : ""}`
             : "Saved provider keys can't be read on this computer. Select a session-only credential configuration to run model reviews.",
           buttons: locked ? ["OK", "Forget these keys"] : ["OK"],
           defaultId: 0,

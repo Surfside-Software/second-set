@@ -172,8 +172,9 @@ authenticated NDJSON on the existing loopback endpoint, then Electron's trusted
 MessagePort to the renderer. The renderer does not hold Modal credentials or
 open a connection to a public sandbox endpoint.
 
-For an active review the backend watches the worker folder, `/second-set`, or `/moke`
-for a job dispatched to a protocol-5 worker, with Modal's filesystem watch API, filtering atomic updates of `progress.json`. These are wake-up hints, not
+For an active review the backend watches the worker folder with Modal's filesystem watch
+API and filters atomic updates of `progress.json`. The folder is `/second-set`, or the
+earlier folder for a job dispatched to a protocol-5 worker. These are wake-up hints, not
 the source of truth. It reconciles on initial attachment and every ten seconds
 as well, covering missed events, unsupported watchers, and connection loss.
 The watcher is bounded to thirty seconds and reconnects; local iterator cleanup
@@ -320,32 +321,6 @@ cloud review has run on it yet. The `second-set-reviews-meta-api`,
 `second-set-reviews-baseten-api` and `second-set-reviews-opencode-go-api` Secrets were
 created the same day and are reachable with `SECOND_SET_API_KEY`.
 
-The last protocol-5 worker is `moke-review-engine:9f4e2fb67`, image
-`im-01M6KD1KYF0PJZMCQJXBRPKRHX`, with packet prompt v10 and code index v3, in the
-`moke-reviews` App. It reported the expected identity on 2026-11-04, and the
-`moke-reviews-opencode-go-api` Secret was created the same day.
-
-The previous worker is `moke-review-engine:4cc8c03`, image
-`im-01M6DBQX7M1HEP05AA68MHBW7R`, with packet prompt v8 and code index v2, kept for
-rollback. On 2026-11-02 it passed
-strict identity, migration-hash, PDF worker and blocked-network checks in a fresh
-sandbox. One bounded cloud packet review of the authored schematic then ran on
-Muse Spark 1.3, returned automatically and imported, with no sandbox left running.
-Its citations to indexed ICC sections recorded no quote or access note, and the
-statute it read came back verified.
-
-The previous image is `moke-review-engine:v0.2.0`,
-`im-01M6D10NCS3MSF4WYCNCYJGYJS`, with packet prompt v7 and code index v1. A v0.2.0
-desktop fails the identity probe against `latest`, before any transfer, so it must
-select that immutable tag in its private operator configuration.
-
-Protocol 3 was deployed from `d7ba4f874` as `moke-review-engine:d7ba4f874`,
-image `im-01M630XTWWQWB3FM0K4NY8NR0D`. The image passed strict identity,
-migration-hash and native PDF readiness checks. Its bounded live run verified
-ownership fencing, backend close/reopen, RPC progress and automatic
-verified-package return. Its single sent Meta request remained uncertain, with no
-successful response receipt, and was not retried.
-
 `cloud-reviews.test.ts` exercises persisted ownership, duplicate commands,
 ambiguous dispatch, stop failures, wrong job identity, required checkpoints,
 stale source versions, interrupted imports, corrupted ownership records, and
@@ -357,12 +332,12 @@ accepting evidence. Existing execution tests cover provider and SAM admission.
 missing cache file, local reuse during result download, launch seeding, prune
 scoping and in-cloud copies after Send.
 
-Protocol 4 is not deployed yet. A bounded live probe on 2026-10-30 (random bytes,
+Before protocol 4 shipped, a bounded live probe on 2026-10-30 (random bytes,
 no drawings, secrets or model calls; test Volume and snapshot deleted, sandboxes
 terminated) confirmed the Volume behavior this design relies on: a v2 Volume
 mounted read-write accepts `copyFromLocal`, `sync` commits it, a read-only mount
 rejects writes, `listFiles` on a missing folder raises not-found, a mounted
-`/moke` directory snapshot keeps its `input/` layout, and a running sandbox keeps
+worker directory snapshot keeps its `input/` layout, and a running sandbox keeps
 its mount-time view until it reloads.
 
 Live validation is available with `bun scripts/validate-cloud.ts --live --calls 12`
@@ -432,9 +407,9 @@ prompts, migrations or the code index change.
 
 Recovery only observes work already `dispatching` or `running`; it never
 redispatches or restarts a model. Earlier identities must still match the current
-engine and instruction revision. Workers built before protocol 6 announce the MOKE-era
-names they shipped with: count prompt `moke-selected-coordination-v2` and packet prompts
-`moke-packet-review-v1` to `v10`. Protocols 2 to 4 omit the code index; earlier protocol-5 workers use index v1:
+engine and instruction revision. Workers built before protocol 6 announce the
+names they shipped with: count prompt v2 and packet prompts v1 to v10, listed in
+`backend/cloud/progress.ts`. Protocols 2 to 4 omit the code index; earlier protocol-5 workers use index v1:
 
 | Receipt `workerProtocol`                  | Progress accepted while dispatched                                 |
 | ----------------------------------------- | ------------------------------------------------------------------ |
@@ -448,9 +423,10 @@ Receipts in every other phase accept only current progress.
 
 ### Protocol history
 
-Each entry records what an upgrade required when it shipped, with the names in use then.
+Each entry records what an upgrade required when it shipped. Prompt versions before
+v11 are named by number; migration 0014 gave their saved records the `second-set-` prefix.
 
-**Protocol 6** ships the rename from MOKE to Second Set. The worker keeps its files
+**Protocol 6** ships the rename to Second Set. The worker keeps its files
 under `/second-set` and `/opt/second-set`, reads `SECOND_SET_CLOUD_PROVIDERS`, and
 expects each provider Secret's key as `SECOND_SET_API_KEY`. The defaults become the
 `second-set-reviews` App, `second-set-review-engine` image and
@@ -459,15 +435,14 @@ expects each provider Secret's key as `SECOND_SET_API_KEY`. The defaults become 
 which change only the application's name in model-facing text. Publish the image under
 the new App with `bun run modal:image` and create the renamed Secrets before sending; a
 protocol-5 image fails the identity probe. Jobs already sent to a protocol-5 worker are
-still read from `/moke` and stay recoverable. Migration 0014 renames saved
-`moke-packet-review-vN` and `moke-selected-coordination-v2` records to their
-`second-set-` names.
+still read from that worker's earlier folder and stay recoverable. Migration 0014 renames
+saved packet and count prompt records to their `second-set-` names.
 
 **Protocol 4** adds the workspace cache: new receipts record the cache Volume and
 `workerProtocol: 4`, and the worker fills skipped files from `/cache` before
 restore. Publish a new worker image with `bun run modal:image` before sending
 protocol-4 reviews; a protocol-3 image fails the identity probe before transfer.
-Packet prompt `moke-packet-review-v5` (finding decisions, the firm checklist and
+Packet prompt v5 (finding decisions, the firm checklist and
 jurisdiction leads, with migration 0011) also needs a newly published image; a
 protocol-4 image built with v3 or v4 fails the probe. Jobs already sent to a v3
 or v4 worker remain recoverable.
@@ -477,23 +452,23 @@ normally. Unmarked receipts may recover protocol-2 or protocol-3 progress, and
 
 **Protocol 5** adds the Florida code index to the worker identity, the
 `search_code` tool and PDF text in `read_source`, with packet prompt
-`moke-packet-review-v6`. Publish a new worker image with `bun run modal:image`
+v6. Publish a new worker image with `bun run modal:image`
 before sending protocol-5 reviews; a protocol-4 image fails the identity probe
 before transfer. New receipts record `workerProtocol: 5`. Receipts already
 dispatched to protocol-4 workers stay readable and accept protocol-4 progress
 with packet prompts v3 to v5 only.
 
-Packet prompt `moke-packet-review-v7` gives each parallel role and stage its own
+Packet prompt v7 gives each parallel role and stage its own
 tool list and builds every sheet reviewer's opening from a saved setup snapshot.
 Publish a new worker image with `bun run modal:image` before sending v7 reviews;
 a v6 image fails the identity probe before transfer. Jobs already sent to a v6
 worker stay readable.
 
-Packet prompt `moke-packet-review-v8` removes access boilerplate and paraphrases of unread code text. It ships with `florida-code-index-v2` and requires a newly published worker image. Protocol remains 5; dispatched v6/v7 jobs with index v1 stay readable, but those identities cannot admit new work.
+Packet prompt v8 removes access boilerplate and paraphrases of unread code text. It ships with `florida-code-index-v2` and requires a newly published worker image. Protocol remains 5; dispatched v6/v7 jobs with index v1 stay readable, but those identities cannot admit new work.
 
-Packet prompt `moke-packet-review-v9` tells reviewers to log the citations their findings rest on and the ones sheets print. It ships with `florida-code-index-v3`, which marks Reserved sections and adds the real high-velocity masonry sections, and with a worker that keeps each sheet reviewer's citations apart and records a citation's source only when the review retrieved it. It requires a newly published worker image. Dispatched v8 jobs with index v2 stay readable.
+Packet prompt v9 tells reviewers to log the citations their findings rest on and the ones sheets print. It ships with `florida-code-index-v3`, which marks Reserved sections and adds the real high-velocity masonry sections, and with a worker that keeps each sheet reviewer's citations apart and records a citation's source only when the review retrieved it. It requires a newly published worker image. Dispatched v8 jobs with index v2 stay readable.
 
-Packet prompt `moke-packet-review-v10` adds image-box finding locations, carried findings on
+Packet prompt v10 adds image-box finding locations, carried findings on
 revised sheets, the `Resolved` finding status and `withdraw_finding`. Publish a new worker image
 before sending v10 reviews; a v9 image fails the identity probe before transfer. Jobs already sent
 to a v9 worker stay readable.

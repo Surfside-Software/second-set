@@ -63,7 +63,7 @@ to one count finding or two sheets.
 The host registers tools for packet inventory, original-PDF pages and crops,
 Florida code search, public-source discovery and text retrieval, repeatable
 calculations, project configuration, findings, citations, coverage and
-prior-comment tracking. Packet review version `moke-packet-review-v6` adds
+prior-comment tracking. Packet review v6 adds
 `search_code`, which searches the [Florida code index](../code-index/README.md),
 and PDF text in `read_source`. SAM can
 provide geometric observations when Meta is configured, including when the chat
@@ -107,14 +107,14 @@ inspection at the claimed location, an explicit source search and permit-stage
 basis. This is an evidence gate, not proof that model interpretation is correct;
 live acceptance still checks the visible source against the released finding.
 
-Packet review `moke-packet-review-v5` adds two host-written blocks. One tells the
+Packet review v5 adds two host-written blocks. One tells the
 model how to treat the reviewer's finding decisions in follow-ups. The other,
 present only when the firm saved a checklist, is the checklist text under the
 heading "Firm review checklist, revision N". It comes last, after the requested
 scope, so reviews with and without a checklist share the cached prefix. The
 upstream skill files are unchanged.
 
-Packet review `moke-packet-review-v7` gives each parallel role and stage its own
+Packet review v7 gives each parallel role and stage its own
 tool list. Coordinator setup has inventory, rendering, research, project and
 citation records, `ask_reviewer` and a new `finish_setup` tool; sheet reviewers
 lose `record_project` and report a different project fact in their notes. The
@@ -122,11 +122,11 @@ coordinator's guidance describes setup's sheet and request limits, and
 `read_source` can reread a saved source by `sourceId`. See
 [docs/review-runtime.md](../../../docs/review-runtime.md#parallel-packet-reviews).
 
-Packet review `moke-packet-review-v8` leaves quotes empty for unread ICC and Florida rule text, and notes empty except for project-specific facts. The host records the access limit required by REVIEW_METHOD.md.
+Packet review v8 leaves quotes empty for unread ICC and Florida rule text, and notes empty except for project-specific facts. The host records the access limit required by REVIEW_METHOD.md.
 
-Packet review `moke-packet-review-v9` tells every reviewer to log a citation when a finding rests on a code requirement or a sheet prints one, as REVIEW_METHOD.md requires. A real 46-sheet review on v8 recorded 3 citations in 698 calls, none from a sheet reviewer, because the sheet role never mentioned them. Search is now for when the section is unknown, since naming the document, edition and section gets the same link. See [the research note](../../../docs/validation/citation-links-real-set.md).
+Packet review v9 tells every reviewer to log a citation when a finding rests on a code requirement or a sheet prints one, as REVIEW_METHOD.md requires. A real 46-sheet review on v8 recorded 3 citations in 698 calls, none from a sheet reviewer, because the sheet role never mentioned them. Search is now for when the section is unknown, since naming the document, edition and section gets the same link. See [the research note](../../../docs/validation/citation-links-real-set.md).
 
-Packet review `moke-packet-review-v10` has models mark finding locations and crops with
+Packet review v10 has models mark finding locations and crops with
 `imageBox`, a pixel box in an image they received, which the host converts to PDF points.
 Models had placed regions several lines away from the cited text when they converted pixels to
 points themselves. Revised sheets now receive the findings carried from the sheets they replace,
@@ -136,8 +136,8 @@ of it, because full-sheet images are too coarse for small text. The prompt adds 
 definitions and forbids test findings.
 
 Packet review `second-set-packet-review-v11` and count prompt
-`second-set-selected-coordination-v3` change only the application's name, from MOKE to
+`second-set-selected-coordination-v3` change only the application's name, to
 Second Set, in the opening line and the `search_code` description. Versions through v10
-shipped as `moke-packet-review-vN`; migration 0014 renamed saved records to
+shipped under the earlier name; migration 0014 renamed saved records to
 `second-set-packet-review-vN`, and workers built before the rename still announce the
 older names.

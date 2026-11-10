@@ -81,7 +81,7 @@
       "crop": {
         "id": "audit-d-baths-small-room",
         "file": ".local/sam/iteration-5/electrical-audit/d-baths-small-room.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-d.pdf",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-d.pdf",
         "page": 11,
         "sheet": "E-2",
         "pdf_rect_points": [744, 600, 1008, 912],
@@ -171,8 +171,8 @@
       "family": "guided-live",
       "crop": {
         "id": "exp-e-lighting",
-        "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-e-lighting.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-e.pdf",
+        "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-e-lighting.png",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-e.pdf",
         "page": 5,
         "sheet": "E-2",
         "pdf_rect_points": [864, 714, 1296, 1146],
@@ -262,8 +262,8 @@
       "family": "guided-live",
       "crop": {
         "id": "exp-f-power",
-        "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-f-power.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-f.pdf",
+        "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-f-power.png",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-f.pdf",
         "page": 2,
         "sheet": "E100",
         "pdf_rect_points": [756, 204, 1188, 636],
@@ -381,7 +381,7 @@
       "crop": {
         "id": "audit-g-porch-supports",
         "file": ".local/sam/iteration-5/structural-audit/g-porch-supports.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-g.pdf",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-g.pdf",
         "page": 2,
         "sheet": "S-2",
         "pdf_rect_points": [432, 324, 960, 624],
@@ -1493,7 +1493,7 @@
       "crop": {
         "id": "audit-g-baseplate-holes",
         "file": ".local/sam/iteration-5/structural-audit/g-baseplate-context.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-g.pdf",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-g.pdf",
         "page": 3,
         "sheet": "S-3",
         "pdf_rect_points": [72, 1248.12, 576, 1650.24],
@@ -1575,7 +1575,7 @@
       "crop": {
         "id": "audit-g-baseplate-holes",
         "file": ".local/sam/iteration-5/structural-audit/g-baseplate-context.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-g.pdf",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-g.pdf",
         "page": 3,
         "sheet": "S-3",
         "pdf_rect_points": [72, 1248.12, 576, 1650.24],
@@ -1602,7 +1602,7 @@
       "crop": {
         "id": "audit-g-baseplate-holes",
         "file": ".local/sam/iteration-5/structural-audit/g-baseplate-context.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-g.pdf",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-g.pdf",
         "page": 3,
         "sheet": "S-3",
         "pdf_rect_points": [72, 1248.12, 576, 1650.24],
@@ -1639,7 +1639,7 @@
       "crop": {
         "id": "audit-g-porch-supports",
         "file": ".local/sam/iteration-5/structural-audit/g-porch-supports.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-g.pdf",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-g.pdf",
         "page": 2,
         "sheet": "S-2",
         "pdf_rect_points": [432, 324, 960, 624],
@@ -1666,7 +1666,7 @@
       "crop": {
         "id": "audit-h-diagonal-braces",
         "file": ".local/sam/iteration-5/structural-audit/h-roof-braces.png",
-        "pdf": "Moke-Hackathon-Drawings/expanded/pdfs/sample-h.pdf",
+        "pdf": "drawing-fixtures/expanded/pdfs/sample-h.pdf",
         "page": 1,
         "sheet": "S-1",
         "pdf_rect_points": [1080, 540, 1800, 1248],
@@ -1692,7 +1692,7 @@
       "family": "manual-live",
       "crop": {
         "id": "exp-e-lighting",
-        "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-e-lighting.png",
+        "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-e-lighting.png",
         "pdf": "pdfs/sample-e.pdf",
         "page": 5,
         "sheet": "E-2",
@@ -1729,7 +1729,7 @@
       "family": "manual-live",
       "crop": {
         "id": "exp-f-lighting",
-        "file": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-f-lighting.png",
+        "file": "drawing-fixtures/expanded/sam-crops-300dpi/exp-f-lighting.png",
         "pdf": "pdfs/sample-f.pdf",
         "page": 2,
         "sheet": "E100",
