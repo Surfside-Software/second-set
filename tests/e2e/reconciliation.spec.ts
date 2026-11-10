@@ -81,9 +81,12 @@ test("offline fixture worksheet supports correction, completion, persistence, an
     await expect(count).toHaveText("0");
 
     await page.getByRole("button", { name: "Export review decisions" }).click();
-    await expect.poll(() => Bun.file(exported).exists()).toBe(true);
+    // Electron writes the download in place, so the file can exist before its content lands.
+    await expect
+      .poll(async () => ((await Bun.file(exported).exists()) ? Bun.file(exported).text() : ""))
+      .toContain('"decision": "excluded"');
+
     const decisions = await Bun.file(exported).text();
-    expect(decisions).toContain('"decision": "excluded"');
     expect(decisions).toContain('"proposal":');
     expect(decisions).toContain('"reportRevision": "first"');
     await expect(delta).toHaveText("-1");
