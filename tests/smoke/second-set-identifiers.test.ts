@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { migrateDatabase } from "../../backend/database-files.ts";
 import { PackageManifest, packageFormat } from "#lib/review/packages.ts";
+import { CountFact } from "#lib/review/contracts.ts";
 import { readStoredSetting, storedSettingKeys } from "#lib/review/stored-setting.ts";
 import { cloudWorkerRoot } from "../../backend/cloud/contracts.ts";
 
@@ -125,4 +126,31 @@ test("cloud jobs keep the worker folder of the protocol they were dispatched wit
   expect(cloudWorkerRoot({ workerProtocol: 6 })).toBe("/second-set");
   expect(cloudWorkerRoot({ workerProtocol: 5 })).toBe("/moke");
   expect(cloudWorkerRoot({})).toBe("/moke");
+});
+
+test("a count fact from a 0.2.2 package or cloud result reads before migration 0014 runs", () => {
+  const origin = (promptVersion: string) => ({
+    origin: {
+      runId: crypto.randomUUID(),
+      journalId: crypto.randomUUID(),
+      commandId: crypto.randomUUID(),
+      providerTaskId: 1,
+      responseId: null,
+      route: "live",
+      provider: "meta",
+      model: "muse-spark-1.3",
+      promptVersion,
+      sourceVersion: 1,
+      factVersion: 1,
+    },
+  });
+
+  const decode = Schema.decodeUnknownSync(Schema.Struct({ origin: CountFact.fields.origin }));
+  expect(decode(origin("moke-selected-coordination-v2")).origin?.promptVersion).toBe(
+    "moke-selected-coordination-v2",
+  );
+  expect(decode(origin("second-set-selected-coordination-v3")).origin?.promptVersion).toBe(
+    "second-set-selected-coordination-v3",
+  );
+  expect(() => decode(origin("moke-selected-coordination-v3"))).toThrow();
 });

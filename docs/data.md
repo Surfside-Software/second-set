@@ -19,8 +19,8 @@ See [desktop/data-directory.ts](../desktop/data-directory.ts). An explicit
 `--user-data-dir` or `PROJECT_KIT_DATA_DIRECTORY` takes precedence. On Windows,
 saved keys still unlock from that folder. On macOS and Linux the encryption key is
 stored under the app's name, so a key saved by 0.2.2 may not unlock after the
-rename. Startup then continues without saved keys and asks the user to enter them
-again.
+rename. Startup then continues with the keys that still unlock and asks for the
+others again; importing or saving a key replaces a copy that no longer unlocks.
 
 A process holds the canonical data-directory ownership lock before recovery or
 migrations. Queries open scoped Effect SQL connections with foreign keys and FULL
@@ -217,11 +217,13 @@ guard runs under that exclusion before a review connection opens. Download
 retries reuse only files whose size and SHA-256 match the selected result
 manifest; interrupted Modal copy scratch files are cleared before package validation.
 
-New cloud receipts record `workerProtocol: 5`, the only protocol admitted for new
-work, with packet prompt v10. Older receipts recover progress only for jobs already
-`dispatching` or `running`: unmarked receipts accept protocol 2 or 3, protocol-3
-receipts accept protocol 3, and protocol-4 receipts accept protocol 4 with packet
-prompts v3 to v5. [Current admission and recovery](cloud-reviews.md#current-admission-and-recovery)
+New cloud receipts record `workerProtocol: 6`, the only protocol admitted for new
+work, with packet prompt `second-set-packet-review-v11`. Older receipts recover progress
+only for jobs already `dispatching` or `running`: unmarked receipts accept protocol 2 or
+3, protocol-3 receipts accept protocol 3, protocol-4 receipts accept protocol 4 with
+packet prompts v3 to v5, and protocol-5 receipts accept the MOKE-era protocol-5 workers,
+read from `/moke`. A count fact restored from such a result keeps
+`moke-selected-coordination-v2` until migration 0014 runs at the next launch. [Current admission and recovery](cloud-reviews.md#current-admission-and-recovery)
 lists the exact identities. Recovery changes no saved review content and never
 replays model work. Existing explicit sync pauses
 remain paused until **Retry sync**; ownership returns only through verified result

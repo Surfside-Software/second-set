@@ -2,7 +2,7 @@ import { safeStorage } from "electron";
 import { Schema } from "effect";
 import { existsSync } from "node:fs";
 import { readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { InferenceConfiguration } from "../src/lib/backend-rpc.ts";
 import { reviewProviderRoutes } from "../src/lib/review/models.ts";
 import {
@@ -68,6 +68,43 @@ async function readStored(path: string, message: string) {
   }
 }
 
+/** A saved credential file the app could not read; it starts without that connection. */
+export type UnreadableCredential = {
+  readonly file: string;
+  readonly reason: "locked" | "unavailable";
+  readonly message: string;
+};
+
+/**
+ * Decrypt a saved credential, or record why it can't be read and treat it as missing. A key saved
+ * before the rename can stop unlocking, and one stale file must not hide the others.
+ */
+async function readStoredOrSkip(
+  path: string,
+  message: string,
+  unreadable: Array<UnreadableCredential>,
+) {
+  if (!(await secureStorageAvailable())) {
+    unreadable.push({
+      file: basename(path),
+      reason: "unavailable",
+      message:
+        "Secure credential storage is unavailable. Select a session-only credential configuration.",
+    });
+
+    return null;
+  }
+
+  try {
+    return await readStored(path, message);
+  } catch (cause) {
+    if (!(cause instanceof CredentialError)) throw cause;
+    unreadable.push({ file: basename(path), reason: "locked", message });
+
+    return null;
+  }
+}
+
 /** Encrypt with the OS store and write an owner-only file; never falls back to plain text. */
 async function writeStored(path: string, plain: string) {
   if (!(await secureStorageAvailable()))
@@ -85,16 +122,25 @@ async function writeStored(path: string, plain: string) {
 }
 
 /** Session file, imported credentials, or (in development only) the environment. */
-async function readImportedConfigurations(directory: string, packaged: boolean) {
+async function readImportedConfigurations(
+  directory: string,
+  packaged: boolean,
+  unreadable: Array<UnreadableCredential>,
+) {
   const sessionFile = process.env.SECOND_SET_SESSION_CREDENTIAL_FILE;
 
   if (sessionFile !== undefined) return readProviderConfigurations(sessionFile, true);
   const storedFile = join(directory, importedFile);
 
-  if (existsSync(storedFile))
-    return parseProviderConfigurations(
-      await readStored(storedFile, "The saved provider credential could not be unlocked."),
+  if (existsSync(storedFile)) {
+    const text = await readStoredOrSkip(
+      storedFile,
+      "The saved provider credential could not be unlocked.",
+      unreadable,
     );
+
+    if (text !== null) return parseProviderConfigurations(text);
+  }
 
   if (packaged) return [];
 
@@ -129,35 +175,47 @@ async function readImportedConfigurations(directory: string, packaged: boolean) 
 /**
  * Packaged launches use OS-encrypted storage or an explicitly selected session-only file.
  * Connections saved in Review settings replace the same provider from those sources and are listed
- * after them, so Meta or Baseten stays the startup default when present.
+ * after them, so Meta or Baseten stays the startup default when present. A file that can't be read
+ * is reported and skipped, so the others still load and it can be saved again.
  */
 export async function readInferenceConfigurations(directory: string, packaged: boolean) {
-  let configs = await readImportedConfigurations(directory, packaged);
+  const unreadable: Array<UnreadableCredential> = [];
+  let configurations = await readImportedConfigurations(directory, packaged, unreadable);
 
   // A session-only launch must still start when the keyring is down.
   if (
     process.env.SECOND_SET_SESSION_CREDENTIAL_FILE !== undefined &&
     !(await secureStorageAvailable())
   )
-    return configs;
+    return { configurations, unreadable };
 
   for (const [provider, file] of Object.entries(settingsFiles)) {
     const stored = join(directory, file);
 
     if (!existsSync(stored)) continue;
 
-    const saved = parseProviderConfiguration(
-      await readStored(stored, "A connection saved in Review settings could not be unlocked."),
+    const text = await readStoredOrSkip(
+      stored,
+      "A connection saved in Review settings could not be unlocked.",
+      unreadable,
     );
 
-    if (saved.provider !== provider)
-      throw new CredentialError({
+    if (text === null) continue;
+    const saved = parseProviderConfiguration(text);
+
+    if (saved.provider !== provider) {
+      unreadable.push({
+        file,
+        reason: "locked",
         message: "A connection saved in Review settings is for another provider.",
       });
-    configs = [...configs.filter((entry) => entry.provider !== provider), saved];
+      continue;
+    }
+
+    configurations = [...configurations.filter((entry) => entry.provider !== provider), saved];
   }
 
-  return configs;
+  return { configurations, unreadable };
 }
 
 /** Save a Review settings connection; the next launch passes it to the backend. */
@@ -190,9 +248,15 @@ export async function removeSettingsConnection(directory: string, provider: Sett
 
   if (!existsSync(imported)) return;
 
-  const configs = parseProviderConfigurations(
-    await readStored(imported, "The saved provider credential could not be unlocked."),
+  // A copy that no longer unlocks has nothing to remove; it is replaced when a key is imported.
+  const text = await readStoredOrSkip(
+    imported,
+    "The saved provider credential could not be unlocked.",
+    [],
   );
+
+  if (text === null) return;
+  const configs = parseProviderConfigurations(text);
 
   const kept = configs.filter((entry) => entry.provider !== provider);
 
@@ -215,7 +279,8 @@ export async function storeInferenceConfiguration(directory: string, source: str
   const imported = incoming.filter((entry) => !isSettingsProvider(entry.provider));
 
   if (imported.length > 0) {
-    const existing = await readImportedConfigurations(directory, true);
+    // An earlier copy that no longer unlocks is replaced rather than blocking the import.
+    const existing = await readImportedConfigurations(directory, true, []);
 
     const configs = [
       ...imported,

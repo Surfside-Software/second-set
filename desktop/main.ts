@@ -110,21 +110,37 @@ if (!app.requestSingleInstanceLock()) {
       )(await readFile(join(assetDirectory, "layout.json"), "utf8"));
 
       // macOS and Linux store the credential key under the app's name, so 0.2.2 keys can stop
-      // unlocking after the rename. Start without them rather than exit, and say how to restore them.
-      const [inference, ...inferenceAlternatives] = await readInferenceConfigurations(
-        dataDirectory,
-        app.isPackaged,
-      ).catch(async (cause: unknown) => {
-        if (!(cause instanceof CredentialError)) throw cause;
+      // unlocking after the rename. Start with the keys that still read, and say how to restore
+      // the others rather than exit.
+      const credentials = await readInferenceConfigurations(dataDirectory, app.isPackaged).catch(
+        async (cause: unknown) => {
+          if (!(cause instanceof CredentialError)) throw cause;
+
+          await dialog.showMessageBox({
+            type: "warning",
+            message: "Saved provider keys could not be read",
+            detail: `${cause.message} Model reviews stay unavailable until the credential configuration is fixed.`,
+          });
+
+          return { configurations: [], unreadable: [] };
+        },
+      );
+
+      if (credentials.unreadable.length > 0) {
+        const locked = credentials.unreadable.some((entry) => entry.reason === "locked");
 
         await dialog.showMessageBox({
           type: "warning",
-          message: "A saved provider key could not be unlocked",
-          detail: `${cause.message} Model reviews stay unavailable until you enter the key again in Review settings or import it from the File menu. This can happen once after updating from version 0.2.2 or earlier on macOS or Linux.`,
+          message: locked
+            ? "A saved provider key could not be unlocked"
+            : "Secure credential storage is unavailable",
+          detail: locked
+            ? `${[...new Set(credentials.unreadable.map((entry) => entry.message))].join(" ")} Reviews that need it stay unavailable until you enter the key again in Review settings or import it from the File menu. This can happen once after updating from MOKE 0.2.2 or earlier on macOS or Linux.`
+            : "Saved provider keys can't be read on this computer. Select a session-only credential configuration to run model reviews.",
         });
+      }
 
-        return [];
-      });
+      const [inference, ...inferenceAlternatives] = credentials.configurations;
 
       const modal = await Effect.runPromise(readModalConfiguration(app.isPackaged));
 

@@ -65,6 +65,20 @@ System Settings › Privacy & Security › Open Anyway. On Linux, make the AppIm
 executable or install the `.deb`. Model reviews need a provider key; see
 [inference setup](docs/inference.md).
 
+### Upgrading from MOKE 0.2.2
+
+- Second Set installs as a new app beside MOKE and opens MOKE's projects from the same
+  data folder. Don't run both at once; uninstall MOKE when you're done with it.
+- On macOS and Linux, keys saved in MOKE may not unlock. Enter them again in Review
+  settings or import them from the File menu; the keys that still unlock keep working.
+- A review paused in MOKE can't resume. Start a new review; finished reviews and their
+  reports are unchanged.
+- `MOKE_*` environment variables are now `SECOND_SET_*`, for example
+  `SECOND_SET_MODAL_CONFIG` and `SECOND_SET_SESSION_CREDENTIAL_FILE`. A saved Modal
+  configuration needs `appName` `second-set-reviews` and `imageName`
+  `second-set-review-engine:latest`, and each provider Secret needs the key
+  `SECOND_SET_API_KEY`; see [cloud reviews](docs/cloud-reviews.md).
+
 ## How it works
 
 | Process            | Owns                                                                                           |
