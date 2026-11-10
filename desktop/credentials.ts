@@ -71,7 +71,7 @@ async function readStored(path: string, message: string) {
 /** A saved credential file the app could not read; it starts without that connection. */
 export type UnreadableCredential = {
   readonly file: string;
-  readonly reason: "locked" | "unavailable";
+  readonly reason: "locked" | "mismatched" | "unavailable";
   readonly message: string;
 };
 
@@ -206,7 +206,7 @@ export async function readInferenceConfigurations(directory: string, packaged: b
     if (saved.provider !== provider) {
       unreadable.push({
         file,
-        reason: "locked",
+        reason: "mismatched",
         message: "A connection saved in Review settings is for another provider.",
       });
       continue;

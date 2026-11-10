@@ -1,5 +1,5 @@
 import { afterEach, expect, mock, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { reviewProviderRoutes } from "#lib/review/models.ts";
@@ -132,6 +132,32 @@ test("forgetting keys that no longer unlock stops the prompt after a Review sett
     expect(
       providers((await credentials.readInferenceConfigurations(directory, true)).configurations),
     ).toEqual(["opencode-go"]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a readable key saved under another provider's file is reported but never forgotten", async () => {
+  delete process.env.SECOND_SET_SESSION_CREDENTIAL_FILE;
+  const directory = await mkdtemp(join(tmpdir(), "second-set-credentials-"));
+
+  try {
+    await credentials.storeSettingsConnection(
+      directory,
+      parseProviderConfiguration(JSON.stringify(connection("opencode-go", "go-key"))),
+    );
+    await copyFile(
+      join(directory, "opencode-go-credential.json"),
+      join(directory, "custom-endpoint-credential.json"),
+    );
+
+    const result = await credentials.readInferenceConfigurations(directory, true);
+    expect(result.unreadable.map(({ file, reason }) => [file, reason])).toEqual([
+      ["custom-endpoint-credential.json", "mismatched"],
+    ]);
+
+    await credentials.forgetUnreadableCredentials(directory, result.unreadable);
+    expect(await Bun.file(join(directory, "custom-endpoint-credential.json")).exists()).toBe(true);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

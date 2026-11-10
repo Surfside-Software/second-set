@@ -129,22 +129,33 @@ if (!app.requestSingleInstanceLock()) {
 
       if (credentials.unreadable.length > 0) {
         const locked = credentials.unreadable.some((entry) => entry.reason === "locked");
+        const usable = credentials.unreadable.some((entry) => entry.reason !== "unavailable");
+
+        const messages = [...new Set(credentials.unreadable.map((entry) => entry.message))].join(
+          " ",
+        );
 
         const choice = await dialog.showMessageBox({
           type: "warning",
           message: locked
             ? "A saved provider key could not be unlocked"
-            : "Secure credential storage is unavailable",
-          detail: locked
-            ? `${[...new Set(credentials.unreadable.map((entry) => entry.message))].join(" ")} Reviews that need it stay unavailable until you enter the key again in Review settings or import it from the File menu. This can happen once after updating from MOKE 0.2.2 or earlier on macOS or Linux. Forget these keys deletes only the saved copies that can't be unlocked.`
+            : usable
+              ? "A saved provider connection can't be used"
+              : "Secure credential storage is unavailable",
+          detail: usable
+            ? `${messages} Reviews that need it stay unavailable until you enter the key again in Review settings or import it from the File menu.${locked ? " This can happen once after updating from MOKE 0.2.2 or earlier on macOS or Linux. Forget these keys deletes only the saved copies that can't be unlocked." : ""}`
             : "Saved provider keys can't be read on this computer. Select a session-only credential configuration to run model reviews.",
           buttons: locked ? ["OK", "Forget these keys"] : ["OK"],
           defaultId: 0,
           cancelId: 0,
+          noLink: true,
         });
 
+        // A file that can't be deleted now just prompts again next launch.
         if (locked && choice.response === 1)
-          await forgetUnreadableCredentials(dataDirectory, credentials.unreadable);
+          await forgetUnreadableCredentials(dataDirectory, credentials.unreadable).catch(
+            (cause: unknown) => console.warn("Saved credentials could not be forgotten", cause),
+          );
       }
 
       const [inference, ...inferenceAlternatives] = credentials.configurations;
