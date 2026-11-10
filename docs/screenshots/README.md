@@ -1,22 +1,15 @@
 # Screenshot sources
 
 The README screenshots are captures of the application at 1600 × 900 and a 1.6 device
-scale, which gives 2560 × 1440 frames like the narrated demo's. They were taken on
-2026-11-09 from a copy of the workspace that recorded the demo, opened in a private
-display with providers configured but never called. The capture adds no cropping or
-content edits. One empty project in that copy, then named "MOKE Demo", was renamed
-"Second Set Demo" before capture.
-
-[Watch the demo on YouTube](https://youtu.be/wl8wwq_Tlrw). The demo was recorded before the
-rename, so it shows the MOKE name.
+scale, which gives 2560 × 1440 frames. They were taken on 2026-11-09 from a copy of a
+real review workspace, opened in a private display with providers configured but never
+called. The capture adds no cropping or content edits. One empty project in that copy
+was renamed before capture.
 
 | Image                            | Content                                                                                                                                |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | [workbench.png](workbench.png)   | Five-sheet civil review with 19 findings, coverage gaps, and findings navigation                                                       |
 | [correction.png](correction.png) | Source evidence with a SAM highlight and a saved false-alarm decision explaining that identifying information was removed for the demo |
-
-The demo's October 31 revision frame, from a 13-sheet set, is not in the workspace copy,
-so the README links to that moment in the video instead.
 
 ## Capture the screenshots
 

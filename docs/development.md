@@ -78,9 +78,9 @@ provider availability or model accuracy.
 
 ## README screenshots
 
-The README uses frames from the narrated demo. See
-[screenshot sources](screenshots/README.md) for the source video, timestamps, and
-extraction commands. These images show actual model reviews and saved decisions.
+The README screenshots are captures of a real review workspace. See
+[screenshot sources](screenshots/README.md) for how they were taken and how to
+capture them again. These images show actual model reviews and saved decisions.
 
 ## Offline fixture captures
 

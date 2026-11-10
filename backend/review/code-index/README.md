@@ -6,8 +6,8 @@ one-line plan review note and a link. The index contains no copied code text.
 
 `assets/FBC_2023_plan_review_reference.md` is the owner's plan review reference
 for the 2023 Florida Building Code, 8th Edition, last modified 2026-07-09. It
-predates the hackathon and is vendored unmodified; the formatter ignores it.
-`assets/florida-code-additions.md` was written for this entry on 2026-10-30. It
+predates this application and is vendored unmodified; the formatter ignores it.
+`assets/florida-code-additions.md` was written for this application on 2026-10-30. It
 adds Florida Statutes, Florida Administrative Code rules, the Florida Fire
 Prevention Code adoption, the 9th Edition (2026) volumes and the 8th Edition
 supplements. `provenance.json` records both files' origin and SHA-256.

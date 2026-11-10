@@ -15,7 +15,7 @@
         "scale": 0.24,
         "offset_points": [252, 1350]
       },
-      "purpose": "Moke plumbing plan versus fixture schedule experiment",
+      "purpose": "Plumbing plan versus fixture schedule experiment",
       "sha256": "cfab98a4b8a022cf6dac3cb311e6fb856a3dce45ebeb61d4925f1c5bc22e148d"
     },
     {
@@ -32,7 +32,7 @@
         "scale": 0.24,
         "offset_points": [648, 888]
       },
-      "purpose": "Moke plumbing plan versus fixture schedule experiment",
+      "purpose": "Plumbing plan versus fixture schedule experiment",
       "sha256": "16751ca1df574bfc6bbb92b9b39171e530700bd2c20e6ead0332bb12aa63417e"
     },
     {
@@ -49,7 +49,7 @@
         "scale": 0.24,
         "offset_points": [1200, 540]
       },
-      "purpose": "Moke plumbing plan versus fixture schedule experiment",
+      "purpose": "Plumbing plan versus fixture schedule experiment",
       "sha256": "879daf7338cdd7496669da89fc077176983c284e2166d22b0a711360fcccc1c0"
     },
     {
@@ -66,7 +66,7 @@
         "scale": 0.24,
         "offset_points": [1728, 96]
       },
-      "purpose": "Moke plumbing plan versus fixture schedule experiment",
+      "purpose": "Plumbing plan versus fixture schedule experiment",
       "sha256": "18521eca71bc2fe56caf90d1640dd3cf457dd81a3b91d9eebe27431e29f936ff"
     }
   ]

@@ -8,7 +8,7 @@ test("expanded discipline recipes preflight all prompts without PDFs or inferenc
   const root = resolve("experiments/sam/expanded");
 
   const crops = await Effect.runPromise(
-    readCrops(resolve("Moke-Hackathon-Drawings/expanded"), resolve(root, "crops.json")),
+    readCrops(resolve("drawing-fixtures/expanded"), resolve(root, "crops.json")),
   );
 
   const ids = new Set<string>();

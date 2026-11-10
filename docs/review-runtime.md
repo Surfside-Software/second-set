@@ -96,7 +96,7 @@ evidence: the current drawings and governing sources still establish every findi
   the saved revision correspondence. It updates each by id, or marks it `Resolved` after
   inspecting the revised sheet; only carried findings can become `Resolved`.
 - **Firm checklist.** Saved in Review settings and frozen into each review at start. Packet prompt
-  `moke-packet-review-v5` appends it after the requested scope, so reviews with and without a
+  v5 appends it after the requested scope, so reviews with and without a
   checklist share every cached token before it, and the coordinator and sheet reviewers receive the
   same text. A deviation is a Recommendation unless a verified governing source makes it a code,
   permit or agency finding.

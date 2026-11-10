@@ -82,6 +82,6 @@ longer resend every retained image as base64 on each turn.
 ## Evidence
 
 Full-screen recordings (2560×1600) and screenshots are kept outside the repository in
-`Downloads/Moke-fast-review-2026-10-30` on the test machine: `02` Brewery on Windows,
+a downloads folder on the test machine, dated 2026-10-30: `02` Brewery on Windows,
 `04` Brewery in the cloud, `05` Civil on Windows, `08` Civil in the cloud. Run timelines
 and samples are in the ignored `.local/fast-review/`.

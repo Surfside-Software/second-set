@@ -9,7 +9,7 @@
       {
         "id": "j-maintenance",
         "cropId": "exp-j-alarm",
-        "sourceImage": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-j-alarm.png",
+        "sourceImage": "drawing-fixtures/expanded/sam-crops-300dpi/exp-j-alarm.png",
         "pdf": "pdfs/sample-j.pdf",
         "page": 2,
         "sheet": "FA-2",
@@ -98,7 +98,7 @@
       {
         "id": "f-tagged-lighting",
         "cropId": "exp-f-lighting",
-        "sourceImage": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-f-lighting.png",
+        "sourceImage": "drawing-fixtures/expanded/sam-crops-300dpi/exp-f-lighting.png",
         "pdf": "pdfs/sample-f.pdf",
         "page": 2,
         "sheet": "E100",
@@ -212,7 +212,7 @@
       {
         "id": "e-highbay-and-fan",
         "cropId": "exp-e-lighting",
-        "sourceImage": "Moke-Hackathon-Drawings/expanded/sam-crops-300dpi/exp-e-lighting.png",
+        "sourceImage": "drawing-fixtures/expanded/sam-crops-300dpi/exp-e-lighting.png",
         "pdf": "pdfs/sample-e.pdf",
         "page": 5,
         "sheet": "E-2",
@@ -347,12 +347,12 @@
     "sources": [
       {
         "id": "sample-g",
-        "file": "Moke-Hackathon-Drawings/expanded/pdfs/sample-g.pdf",
+        "file": "drawing-fixtures/expanded/pdfs/sample-g.pdf",
         "sha256": "7e868ef915f63dbb34cef8931c28a38ab2c901fdd75ccd5e09b31a1f6aee2faa"
       },
       {
         "id": "sample-h",
-        "file": "Moke-Hackathon-Drawings/expanded/pdfs/sample-h.pdf",
+        "file": "drawing-fixtures/expanded/pdfs/sample-h.pdf",
         "sha256": "7674e7bceced42e4c337ad8d1304d1b4e60e9e0d6637a9c11aae870b0796ba7e"
       }
     ],

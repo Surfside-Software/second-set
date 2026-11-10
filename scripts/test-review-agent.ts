@@ -29,7 +29,7 @@ const program = Effect.gen(function* () {
         options: {
           live: { type: "boolean", default: false },
           help: { type: "boolean", default: false },
-          fixtures: { type: "string", default: "Moke-Hackathon-Drawings" },
+          fixtures: { type: "string", default: "drawing-fixtures" },
           manifest: { type: "string", default: "experiments/sam/symbols/crops.json" },
           cases: { type: "string", default: "experiments/sam/adaptive-cases.json" },
           case: { type: "string", default: "exam-development" },

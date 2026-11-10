@@ -12,8 +12,9 @@ queries use Effect SQL with the Bun SQLite driver. The migration and backup code
 uses Bun's node:sqlite compatibility API so the existing backup format, migration
 hashes, and recovery behavior remain intact. No separate SQLite addon is required.
 
-Releases through 0.2.2 shipped as `moke-meta-hackathon` and stored this directory
-under that name. When the old folder holds app.sqlite and the Second Set folder
+Releases through 0.2.2 shipped under an earlier name and stored this directory
+under it; `legacyDataFolder` in
+[desktop/data-directory.ts](../desktop/data-directory.ts) records it. When the old folder holds app.sqlite and the Second Set folder
 does not, Electron keeps using the old folder in place and moves or copies nothing.
 See [desktop/data-directory.ts](../desktop/data-directory.ts). An explicit
 `--user-data-dir` or `PROJECT_KIT_DATA_DIRECTORY` takes precedence. On Windows,
@@ -117,18 +118,19 @@ The renderer version changes with the pinned PDF.js or canvas version. Rendering
 checks the original's hash on the exact bytes given to PDF.js; a replaced
 original fails and stores no image.
 
-Migration 0014 follows the rename from MOKE to Second Set. Saved run prompt versions,
+Migration 0014 follows the rename to Second Set. Saved run prompt versions,
 packet review and record payloads, command receipts and execution responses take the
-`second-set-` instruction names, so `moke-packet-review-v10` reads
+`second-set-` instruction names, so packet prompt v10 reads
 `second-set-packet-review-v10`. Provider attempts, tool results and SAM records are left
 byte for byte as the record of what was sent and returned. Renderer identities stay
-unchanged: `moke-render-2` is hashed into every stored render's identity, and renaming it
-would rasterize every sheet again for the same pixels.
+unchanged: the renderer version string in
+[render-identity.ts](../backend/documents/render-identity.ts) is hashed into every stored
+render's identity, and renaming it would rasterize every sheet again for the same pixels.
 
 PDF.js removes an embedded image larger than its image limit from the page without an error.
-Renderer `moke-render-1` used the 16-megapixel output limit there, so scanned schedules and
+Renderer version 1 used the 16-megapixel output limit there, so scanned schedules and
 details above it rendered as blank paper; a 17.6-megapixel panel schedule on a sample sheet
-was reported as missing. `moke-render-2` decodes embedded images up to 150 megapixels, enough
+was reported as missing. Renderer version 2 decodes embedded images up to 150 megapixels, enough
 for a 24 x 36-inch sheet scanned at 400 ppi, and its new renderer version keeps earlier renders
 from being reused. With those images drawn, a full sheet can exceed the 1 MiB model image limit
 as PNG; images for the reasoning model and reports then go as JPEG at the same pixel size, so
@@ -221,9 +223,9 @@ New cloud receipts record `workerProtocol: 6`, the only protocol admitted for ne
 work, with packet prompt `second-set-packet-review-v11`. Older receipts recover progress
 only for jobs already `dispatching` or `running`: unmarked receipts accept protocol 2 or
 3, protocol-3 receipts accept protocol 3, protocol-4 receipts accept protocol 4 with
-packet prompts v3 to v5, and protocol-5 receipts accept the MOKE-era protocol-5 workers,
-read from `/moke`. A count fact restored from such a result keeps
-`moke-selected-coordination-v2` until migration 0014 runs at the next launch. [Current admission and recovery](cloud-reviews.md#current-admission-and-recovery)
+packet prompts v3 to v5, and protocol-5 receipts accept protocol-5 workers built before the rename,
+read from their earlier worker folder. A count fact restored from such a result keeps
+the count prompt v2 name until migration 0014 runs at the next launch. [Current admission and recovery](cloud-reviews.md#current-admission-and-recovery)
 lists the exact identities. Recovery changes no saved review content and never
 replays model work. Existing explicit sync pauses
 remain paused until **Retry sync**; ownership returns only through verified result

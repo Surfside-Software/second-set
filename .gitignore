@@ -18,6 +18,6 @@ coverage/
 .project-kit/update.json
 design/reference/
 
-# Local hackathon drawing fixtures and their archive
-/Moke-Hackathon-Drawings/
-/Moke-Hackathon-Drawings.zip
+# Local drawing fixtures and their archive
+/drawing-fixtures/
+/drawing-fixtures.zip

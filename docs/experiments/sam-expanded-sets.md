@@ -4,7 +4,7 @@
 
 This continues the [drawing expansion](sam-drawing-expansion.md) and
 [adaptive Meta review](adaptive-meta-review.md) using the additional fixture pack
-at `Moke-Hackathon-Drawings/expanded/`. Its README inventories 37 anonymized
+at `drawing-fixtures/expanded/`. Its README inventories 37 anonymized
 sheets from Samples D–J plus a hydraulic extract. The pack contains three new
 electrical styles, structural plans and connection details, civil grading,
 fire alarm, sprinklers and related coordination inputs.
@@ -83,7 +83,7 @@ Preparation renders original PDF crops without inference:
 
 ```sh
 bun run test:sam \
-  --fixtures Moke-Hackathon-Drawings/expanded \
+  --fixtures drawing-fixtures/expanded \
   --manifest experiments/sam/expanded/crops.json \
   --cases experiments/sam/expanded/shape-cases.json
 ```

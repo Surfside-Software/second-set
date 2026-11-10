@@ -3,12 +3,12 @@
   "files": [
     {
       "path": "assets/FBC_2023_plan_review_reference.md",
-      "origin": "Owner-authored plan review reference, MOKE_Reviews/FBC_2023_plan_review_reference.md, last modified 2026-07-09. Predates the hackathon; vendored unmodified.",
+      "origin": "Owner-authored plan review reference, FBC_2023_plan_review_reference.md, last modified 2026-07-09. Predates this application; vendored unmodified.",
       "sha256": "35272ec32c8e906a7e0aa4293f85775b5d823b780a5d13cc87330745f00c272d"
     },
     {
       "path": "assets/florida-code-additions.md",
-      "origin": "Written for this entry on 2026-10-30. Statute titles and facts checked against leg.state.fl.us, rule titles against flrules.org, and 9th Edition links against the ICC Digital Codes Florida page. 2026-11-02: 8th Edition section titles and Reserved status checked against the Eighth Edition tables of contents in ICC's PREFACE pages as returned by a search index, and against UpCodes; no ICC page was opened.",
+      "origin": "Written for this application on 2026-10-30. Statute titles and facts checked against leg.state.fl.us, rule titles against flrules.org, and 9th Edition links against the ICC Digital Codes Florida page. 2026-11-02: 8th Edition section titles and Reserved status checked against the Eighth Edition tables of contents in ICC's PREFACE pages as returned by a search index, and against UpCodes; no ICC page was opened.",
       "sha256": "ba60c14a0f33ff4d230840d2134c954eb6b5156f8dee2c537d82467fa228afae"
     }
   ]

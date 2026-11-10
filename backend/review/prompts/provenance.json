@@ -1,14 +1,8 @@
 {
   "repository": "Author's private review-instruction repository",
   "revision": "8a0e2648738018631eaa6d24ee0b6ebaa239afb1",
-  "source": "moke-review",
   "promptVersion": "second-set-selected-coordination-v3",
   "files": [
-    {
-      "path": "SKILL.md",
-      "source": "SKILL.md",
-      "sha256": "31a5fd53b28d936241a44abe517edfdaaafa32743df96af27e3d36656b287bb8"
-    },
     {
       "path": "AGENTS.md",
       "source": "references/AGENTS.md",

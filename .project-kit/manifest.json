@@ -84,11 +84,10 @@
     "heroCase": "docs/fixtures/hero-case.md",
     "primaryDemoPlatform": "linux-x64",
     "promptInstructions": {
-      "version": "moke-packet-review-v10",
+      "version": "second-set-packet-review-v11",
       "source": "Author's private review-instruction repository at revision 8a0e2648738018631eaa6d24ee0b6ebaa239afb1",
       "provenance": "backend/review/prompts/provenance.json",
       "scope": "Whole supplied packet or selected discipline with explicit coverage, governing sources, findings and offline HTML report",
-      "legacyCountVersion": "moke-selected-coordination-v2",
       "systemPrompt": "Pi Durable conversation agent.instructions with full master, shared method and applicable discipline files",
       "findingStyle": {
         "instructions": "backend/review/prompts/finding-style.md",
@@ -133,13 +132,6 @@
       ]
     }
   },
-  "hackathon": {
-    "sourcesCheckedOn": "2026-10-27",
-    "sources": [
-      "https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details",
-      "https://cerebralvalley.ai/e/meta-ai-developer-hackathon/waiver"
-    ]
-  },
   "segmentationExperiment": {
     "entrypoint": "scripts/test-sam.ts",
     "cases": "experiments/sam/cases.json",
@@ -147,7 +139,7 @@
     "model": "sam-3.1",
     "parser": "@meta-sam/parser@0.1.0",
     "pdfRenderer": "Poppler pdftoppm, external test dependency",
-    "fixtureManifest": "Moke-Hackathon-Drawings/drawing-manifest.json",
+    "fixtureManifest": "drawing-fixtures/drawing-manifest.json",
     "artifactDirectory": ".local/sam",
     "plumbingStudy": {
       "documentation": "docs/experiments/plumbing-segmentation.md",
@@ -155,7 +147,7 @@
       "candidateCases": "experiments/sam/plumbing-cases.json",
       "refinementCases": "experiments/sam/plumbing-refinement-cases.json",
       "reconciliationEntrypoint": "scripts/reconcile-fixtures.ts",
-      "mokeInstructions": "backend/review/prompts/assets"
+      "reviewInstructions": "backend/review/prompts/assets"
     },
     "sourcesCheckedOn": "2026-10-27",
     "sources": [
@@ -196,7 +188,7 @@
     "additionalDisciplineSets": {
       "documentation": "docs/experiments/sam-expanded-sets.md",
       "recipes": "experiments/sam/expanded",
-      "fixtureManifest": "Moke-Hackathon-Drawings/expanded/drawing-manifest.json",
+      "fixtureManifest": "drawing-fixtures/expanded/drawing-manifest.json",
       "artifactDirectory": ".local/sam/iteration-5",
       "caseCount": 42,
       "cropCount": 18,

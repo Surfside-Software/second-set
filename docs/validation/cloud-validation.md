@@ -1,7 +1,7 @@
 # Live cloud review validation
 
 Observed October 29, 2026 UTC (October 28 in New York), using Bun 1.4.4,
-`modal@0.11.1`, the `moke-reviews` App, and `moke-review-engine:latest`.
+`modal@0.11.1`, and the review App and engine image in use before the rename to Second Set.
 Only Second Set's authored two-sheet schematic was uploaded. No customer drawings
 were used. Account credentials were delivered privately and are excluded from
 the repository and worker image.
@@ -52,7 +52,7 @@ case as **Partial results ready** instead of claiming the inspection finished.
   injection is scoped to the exact provider host. Sandbox-wide egress filtering
   is not claimed for this configuration.
 - Injection requires a named Secret. The application references
-  `moke-reviews-meta-api` or its configured app/provider equivalent. Creating the
+  `second-set-reviews-meta-api` or its configured app/provider equivalent. Creating the
   named Secret is an operator step; the application and workers use Bun.
 - SDK exec timeouts must be whole-second millisecond values. Transfer deadlines
   are rounded down before dispatch, and the worker contract rejects incompatible
