@@ -4465,10 +4465,14 @@ export class PacketReviews extends Context.Service<
 
               if (
                 input.action === "resume" &&
-                (row.payload.state !== "paused" ||
-                  row.engine !== journalFormat ||
-                  row.payload.promptVersion !== promptVersion)
+                (row.engine !== journalFormat || row.payload.promptVersion !== promptVersion)
               )
+                return yield* error(
+                  "incompatible",
+                  "This review uses an earlier engine or instruction version and can't resume. Start a new review; its saved results stay readable.",
+                );
+
+              if (input.action === "resume" && row.payload.state !== "paused")
                 return yield* error(
                   "incompatible",
                   "Only a compatible paused review can resume. Uncertain work must not be resent.",
