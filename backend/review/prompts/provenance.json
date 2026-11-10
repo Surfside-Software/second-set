@@ -2,7 +2,7 @@
   "repository": "Author's private review-instruction repository",
   "revision": "8a0e2648738018631eaa6d24ee0b6ebaa239afb1",
   "source": "moke-review",
-  "promptVersion": "moke-selected-coordination-v2",
+  "promptVersion": "second-set-selected-coordination-v3",
   "files": [
     {
       "path": "SKILL.md",
@@ -75,5 +75,5 @@
       "sha256": "b30491a08e7fafbb9c75501c4bc8fc1c01d8f25401c4a6b0bf7baaf95e0d95e4"
     }
   ],
-  "packetPromptVersion": "moke-packet-review-v10"
+  "packetPromptVersion": "second-set-packet-review-v11"
 }

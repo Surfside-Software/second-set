@@ -28,13 +28,13 @@ const main = Effect.gen(function* () {
   }
 
   const modal = yield* readModalConfiguration(false);
-  const providerFile = Bun.env.MOKE_SESSION_CREDENTIAL_FILE;
+  const providerFile = Bun.env.SECOND_SET_SESSION_CREDENTIAL_FILE;
 
   if (modal === undefined || providerFile === undefined)
     return yield* new CloudReviewError({
       reason: "configuration",
       message:
-        "Set MOKE_MODAL_CONFIG and MOKE_SESSION_CREDENTIAL_FILE to private connection files before live acceptance.",
+        "Set SECOND_SET_MODAL_CONFIG and SECOND_SET_SESSION_CREDENTIAL_FILE to private connection files before live acceptance.",
     });
 
   const inference = yield* Effect.tryPromise({

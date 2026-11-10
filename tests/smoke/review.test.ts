@@ -13,8 +13,8 @@ import { createHeroPdf } from "../fixtures/hero-case.ts";
 const commandId = () => Schema.decodeUnknownSync(CommandId)(crypto.randomUUID());
 
 test("real backend reviews, corrects, revisions, chunks evidence, and reopens without losing history", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-review-"));
-  const packageParent = await mkdtemp(join(tmpdir(), "moke-full-package-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-review-"));
+  const packageParent = await mkdtemp(join(tmpdir(), "second-set-full-package-"));
   const revA = join(directory, "Revision A.pdf");
   const revB = join(directory, "Revision B.pdf");
   await writeFile(revA, createHeroPdf("A"));

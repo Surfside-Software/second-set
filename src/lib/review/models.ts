@@ -30,7 +30,7 @@ export const reviewProviderRoutes = {
   { readonly label: string; readonly endpoint: string; readonly model: string }
 >;
 
-/** The OpenCode Go model a new connection saves: Moke offers Meta's model through Go, no other. */
+/** The OpenCode Go model a new connection saves: Second Set offers Meta's model through Go, no other. */
 export const OpenCodeGoModelId = Schema.Literals(["muse-spark-1.3-contributor"]);
 
 /** The model a new OpenCode Go connection is tested with. */

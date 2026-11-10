@@ -75,7 +75,7 @@
     </div>
   </form>
   {#if disabled}<p class="muted">
-      Finish or pause the running review to change the key; saving restarts MOKE.
+      Finish or pause the running review to change the key; saving restarts Second Set.
     </p>{/if}
   <p class="muted" role="status">{message}</p>
 </section>

@@ -8,7 +8,7 @@ import { createProject, importPdf, offlineDesktop, openWindow } from "./workbenc
 
 test("the sheet view zooms with Ctrl and a pinch, rotates both ways and explains its controls", async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-source-controls-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-source-controls-"));
   const source = join(directory, "Drawing set.pdf");
   await writeFile(source, createHeroPdf("A"));
   const app = await electron.launch(await offlineDesktop(directory, ["meta"]));

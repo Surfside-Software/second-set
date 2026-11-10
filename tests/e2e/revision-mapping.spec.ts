@@ -9,7 +9,7 @@ test("count creation focuses its form, source pages navigate, and removed revisi
   test.setTimeout(120000);
   // Revision previews render on demand; a cold PDF worker on macOS CI took longer than 5 s.
   const previewWait = { timeout: 15000 };
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-3-sheets-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-3-sheets-"));
   const baseline = join(directory, "five-pages.pdf");
   const revision = join(directory, "four-pages.pdf");
   await writeFile(baseline, buildMinimalPdf(0, 612, 792, 1, 5));
@@ -191,7 +191,7 @@ test("count creation focuses its form, source pages navigate, and removed revisi
 
 test("a new page is unmatched until every earlier sheet is decided, then shown as added", async () => {
   test.setTimeout(120000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-3-added-sheet-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-3-added-sheet-"));
   const baseline = join(directory, "three-pages.pdf");
   const revision = join(directory, "four-pages.pdf");
   await writeFile(baseline, buildMinimalPdf(0, 612, 792, 1, 3));

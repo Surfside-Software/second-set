@@ -58,7 +58,7 @@ const copy = (source: string, destination: string) =>
   });
 
 test("live cloud status and flushed receipts expose completed upload/download files before transfer ends", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-cloud-progress-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-cloud-progress-"));
   const source = join(root, "package");
   const remote = join(root, "remote");
   const directory = join(root, "receipts");
@@ -240,7 +240,7 @@ test("live cloud status and flushed receipts expose completed upload/download fi
 });
 
 test("download progress counts verified resumed files and refuses same-size corrupt bytes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-cloud-progress-resume-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-cloud-progress-resume-"));
   const text = packageText();
   const progress: Array<typeof CloudTransferProgress.Type> = [];
 
@@ -323,7 +323,7 @@ test("download progress counts verified resumed files and refuses same-size corr
 });
 
 test("workspace sizing checks replacement safety under SQL exclusion before opening SQLite", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-cloud-estimate-guard-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-cloud-estimate-guard-"));
 
   const queries = Semaphore.makeUnsafe(1);
 
@@ -361,7 +361,7 @@ test("workspace sizing checks replacement safety under SQL exclusion before open
 });
 
 test("workspace sizing measures referenced files and project count without stopping an active review", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-cloud-estimate-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-cloud-estimate-"));
   const admitted = Promise.withResolvers<void>();
   const response = Promise.withResolvers<Response>();
 

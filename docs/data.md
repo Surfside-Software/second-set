@@ -12,6 +12,16 @@ queries use Effect SQL with the Bun SQLite driver. The migration and backup code
 uses Bun's node:sqlite compatibility API so the existing backup format, migration
 hashes, and recovery behavior remain intact. No separate SQLite addon is required.
 
+Releases through 0.2.2 shipped as `moke-meta-hackathon` and stored this directory
+under that name. When the old folder holds app.sqlite and the Second Set folder
+does not, Electron keeps using the old folder in place and moves or copies nothing.
+See [desktop/data-directory.ts](../desktop/data-directory.ts). An explicit
+`--user-data-dir` or `PROJECT_KIT_DATA_DIRECTORY` takes precedence. On Windows,
+saved keys still unlock from that folder. On macOS and Linux the encryption key is
+stored under the app's name, so a key saved by 0.2.2 may not unlock after the
+rename. Startup then continues with the keys that still unlock and asks for the
+others again; importing or saving a key replaces a copy that no longer unlocks.
+
 A process holds the canonical data-directory ownership lock before recovery or
 migrations. Queries open scoped Effect SQL connections with foreign keys and FULL
 synchronization. A shared short semaphore serializes SQL and replacement; PDF
@@ -107,6 +117,14 @@ The renderer version changes with the pinned PDF.js or canvas version. Rendering
 checks the original's hash on the exact bytes given to PDF.js; a replaced
 original fails and stores no image.
 
+Migration 0014 follows the rename from MOKE to Second Set. Saved run prompt versions,
+packet review and record payloads, command receipts and execution responses take the
+`second-set-` instruction names, so `moke-packet-review-v10` reads
+`second-set-packet-review-v10`. Provider attempts, tool results and SAM records are left
+byte for byte as the record of what was sent and returned. Renderer identities stay
+unchanged: `moke-render-2` is hashed into every stored render's identity, and renaming it
+would rasterize every sheet again for the same pixels.
+
 PDF.js removes an embedded image larger than its image limit from the page without an error.
 Renderer `moke-render-1` used the 16-megapixel output limit there, so scanned schedules and
 details above it rendered as blank paper; a 17.6-megapixel panel schedule on a sample sheet
@@ -199,11 +217,13 @@ guard runs under that exclusion before a review connection opens. Download
 retries reuse only files whose size and SHA-256 match the selected result
 manifest; interrupted Modal copy scratch files are cleared before package validation.
 
-New cloud receipts record `workerProtocol: 5`, the only protocol admitted for new
-work, with packet prompt v10. Older receipts recover progress only for jobs already
-`dispatching` or `running`: unmarked receipts accept protocol 2 or 3, protocol-3
-receipts accept protocol 3, and protocol-4 receipts accept protocol 4 with packet
-prompts v3 to v5. [Current admission and recovery](cloud-reviews.md#current-admission-and-recovery)
+New cloud receipts record `workerProtocol: 6`, the only protocol admitted for new
+work, with packet prompt `second-set-packet-review-v11`. Older receipts recover progress
+only for jobs already `dispatching` or `running`: unmarked receipts accept protocol 2 or
+3, protocol-3 receipts accept protocol 3, protocol-4 receipts accept protocol 4 with
+packet prompts v3 to v5, and protocol-5 receipts accept the MOKE-era protocol-5 workers,
+read from `/moke`. A count fact restored from such a result keeps
+`moke-selected-coordination-v2` until migration 0014 runs at the next launch. [Current admission and recovery](cloud-reviews.md#current-admission-and-recovery)
 lists the exact identities. Recovery changes no saved review content and never
 replays model work. Existing explicit sync pauses
 remain paused until **Retry sync**; ownership returns only through verified result

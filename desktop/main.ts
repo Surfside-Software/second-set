@@ -24,6 +24,7 @@ import { reviewProviderRoutes } from "../src/lib/review/models.ts";
 import { BackendApi, type BackendLaunch } from "./backend.ts";
 import { ReviewProxy, ExecutionProxy, PacketProxy, CloudReviewProxy } from "./review-proxy.ts";
 import {
+  forgetUnreadableCredentials,
   readInferenceConfigurations,
   removeSettingsConnection,
   type SettingsProvider,
@@ -34,6 +35,7 @@ import { CredentialError, customEndpointUrl } from "./credential-files.ts";
 import { checkConnection, describeEndpointCheck, openCodeHeaders } from "./connection-check.ts";
 import { readModalConfiguration } from "./modal-credentials.ts";
 import { createDropImports } from "./drop-imports.ts";
+import { legacyUserData } from "./data-directory.ts";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -57,6 +59,16 @@ if (
   !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(developmentUrl)
 ) {
   throw new Error("Desktop development requires a loopback Vite URL.");
+}
+
+// The single-instance lock lives in userData, so choose it first. Explicit locations win.
+if (
+  !app.commandLine.hasSwitch("user-data-dir") &&
+  process.env.PROJECT_KIT_DATA_DIRECTORY === undefined
+) {
+  const legacy = legacyUserData(app.getPath("appData"), app.getPath("userData"));
+
+  if (legacy !== null) app.setPath("userData", legacy);
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -98,10 +110,55 @@ if (!app.requestSingleInstanceLock()) {
         ),
       )(await readFile(join(assetDirectory, "layout.json"), "utf8"));
 
-      const [inference, ...inferenceAlternatives] = await readInferenceConfigurations(
-        dataDirectory,
-        app.isPackaged,
+      // macOS and Linux store the credential key under the app's name, so 0.2.2 keys can stop
+      // unlocking after the rename. Start with the keys that still read, and say how to restore
+      // the others rather than exit.
+      const credentials = await readInferenceConfigurations(dataDirectory, app.isPackaged).catch(
+        async (cause: unknown) => {
+          if (!(cause instanceof CredentialError)) throw cause;
+
+          await dialog.showMessageBox({
+            type: "warning",
+            message: "Saved provider keys could not be read",
+            detail: `${cause.message} Model reviews stay unavailable until the credential configuration is fixed.`,
+          });
+
+          return { configurations: [], unreadable: [] };
+        },
       );
+
+      if (credentials.unreadable.length > 0) {
+        const locked = credentials.unreadable.some((entry) => entry.reason === "locked");
+        const usable = credentials.unreadable.some((entry) => entry.reason !== "unavailable");
+
+        const messages = [...new Set(credentials.unreadable.map((entry) => entry.message))].join(
+          " ",
+        );
+
+        const choice = await dialog.showMessageBox({
+          type: "warning",
+          message: locked
+            ? "A saved provider key could not be unlocked"
+            : usable
+              ? "A saved provider connection can't be used"
+              : "Secure credential storage is unavailable",
+          detail: usable
+            ? `${messages} Reviews that need it stay unavailable until you enter the key again in Review settings or import it from the File menu.${locked ? " This can happen once after updating from MOKE 0.2.2 or earlier on macOS or Linux. Forget these keys deletes only the saved copies that can't be unlocked." : ""}`
+            : "Saved provider keys can't be read on this computer. Select a session-only credential configuration to run model reviews.",
+          buttons: locked ? ["OK", "Forget these keys"] : ["OK"],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        });
+
+        // A file that can't be deleted now just prompts again next launch.
+        if (locked && choice.response === 1)
+          await forgetUnreadableCredentials(dataDirectory, credentials.unreadable).catch(
+            (cause: unknown) => console.warn("Saved credentials could not be forgotten", cause),
+          );
+      }
+
+      const [inference, ...inferenceAlternatives] = credentials.configurations;
 
       const modal = await Effect.runPromise(readModalConfiguration(app.isPackaged));
 
@@ -149,7 +206,7 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       const drops = createDropImports();
-      ipcMain.handle("moke:stage-pdf", async (event, value) => {
+      ipcMain.handle("second-set:stage-pdf", async (event, value) => {
         if (
           !event.senderFrame ||
           event.senderFrame !== event.sender.mainFrame ||
@@ -193,7 +250,7 @@ if (!app.requestSingleInstanceLock()) {
                 cancelId: 0,
                 message: `Remove ${name}?`,
                 detail:
-                  "Its saved key is deleted and MOKE restarts. Reviews already run on it keep their results.",
+                  "Its saved key is deleted and Second Set restarts. Reviews already run on it keep their results.",
               }),
             catch: () =>
               new ReviewStorageError({ message: "The remove confirmation could not open." }),
@@ -271,8 +328,8 @@ if (!app.requestSingleInstanceLock()) {
               Effect.tryPromise({
                 try: () =>
                   dialog.showSaveDialog({
-                    title: "Save MOKE review report",
-                    defaultPath: "MOKE-review.html",
+                    title: "Save Second Set review report",
+                    defaultPath: "Second-Set-review.html",
                     filters: [{ name: "HTML report", extensions: ["html"] }],
                   }),
                 catch: () =>
@@ -372,7 +429,7 @@ if (!app.requestSingleInstanceLock()) {
 
                   const destination = join(
                     parent,
-                    `MOKE-review-${new Date().toISOString().replaceAll(":", "-")}`,
+                    `Second-Set-review-${new Date().toISOString().replaceAll(":", "-")}`,
                   );
 
                   return api.ExportReviewPackage({ destination }).pipe(
@@ -392,7 +449,7 @@ if (!app.requestSingleInstanceLock()) {
                 const selection = yield* Effect.tryPromise({
                   try: () =>
                     dialog.showOpenDialog({
-                      title: "Choose a complete MOKE review package",
+                      title: "Choose a complete Second Set review package",
                       properties: ["openDirectory"],
                     }),
                   catch: () =>
@@ -468,7 +525,7 @@ if (!app.requestSingleInstanceLock()) {
                       defaultId: check.kind === "ready" ? 1 : 0,
                       cancelId: 0,
                       message: "Save this custom endpoint?",
-                      detail: `${describeEndpointCheck(check)} MOKE restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
+                      detail: `${describeEndpointCheck(check)} Second Set restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
                     }),
                   catch: () =>
                     new ReviewStorageError({ message: "The save confirmation could not open." }),
@@ -508,7 +565,7 @@ if (!app.requestSingleInstanceLock()) {
                   baseUrl: reviewProviderRoutes["opencode-go"].endpoint,
                   model: upstream,
                   apiKey: settings.apiKey,
-                  headers: openCodeHeaders(app.getVersion(), `moke-check-${randomUUID()}`),
+                  headers: openCodeHeaders(app.getVersion(), `second-set-check-${randomUUID()}`),
                 });
 
                 const confirmation = yield* Effect.tryPromise({
@@ -519,7 +576,7 @@ if (!app.requestSingleInstanceLock()) {
                       defaultId: check.kind === "ready" ? 1 : 0,
                       cancelId: 0,
                       message: "Save this OpenCode Go key?",
-                      detail: `${describeEndpointCheck(check, "opencode-go")} Tested with ${upstream}. MOKE restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
+                      detail: `${describeEndpointCheck(check, "opencode-go")} Tested with ${upstream}. Second Set restarts to connect it. The key is encrypted on this computer and is used only for reviews you run here.`,
                     }),
                   catch: () =>
                     new ReviewStorageError({ message: "The save confirmation could not open." }),
@@ -661,7 +718,7 @@ if (!app.requestSingleInstanceLock()) {
                                   .ExportReviewPackage({
                                     destination: join(
                                       selection.filePaths[0],
-                                      `MOKE-review-${new Date().toISOString().replaceAll(":", "-")}`,
+                                      `Second-Set-review-${new Date().toISOString().replaceAll(":", "-")}`,
                                     ),
                                   })
                                   .pipe(Effect.asVoid),

@@ -43,7 +43,7 @@ export function selectPacketReviewScope(
     : PacketScope.cases.Discipline.make({ discipline });
 }
 
-/** The four passes in Moke's shared review method. */
+/** The four passes in the vendored shared review method. */
 export const ReviewPass = Schema.Literals([
   "completeness",
   "requirements",

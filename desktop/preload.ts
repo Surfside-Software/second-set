@@ -3,6 +3,7 @@ import { exposeRpcBridge } from "electron-effect-rpc/preload";
 
 exposeRpcBridge({ endpoints: ["default"] });
 
-contextBridge.exposeInMainWorld("mokeFiles", {
-  stageDrop: (file: File) => ipcRenderer.invoke("moke:stage-pdf", webUtils.getPathForFile(file)),
+contextBridge.exposeInMainWorld("secondSetFiles", {
+  stageDrop: (file: File) =>
+    ipcRenderer.invoke("second-set:stage-pdf", webUtils.getPathForFile(file)),
 });

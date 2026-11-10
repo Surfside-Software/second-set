@@ -131,7 +131,7 @@ const session = (directory: string) => {
 };
 
 test("the cloud writer refuses state its reader would reject and keeps the previous state", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-budget-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-budget-"));
   const path = join(directory, "state.json");
 
   try {
@@ -153,7 +153,7 @@ test("the cloud writer refuses state its reader would reject and keeps the previ
 });
 
 test("an oversized earlier state reopens compacted with its owner and command replay intact", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-budget-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-budget-"));
   const path = join(directory, "state.json");
   const terminal = history(500, 200);
   const active = cloudRecord(packetRequest(200), "running", 501);
@@ -197,7 +197,7 @@ test("an oversized earlier state reopens compacted with its owner and command re
 }, 60_000);
 
 test("admission keeps room for an owner's progress and refuses before any cloud action", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-budget-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-budget-"));
   const path = join(directory, "state.json");
   await Effect.runPromise(writeCloudFile(path, legacyState(history(998, 200))));
 

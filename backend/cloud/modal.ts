@@ -23,6 +23,7 @@ import {
   cloudEngineIdentity,
   cloudProviderEndpoints,
   cloudWorkerMinimumTimeoutMs,
+  cloudWorkerRoot,
   type CloudReviewRecord,
 } from "./contracts.ts";
 import { CloudSandbox } from "./service.ts";
@@ -79,13 +80,13 @@ class ModalRequestFailure extends Schema.TaggedError<ModalRequestFailure>()("Mod
 
 /** Readiness checks use the worker itself, without exposing a public HTTP tunnel. */
 export const modalReadinessProbe = () =>
-  Probe.withExec(["bun", "/opt/moke/worker.mjs", "--identity"]);
+  Probe.withExec(["bun", "/opt/second-set/worker.mjs", "--identity"]);
 
 /** Pooled sandboxes start without credentials and can later receive an outbound policy. */
 export const emptyReviewOutboundPolicy = () =>
   new ExperimentalOutboundPolicy().withHeaderReplacement({
     domain: "api.meta.ai",
-    headers: { "X-Moke-Sandbox": "review" },
+    headers: { "X-Second-Set-Sandbox": "review" },
   });
 
 /** Bounded review capacity shared by cold allocation and optional warm capacity. */
@@ -146,12 +147,12 @@ const retainScript = (
     ),
   ].join("\n");
 
-/** Delete cached files outside the keep list, which the caller writes to /tmp/moke-keep. */
+/** Delete cached files outside the keep list, which the caller writes to /tmp/second-set-keep. */
 const pruneCacheScript = `set -eu
 mkdir -p ${cacheFolder}
-ls -1 ${cacheFolder} | sort > /tmp/moke-have
-sort -u /tmp/moke-keep > /tmp/moke-keep-sorted
-comm -23 /tmp/moke-have /tmp/moke-keep-sorted | while read -r hash; do rm -f -- "${cacheFolder}/$hash"; done
+ls -1 ${cacheFolder} | sort > /tmp/second-set-have
+sort -u /tmp/second-set-keep > /tmp/second-set-keep-sorted
+comm -23 /tmp/second-set-have /tmp/second-set-keep-sorted | while read -r hash; do rm -f -- "${cacheFolder}/$hash"; done
 sync /cache`;
 
 /** Official Modal SDK adapter; API keys are injected into outbound HTTPS outside the workload. */
@@ -218,7 +219,7 @@ export const modalSandboxLayer = (
 
       const identity = Effect.fn("Modal.identity")(function* (sandbox: Sandbox) {
         const text = yield* modalCall(async () => {
-          const process = await sandbox.exec(["bun", "/opt/moke/worker.mjs", "--identity"], {
+          const process = await sandbox.exec(["bun", "/opt/second-set/worker.mjs", "--identity"], {
             timeoutMs: 15_000,
           });
 
@@ -347,7 +348,7 @@ export const modalSandboxLayer = (
           experimentalOptions: { enable_exit_snapshot: true },
           experimentalOutboundPolicy: emptyReviewOutboundPolicy(),
           readinessProbe: modalReadinessProbe(),
-          tags: { "moke-kind": "review", "moke-job": record.id },
+          tags: { "second-set-kind": "review", "second-set-job": record.id },
         };
 
         if (cache !== null) params.volumes = cache;
@@ -388,9 +389,9 @@ export const modalSandboxLayer = (
             }),
           );
 
-          yield* modalCall(() => recovery.mountImage("/moke/output", snapshot)).pipe(
-            Effect.tapError(() => modalCall(() => recovery.terminate()).pipe(Effect.ignore)),
-          );
+          yield* modalCall(() =>
+            recovery.mountImage(`${cloudWorkerRoot(record)}/output`, snapshot),
+          ).pipe(Effect.tapError(() => modalCall(() => recovery.terminate()).pipe(Effect.ignore)));
 
           return { sandbox: recovery, recovery: true, sourceStopped: false };
         }
@@ -459,14 +460,14 @@ export const modalSandboxLayer = (
               yield* modalCall(() =>
                 client.secrets.fromName(`${config.appName}-${provider.provider}-api`, {
                   environment: config.environment,
-                  requiredKeys: ["MOKE_API_KEY"],
+                  requiredKeys: ["SECOND_SET_API_KEY"],
                 }),
               ).pipe(
                 Effect.mapError(
                   () =>
                     new CloudReviewError({
                       reason: "configuration",
-                      message: `The cloud ${provider.provider === "baseten" ? "Muse Spark Open" : reviewProviderRoutes[provider.provider].label} connection is missing or inaccessible. Configure the matching provider secret with MOKE_API_KEY in Modal before sending. Your workspace has not been uploaded.`,
+                      message: `The cloud ${provider.provider === "baseten" ? "Muse Spark Open" : reviewProviderRoutes[provider.provider].label} connection is missing or inaccessible. Configure the matching provider secret with SECOND_SET_API_KEY in Modal before sending. Your workspace has not been uploaded.`,
                     }),
                 ),
               );
@@ -489,7 +490,7 @@ export const modalSandboxLayer = (
                         cpuLimit: 1,
                         memoryMiB: 2048,
                         memoryLimitMiB: 2048,
-                        tags: { "moke-kind": "preflight" },
+                        tags: { "second-set-kind": "preflight" },
                       }),
                     ),
                     (probe) => modalCall(() => probe.terminate({ wait: true })).pipe(Effect.ignore),
@@ -510,7 +511,7 @@ export const modalSandboxLayer = (
               const iterator = yield* Effect.acquireRelease(
                 Effect.sync(() =>
                   sandbox.filesystem
-                    .watch("/moke", {
+                    .watch(cloudWorkerRoot(record), {
                       recursive: false,
                       filter: ["Create", "Modify"],
                       timeoutMs: 30_000,
@@ -537,7 +538,9 @@ export const modalSandboxLayer = (
                     Effect.mapError(unavailable),
                   ),
                 ),
-                Stream.filter((event) => event.paths.includes("/moke/progress.json")),
+                Stream.filter((event) =>
+                  event.paths.includes(`${cloudWorkerRoot(record)}/progress.json`),
+                ),
                 Stream.map(() => undefined),
               );
             }),
@@ -562,10 +565,15 @@ export const modalSandboxLayer = (
                 modalCall(() =>
                   sandbox.filesystem.copyFromLocal(
                     join(source, file.path),
-                    `/moke/input/${file.path}`,
+                    `${cloudWorkerRoot(record)}/input/${file.path}`,
                   ),
                 ),
-              modalCall(() => sandbox.filesystem.writeText(text, "/moke/input/manifest.json")),
+              modalCall(() =>
+                sandbox.filesystem.writeText(
+                  text,
+                  `${cloudWorkerRoot(record)}/input/manifest.json`,
+                ),
+              ),
               report,
               (file) => cached.get(file.sha256) === file.bytes,
             );
@@ -577,12 +585,12 @@ export const modalSandboxLayer = (
                   request: record.request,
                   timeoutMs: config.timeoutMinutes * 60_000,
                 }),
-                "/moke/request.json",
+                `${cloudWorkerRoot(record)}/request.json`,
               ),
             );
 
             const checkpoint = yield* modalCall(() =>
-              sandbox.snapshotDirectory("/moke", { ttlMs: 7 * 24 * 60 * 60_000 }),
+              sandbox.snapshotDirectory(cloudWorkerRoot(record), { ttlMs: 7 * 24 * 60 * 60_000 }),
             );
 
             return checkpoint.imageId;
@@ -609,7 +617,7 @@ export const modalSandboxLayer = (
                   request: record.request,
                   timeoutMs: remainingMs,
                 }),
-                "/moke/request.json",
+                `${cloudWorkerRoot(record)}/request.json`,
               ),
             );
             const providers = [provider, ...alternatives];
@@ -625,14 +633,14 @@ export const modalSandboxLayer = (
               const secret = yield* modalCall(() =>
                 client.secrets.fromName(`${record.appName}-${connection.provider}-api`, {
                   environment: record.environment,
-                  requiredKeys: ["MOKE_API_KEY"],
+                  requiredKeys: ["SECOND_SET_API_KEY"],
                 }),
               );
 
               policy = policy.withHeaderReplacement({
                 domain: new URL(connection.baseUrl).hostname,
                 secret,
-                headers: { Authorization: "Bearer $MOKE_API_KEY" },
+                headers: { Authorization: "Bearer $SECOND_SET_API_KEY" },
               });
             }
 
@@ -646,8 +654,8 @@ export const modalSandboxLayer = (
             );
 
             yield* modalCall(async () => {
-              const process = await sandbox.exec(["bun", "/opt/moke/worker.mjs"], {
-                env: { MOKE_CLOUD_PROVIDERS: JSON.stringify(routes) },
+              const process = await sandbox.exec(["bun", "/opt/second-set/worker.mjs"], {
+                env: { SECOND_SET_CLOUD_PROVIDERS: JSON.stringify(routes) },
                 stdout: "ignore",
                 stderr: "ignore",
                 timeoutMs: remainingMs + 60_000,
@@ -663,7 +671,9 @@ export const modalSandboxLayer = (
               const text = yield* Effect.tryPromise({
                 try: async () => {
                   try {
-                    return await sandbox.filesystem.readText("/moke/progress.json");
+                    return await sandbox.filesystem.readText(
+                      `${cloudWorkerRoot(record)}/progress.json`,
+                    );
                   } catch (error) {
                     if (sourceStopped && error instanceof SandboxFilesystemNotFoundError)
                       return JSON.stringify({
@@ -691,7 +701,9 @@ export const modalSandboxLayer = (
               const checkpoint =
                 progress.phase === "ready"
                   ? yield* modalCall(() =>
-                      sandbox.snapshotDirectory("/moke/output", { ttlMs: 7 * 24 * 60 * 60_000 }),
+                      sandbox.snapshotDirectory(`${cloudWorkerRoot(record)}/output`, {
+                        ttlMs: 7 * 24 * 60 * 60_000,
+                      }),
                     )
                   : null;
 
@@ -702,7 +714,7 @@ export const modalSandboxLayer = (
           reading(record, (sandbox) =>
             Effect.gen(function* () {
               const text = yield* modalCall(() =>
-                sandbox.filesystem.readText("/moke/output/manifest.json"),
+                sandbox.filesystem.readText(`${cloudWorkerRoot(record)}/output/manifest.json`),
               );
 
               yield* downloadCloudPackage(
@@ -711,7 +723,7 @@ export const modalSandboxLayer = (
                 (file, local) =>
                   Effect.gen(function* () {
                     const info = yield* modalCall(() =>
-                      sandbox.filesystem.stat(`/moke/output/${file.path}`),
+                      sandbox.filesystem.stat(`${cloudWorkerRoot(record)}/output/${file.path}`),
                     );
 
                     if (info.type !== "file" || info.size !== file.bytes)
@@ -720,7 +732,10 @@ export const modalSandboxLayer = (
                         message: "A cloud package file changed before download.",
                       });
                     yield* modalCall(() =>
-                      sandbox.filesystem.copyToLocal(`/moke/output/${file.path}`, local),
+                      sandbox.filesystem.copyToLocal(
+                        `${cloudWorkerRoot(record)}/output/${file.path}`,
+                        local,
+                      ),
                     );
                   }),
                 report,
@@ -774,7 +789,7 @@ export const modalSandboxLayer = (
                     cpu: 0.25,
                     memoryMiB: 512,
                     volumes: { "/cache": volume },
-                    tags: { "moke-kind": "cache" },
+                    tags: { "second-set-kind": "cache" },
                   }),
                 ),
                 (sandbox) => modalCall(() => sandbox.terminate({ wait: true })).pipe(Effect.ignore),
@@ -836,7 +851,7 @@ export const modalSandboxLayer = (
 
               if (keep !== null && !(yield* request.paused)) {
                 yield* modalCall(() =>
-                  uploader.filesystem.writeText(`${keep.join("\n")}\n`, "/tmp/moke-keep"),
+                  uploader.filesystem.writeText(`${keep.join("\n")}\n`, "/tmp/second-set-keep"),
                 );
                 yield* script(pruneCacheScript);
               }

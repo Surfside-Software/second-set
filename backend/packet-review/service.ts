@@ -575,7 +575,7 @@ interface Configuration {
   ) => Promise<A>;
 }
 
-/** Project-first durable Moke reviews, with frozen source inventory and persistent tool records. */
+/** Project-first durable packet reviews, with frozen source inventory and persistent tool records. */
 export class PacketReviews extends Context.Service<
   PacketReviews,
   {
@@ -915,7 +915,7 @@ export class PacketReviews extends Context.Service<
           });
 
           yield* sql`INSERT INTO review_commands(command_id,project_id,fingerprint,receipt) VALUES (${commandId},${row.project_id},${fingerprint},${JSON.stringify(receipt)})`;
-          yield* sql`INSERT INTO review_events(project_id,command_id,kind,message,created_at) VALUES (${row.project_id},${commandId},'packet_review','MOKE review response saved.',${message.createdAt})`;
+          yield* sql`INSERT INTO review_events(project_id,command_id,kind,message,created_at) VALUES (${row.project_id},${commandId},'packet_review','Second Set review response saved.',${message.createdAt})`;
         });
 
         const recordTool = async (
@@ -1833,7 +1833,7 @@ export class PacketReviews extends Context.Service<
             ),
             tool(
               "search_code",
-              "Search Moke's Florida code index for the section, statute or rule that governs a check: 2023 FBC sections with plan review notes, Florida Statutes, Florida Administrative Code rules, and 9th Edition volumes. Results are pointers with links, not code text. Cite one with record_citation and its id as codeReferenceId.",
+              "Search Second Set's Florida code index for the section, statute or rule that governs a check: 2023 FBC sections with plan review notes, Florida Statutes, Florida Administrative Code rules, and 9th Edition volumes. Results are pointers with links, not code text. Cite one with record_citation and its id as codeReferenceId.",
               Schema.Struct({
                 query: Schema.Trim.check(Schema.isMinLength(2), Schema.isMaxLength(500)),
                 limit: Schema.optionalKey(
@@ -2857,6 +2857,7 @@ export class PacketReviews extends Context.Service<
             );
           registry.install(
             defineExtension({
+              // Journals may name this extension, so it keeps the name it shipped with.
               name: "moke-packet-review-v1",
               tools,
               hooks: [
@@ -4402,7 +4403,7 @@ export class PacketReviews extends Context.Service<
                   if (pending.length)
                     return yield* error(
                       "conflict",
-                      "MOKE is still finishing the request it sent before the pause. Its result will be kept; try Resume again in a minute.",
+                      "Second Set is still finishing the request it sent before the pause. Its result will be kept; try Resume again in a minute.",
                     );
                 }),
               );
@@ -4464,10 +4465,14 @@ export class PacketReviews extends Context.Service<
 
               if (
                 input.action === "resume" &&
-                (row.payload.state !== "paused" ||
-                  row.engine !== journalFormat ||
-                  row.payload.promptVersion !== promptVersion)
+                (row.engine !== journalFormat || row.payload.promptVersion !== promptVersion)
               )
+                return yield* error(
+                  "incompatible",
+                  "This review uses an earlier engine or instruction version and can't resume. Start a new review; its saved results stay readable.",
+                );
+
+              if (input.action === "resume" && row.payload.state !== "paused")
                 return yield* error(
                   "incompatible",
                   "Only a compatible paused review can resume. Uncertain work must not be resent.",

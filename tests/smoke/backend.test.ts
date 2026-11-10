@@ -197,7 +197,7 @@ test("an unavailable backend executable returns a typed startup failure", async 
 });
 
 test("HTTP progress delivers a persisted event before an open subscription completes", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-http-progress-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-http-progress-"));
 
   try {
     await Effect.runPromise(

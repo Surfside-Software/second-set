@@ -92,7 +92,7 @@ test("revised sheets inherit the earlier sheets they replace through chained cor
 });
 
 test("finding records are validated, withdrawable and carried into a revised review", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-finding-records-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-finding-records-"));
   const inputs: Array<string> = [];
   let phase = 1;
   let step = 0;

@@ -39,8 +39,8 @@
   );
 
   const help = $derived({
-    verified: "The quote was found in the official text Moke retrieved.",
-    indexed: `This link comes from Moke's Florida code index. ${reference?.access === "open_in_browser" ? "Official text isn't available for automated reading. " : ""}Its wording is unconfirmed. Open the section to check it.`,
+    verified: "The quote was found in the official text Second Set retrieved.",
+    indexed: `This link comes from Second Set's Florida code index. ${reference?.access === "open_in_browser" ? "Official text isn't available for automated reading. " : ""}Its wording is unconfirmed. Open the section to check it.`,
     unverified:
       "The wording hasn't been confirmed against retrieved official text. Check it by hand.",
     incorrect: "The citation doesn't match the governing text.",

@@ -9,7 +9,7 @@ import { createProject, importPdf, offlineDesktop, openWindow } from "./workbenc
 
 test("a selector disabled while its menu is open closes the menu and accepts no choice", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-review-select-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-review-select-"));
   const source = join(directory, "Drawing set.pdf");
   await writeFile(source, createHeroPdf("A"));
   const app = await electron.launch(await offlineDesktop(directory, ["meta"]));

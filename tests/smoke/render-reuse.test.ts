@@ -39,7 +39,7 @@ const directory = async (prefix: string) => {
 };
 
 afterEach(async () => {
-  delete process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY;
+  delete process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY;
   await Promise.all(
     directories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
   );
@@ -73,11 +73,11 @@ test("render identity covers the source, page geometry, exact region, effective 
 });
 
 test("equal crops under new tool operations share one worker render and keep a receipt each", async () => {
-  const data = await directory("moke-render-reuse-");
-  const started = await directory("moke-render-jobs-");
+  const data = await directory("second-set-render-reuse-");
+  const started = await directory("second-set-render-jobs-");
   const source = join(data, "plans.pdf");
   await writeFile(source, createHeroPdf("A"));
-  process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY = started;
+  process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY = started;
 
   const renders = () => Effect.promise(() => startedJobs(started, "Render"));
 
@@ -278,11 +278,11 @@ test("equal crops under new tool operations share one worker render and keep a r
 }, 120000);
 
 test("reopening previews keeps one artifact record per view across launches and near the record limit", async () => {
-  const data = await directory("moke-preview-reuse-");
-  const started = await directory("moke-preview-jobs-");
+  const data = await directory("second-set-preview-reuse-");
+  const started = await directory("second-set-preview-jobs-");
   const source = join(data, "plans.pdf");
   await writeFile(source, createHeroPdf("A"));
-  process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY = started;
+  process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY = started;
 
   const renders = () => Effect.promise(() => startedJobs(started, "Render"));
 
@@ -389,9 +389,9 @@ test("reopening previews keeps one artifact record per view across launches and 
 }, 120000);
 
 test("renders recorded before migration 0013 still replay by operation and are not reused", async () => {
-  const data = await directory("moke-legacy-renders-");
-  const started = await directory("moke-legacy-jobs-");
-  const earlier = await directory("moke-legacy-migrations-");
+  const data = await directory("second-set-legacy-renders-");
+  const started = await directory("second-set-legacy-jobs-");
+  const earlier = await directory("second-set-legacy-migrations-");
   const source = join(data, "plans.pdf");
   await writeFile(source, createHeroPdf("A"));
 
@@ -443,7 +443,7 @@ test("renders recorded before migration 0013 still replay by operation and are n
     ),
   );
 
-  process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY = started;
+  process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY = started;
 
   await Effect.runPromise(
     Effect.scoped(

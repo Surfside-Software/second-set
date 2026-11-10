@@ -8,7 +8,7 @@ export type EndpointCheck =
   | { readonly kind: "unreachable" }
   | { readonly kind: "unexpected" };
 
-const checkTool = "moke_connection_check";
+const checkTool = "second_set_connection_check";
 
 /** Only the fields the check reads; everything else in the answer is ignored. */
 const Completion = Schema.Struct({
@@ -122,8 +122,8 @@ export const checkConnection = Effect.fn("checkConnection")(function* (endpoint:
  */
 export function openCodeHeaders(version: string, session: string) {
   return {
-    "user-agent": `moke/${version}`,
-    "x-opencode-client": "moke",
+    "user-agent": `second-set/${version}`,
+    "x-opencode-client": "second-set",
     "x-opencode-session": session,
   };
 }

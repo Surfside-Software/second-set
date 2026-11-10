@@ -12,7 +12,7 @@ import {
 } from "../../desktop/credential-files.ts";
 
 test("private provider sets accept Wonder and Baseten while rejecting SAM as a review model", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-credential-models-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-credential-models-"));
   const source = join(directory, "providers.json");
 
   const meta = {
@@ -50,7 +50,7 @@ test("private provider sets accept Wonder and Baseten while rejecting SAM as a r
 });
 
 test("explicit session credentials reject shared Unix permissions and accept a private file", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-credential-permissions-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-credential-permissions-"));
   const source = join(directory, "session.json");
 
   try {
@@ -146,7 +146,7 @@ test("menus offer no retired OpenCode Go model, and a saved connection naming on
 });
 
 test("accepted trailing-slash routes are saved in the canonical form cloud dispatch requires", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-credential-routes-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-credential-routes-"));
   const source = join(directory, "providers.json");
 
   const routes = [

@@ -11,7 +11,7 @@ import { createHeroPdf } from "../fixtures/hero-case.ts";
 import { installRpcBoundary } from "./rpc-boundary.ts";
 
 test("project dialogs, selectors, settings, visual evidence selection, and chat work together", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-polish-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-polish-"));
   const fixture = join(directory, "Revision A.pdf");
   await writeFile(fixture, createHeroPdf("A"));
 
@@ -20,7 +20,7 @@ test("project dialogs, selectors, settings, visual evidence selection, and chat 
       value === undefined ||
       [
         "ELECTRON_RUN_AS_NODE",
-        "MOKE_SESSION_CREDENTIAL_FILE",
+        "SECOND_SET_SESSION_CREDENTIAL_FILE",
         "BASETEN_API_KEY",
         "OPENCODE_API_KEY",
         "MODEL_API_KEY",

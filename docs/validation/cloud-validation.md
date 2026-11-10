@@ -2,7 +2,7 @@
 
 Observed October 29, 2026 UTC (October 28 in New York), using Bun 1.4.4,
 `modal@0.11.1`, the `moke-reviews` App, and `moke-review-engine:latest`.
-Only Moke's authored two-sheet schematic was uploaded. No customer drawings
+Only Second Set's authored two-sheet schematic was uploaded. No customer drawings
 were used. Account credentials were delivered privately and are excluded from
 the repository and worker image.
 

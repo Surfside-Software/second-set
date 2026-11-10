@@ -15,7 +15,7 @@
   });
 </script>
 
-<svelte:head><title>MOKE review</title></svelte:head>
+<svelte:head><title>Second Set</title></svelte:head>
 
 {#if client}
   <ReviewWorkbench {client} />

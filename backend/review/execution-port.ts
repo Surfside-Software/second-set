@@ -70,7 +70,7 @@ export const DetailRequest = Schema.Struct({
   missingFact: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000)),
 });
 
-/** Moke supplies bounded pixels and transforms for the exact resized image delivered to Muse. */
+/** Second Set supplies bounded pixels and transforms for the exact resized image delivered to Muse. */
 export class ExecutionImage extends Schema.Class<ExecutionImage>("ExecutionImage")({
   artifactId: ArtifactId,
   projectId: ProjectId,

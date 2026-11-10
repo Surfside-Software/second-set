@@ -20,7 +20,7 @@ import {
 } from "../fixtures/packet-review.ts";
 
 test("project-first review runs actual Moke system instructions and tools, persists its report, and reopens without dispatch", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-integration-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-integration-"));
   const requests: Array<typeof Request.Type> = [];
   let step = 0;
 
@@ -301,7 +301,7 @@ test("project-first review runs actual Moke system instructions and tools, persi
 }, 120000);
 
 test("discipline requests route to the selected model's own provider and preserve complete system instructions", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-providers-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-providers-"));
   const requests: Array<{ model: string; key: string | null; prompt: string }> = [];
 
   const transport: ProviderTransport = async (_url, init) => {
@@ -353,7 +353,7 @@ test("discipline requests route to the selected model's own provider and preserv
 }, 120000);
 
 test("a sent provider failure remains uncertain through restart and cannot be resumed or resent", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-uncertain-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-uncertain-"));
   let sends = 0;
 
   const transport: ProviderTransport = async () => {
@@ -399,7 +399,7 @@ test("a sent provider failure remains uncertain through restart and cannot be re
 }, 120000);
 
 test("an optional call budget pauses instead of reporting a completed packet review", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-budget-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-budget-"));
   let sends = 0;
 
   const session = await open(directory, async () => {
@@ -458,7 +458,7 @@ test("an optional call budget pauses instead of reporting a completed packet rev
 }, 120000);
 
 test("pause drains admitted work and explicit resume replays control receipts without duplicate dispatch", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-pause-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-pause-"));
   const firstAdmitted = Promise.withResolvers<void>();
   const firstResponse = Promise.withResolvers<void>();
   const secondAdmitted = Promise.withResolvers<void>();

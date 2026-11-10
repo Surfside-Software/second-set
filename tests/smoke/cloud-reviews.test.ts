@@ -33,6 +33,9 @@ import { confirmModalSandboxStopped, pollWarmSandbox } from "../../backend/cloud
 import { parseCloudWorkerProgress } from "../../backend/cloud/progress.ts";
 import { readCloudState } from "../../backend/cloud/files.ts";
 
+/** Workers built before the rename from MOKE announce this count prompt. */
+const legacyPrompt = "moke-selected-coordination-v2";
+
 const modal = Schema.decodeUnknownSync(ModalConfiguration)({
   tokenId: "test-token-id",
   tokenSecret: "test-modal-secret",
@@ -51,7 +54,7 @@ const provider = Schema.decodeUnknownSync(CloudProvider)({
 });
 
 test("cloud download retries reuse only complete files matching the result identity", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-resume-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-resume-"));
   const path = join(directory, "artifact.png");
   const content = Buffer.from("verified result bytes");
 
@@ -149,7 +152,7 @@ test("the cloud worker protocol rejects pre-scope workers and incompatible deadl
 });
 
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-test-"));
   const operations: string[] = [];
   let dispatchLost = false;
   let preflightFailure = false;
@@ -705,6 +708,7 @@ test("only unmarked dispatched receipts can recover v2 progress with the complet
     // Workers before protocol 5 shipped packet prompt v3 or earlier and no code index.
     const { codeIndex: _codeIndex, ...priorIdentity } = {
       ...cloudEngineIdentity,
+      prompt: legacyPrompt,
       packetPrompt: "moke-packet-review-v3",
     };
 
@@ -824,7 +828,11 @@ test("dispatched protocol-4 results survive the protocol 5 upgrade without admit
     const protocol4 = { ...recorded, workerProtocol: 4 as const };
 
     // Protocol 4 workers shipped packet prompts v3 to v5, and no code index.
-    const { codeIndex: _codeIndex, ...protocol4Identity } = { ...cloudEngineIdentity, protocol: 4 };
+    const { codeIndex: _codeIndex, ...protocol4Identity } = {
+      ...cloudEngineIdentity,
+      protocol: 4,
+      prompt: legacyPrompt,
+    };
 
     for (const packetPrompt of [
       "moke-packet-review-v3",
@@ -887,6 +895,7 @@ test.each([
   ["moke-packet-review-v7", "florida-code-index-v1"],
   ["moke-packet-review-v8", "florida-code-index-v2"],
   ["moke-packet-review-v9", "florida-code-index-v3"],
+  ["moke-packet-review-v10", "florida-code-index-v3"],
 ] as const)(
   "dispatched protocol-5 jobs stay readable after a worker upgrade: %s with %s",
   async (packetPrompt, codeIndex) => {
@@ -905,7 +914,13 @@ test.each([
 
       const prior = {
         id: recorded.id,
-        identity: { ...cloudEngineIdentity, packetPrompt, codeIndex },
+        identity: {
+          ...cloudEngineIdentity,
+          protocol: 5,
+          prompt: legacyPrompt,
+          packetPrompt,
+          codeIndex,
+        },
         phase: "ready",
         execution: null,
         message: "Saved result from an earlier worker",
@@ -918,7 +933,10 @@ test.each([
         expect(
           (
             await Effect.runPromise(
-              parseCloudWorkerProgress({ ...recorded, phase }, JSON.stringify(prior)),
+              parseCloudWorkerProgress(
+                { ...recorded, phase, workerProtocol: 5 },
+                JSON.stringify(prior),
+              ),
             )
           ).identity.packetPrompt,
         ).toBe(packetPrompt);
@@ -927,6 +945,7 @@ test.each([
         { ...recorded, phase: "preparing" as const },
         { ...recorded, phase: "ready" as const },
         { ...recorded, phase: "running" as const, workerProtocol: 4 as const },
+        { ...recorded, phase: "running" as const },
       ])
         expect(
           (
@@ -1024,7 +1043,12 @@ test("already-dispatched packet prompt v1 jobs remain recoverable without admitt
 
     const prior = {
       id: recorded.id,
-      identity: { ...cloudEngineIdentity, protocol: 3, packetPrompt: "moke-packet-review-v1" },
+      identity: {
+        ...cloudEngineIdentity,
+        protocol: 3,
+        prompt: legacyPrompt,
+        packetPrompt: "moke-packet-review-v1",
+      },
       phase: "ready",
       execution: null,
       message: "Saved result from prior build",
@@ -1090,7 +1114,7 @@ test("already-dispatched packet prompt v1 jobs remain recoverable without admitt
 });
 
 test("a non-canonical provider route fails cloud start before allocation or upload", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-cloud-route-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-route-"));
   const operations: Array<string> = [];
   const unused = Effect.die("Cloud work must not start for a non-canonical route.");
 
@@ -1152,7 +1176,7 @@ test("the current cloud compatibility guide names the admitted identity and rece
 
 test("a one-minute cloud limit fails before any cloud work and longer limits keep their deadline", async () => {
   for (const timeoutMinutes of [1, 2]) {
-    const directory = await mkdtemp(join(tmpdir(), "moke-cloud-limit-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-cloud-limit-"));
     const operations: Array<string> = [];
     const admitted: Array<CloudReviewRecord> = [];
 

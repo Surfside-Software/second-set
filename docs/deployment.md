@@ -108,7 +108,7 @@ embedded Modal or model credential in a distributed binary.
 Use File > Import provider credential to encrypt a configuration with Electron
 safeStorage. Linux storage without a running secret service is refused, because
 Chromium would otherwise encrypt with a publicly known key. Without secure OS storage,
-set `MOKE_SESSION_CREDENTIAL_FILE` to an explicitly selected private JSON file
+set `SECOND_SET_SESSION_CREDENTIAL_FILE` to an explicitly selected private JSON file
 for that launch. On Unix it must have owner-only permissions (for example `chmod 600`).
 It contains `provider`, `apiKey`, canonical `baseUrl`, and `model`.
 Meta uses `https://api.meta.ai/v1` and `muse-spark-1.3`; Baseten uses
@@ -125,5 +125,5 @@ redacted value, and is never returned. See
 [OpenCode Go](inference.md#opencode-go) and
 [custom endpoints](inference.md#custom-openai-compatible-endpoint).
 
-Set `MOKE_E2E_LIVE=1` only for the explicitly budgeted packaged acceptance test.
+Set `SECOND_SET_E2E_LIVE=1` only for the explicitly budgeted packaged acceptance test.
 It adds a live inspection to the ordinary four-outcome desktop flow.

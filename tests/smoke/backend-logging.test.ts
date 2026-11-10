@@ -15,7 +15,7 @@ const logText = async (directory: string) => {
 };
 
 test("startup and background warnings reach the log file while stdout carries only readiness", async () => {
-  const dataDirectory = await mkdtemp(join(tmpdir(), "moke-backend-logging-"));
+  const dataDirectory = await mkdtemp(join(tmpdir(), "second-set-backend-logging-"));
   const logs = join(dataDirectory, "logs");
 
   // A recorded cloud owner without a cloud connection makes the reconciliation fiber, forked

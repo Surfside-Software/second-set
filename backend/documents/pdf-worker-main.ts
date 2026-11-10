@@ -1,6 +1,6 @@
 /**
  * Standalone PDF worker: schema-validated NDJSON on stdin/stdout.
- * Run under Bun with `MOKE_PDFJS_ASSETS` and `NAPI_RS_NATIVE_LIBRARY_PATH` set.
+ * Run under Bun with `SECOND_SET_PDFJS_ASSETS` and `NAPI_RS_NATIVE_LIBRARY_PATH` set.
  */
 import { createCanvas } from "@napi-rs/canvas";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -22,10 +22,10 @@ import {
   WorkerTextResult,
 } from "./worker-messages.ts";
 
-const assetsRoot = process.env.MOKE_PDFJS_ASSETS;
+const assetsRoot = process.env.SECOND_SET_PDFJS_ASSETS;
 
 if (!assetsRoot) {
-  console.error(JSON.stringify({ fatal: "MOKE_PDFJS_ASSETS is required." }));
+  console.error(JSON.stringify({ fatal: "SECOND_SET_PDFJS_ASSETS is required." }));
   process.exit(2);
 }
 
@@ -413,13 +413,13 @@ async function handleRequest(line: string) {
   }
 
   // Test hooks: record each accepted job with this process ID, then hold it before PDF work.
-  const started = process.env.MOKE_PDF_WORKER_STARTED_DIRECTORY;
+  const started = process.env.SECOND_SET_PDF_WORKER_STARTED_DIRECTORY;
 
   if (started) writeFileSync(join(started, `${decoded._tag}.${randomUUID()}`), String(process.pid));
 
-  if (process.env.MOKE_PDF_WORKER_DELAY_MS) {
+  if (process.env.SECOND_SET_PDF_WORKER_DELAY_MS) {
     await new Promise((resolve) =>
-      setTimeout(resolve, Number(process.env.MOKE_PDF_WORKER_DELAY_MS)),
+      setTimeout(resolve, Number(process.env.SECOND_SET_PDF_WORKER_DELAY_MS)),
     );
   }
 

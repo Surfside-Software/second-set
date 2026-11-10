@@ -3,7 +3,7 @@
 The workbench calls this **Push to cloud**. A reviewer chooses it beside the
 message composer, chooses a whole-set or discipline review, and sends their instructions.
 The same cloud protocol also supports selected count-check requests.
-Moke transfers the workspace, runs a new bounded review away from the computer,
+Second Set transfers the workspace, runs a new bounded review away from the computer,
 and automatically syncs verified results back when the review finishes.
 The infrastructure provider is Modal; that name belongs in operator setup rather
 than the review controls.
@@ -17,9 +17,9 @@ or incoming HTTP tunnel.
 
 Configure the existing model connection first; see [inference setup](inference.md).
 Create a named Secret in the [Modal Secrets dashboard](https://modal.com/secrets)
-with the key `MOKE_API_KEY` holding that provider's API key. Its name is
-`<appName>-<provider>-api`: the defaults are `moke-reviews-meta-api`,
-`moke-reviews-baseten-api` and `moke-reviews-opencode-go-api`. The current JS SDK can reference named Secrets but
+with the key `SECOND_SET_API_KEY` holding that provider's API key. Its name is
+`<appName>-<provider>-api`: the defaults are `second-set-reviews-meta-api`,
+`second-set-reviews-baseten-api` and `second-set-reviews-opencode-go-api`. The current JS SDK can reference named Secrets but
 cannot create them; use the dashboard or Modal's admin CLI for that one-time step.
 The application and sandbox workloads remain TypeScript on Bun.
 
@@ -29,11 +29,11 @@ For development, put these additional values in the local, ignored `.env`:
 MODAL_TOKEN_ID=...
 MODAL_TOKEN_SECRET=...
 MODAL_ENVIRONMENT=main
-MOKE_MODAL_APP=moke-reviews
-MOKE_MODAL_IMAGE=moke-review-engine:latest
-MOKE_MODAL_TIMEOUT_MINUTES=15
+SECOND_SET_MODAL_APP=second-set-reviews
+SECOND_SET_MODAL_IMAGE=second-set-review-engine:latest
+SECOND_SET_MODAL_TIMEOUT_MINUTES=15
 # Optional; omit to avoid paying for unused warm capacity:
-# MOKE_MODAL_POOL_QUEUE=moke-review-pool
+# SECOND_SET_MODAL_POOL_QUEUE=second-set-review-pool
 ```
 
 Publish the worker image from the current checkout:
@@ -50,16 +50,16 @@ local data, `.env`, logs, and credentials are not copied into the image. Publish
 matching image again when changing review engine code or migrations. Keep an
 immutable image tag per deployed desktop version when distributing builds.
 
-Packaged launches use `MOKE_MODAL_CONFIG` pointing to a private JSON file. They
+Packaged launches use `SECOND_SET_MODAL_CONFIG` pointing to a private JSON file. They
 do not read these credentials automatically from `.env`. The file contains:
 
 ```json
 {
   "tokenId": "...",
   "tokenSecret": "...",
-  "appName": "moke-reviews",
+  "appName": "second-set-reviews",
   "environment": "main",
-  "imageName": "moke-review-engine:latest",
+  "imageName": "second-set-review-engine:latest",
   "timeoutMinutes": 15,
   "poolQueue": null
 }
@@ -172,8 +172,8 @@ authenticated NDJSON on the existing loopback endpoint, then Electron's trusted
 MessagePort to the renderer. The renderer does not hold Modal credentials or
 open a connection to a public sandbox endpoint.
 
-For an active review the backend watches `/moke` with Modal's filesystem watch
-API, filtering atomic updates of `progress.json`. These are wake-up hints, not
+For an active review the backend watches the worker folder, `/second-set`, or `/moke`
+for a job dispatched to a protocol-5 worker, with Modal's filesystem watch API, filtering atomic updates of `progress.json`. These are wake-up hints, not
 the source of truth. It reconciles on initial attachment and every ten seconds
 as well, covering missed events, unsupported watchers, and connection loss.
 The watcher is bounded to thirty seconds and reconnects; local iterator cleanup
@@ -261,13 +261,13 @@ limit, and no warm pool. The operator can choose 1–60 minutes. The sandbox get
 an additional two minutes for transfer/checkpoint cleanup. Selected count reviews
 retain their call/token admission budget. Drawing-set reviews honor the optional call budget and the shared time limit. Inference remains on the
 selected Meta/Baseten service; Modal credits pay for the sandbox, storage, and
-related Modal usage. Moke does not read a Modal wallet or promise a dollar cap.
+related Modal usage. Second Set does not read a Modal wallet or promise a dollar cap.
 Configure account budgets in Modal separately from these runtime limits.
 Transfer and setup consume the same deadline used to claim warm capacity.
 Exec timeouts are rounded down to whole seconds, as required by the SDK; a
 transfer leaving less than one minute fails before inference dispatch. A 1-minute
 limit can therefore never dispatch, so Send refuses it before preflight,
-allocation or upload and asks for 2 minutes or more. Moke does not add review
+allocation or upload and asks for 2 minutes or more. Second Set does not add review
 time beyond the configured limit; whether a minimum above 1 minute or a full
 minute after setup is wanted is an open product decision.
 
@@ -294,7 +294,7 @@ sandboxes, and local work stays fenced until the reviewer confirms stop.
 Optional prewarming:
 
 ```sh
-# Requires MOKE_MODAL_POOL_QUEUE in the operator configuration.
+# Requires SECOND_SET_MODAL_POOL_QUEUE in the operator configuration.
 bun run modal:warm
 ```
 
@@ -312,11 +312,18 @@ it. Queue messages use JSON to preserve millisecond expiry times through the SDK
 
 ## Validation
 
-The current worker is `moke-review-engine:9f4e2fb67`, image
-`im-01M6KD1KYF0PJZMCQJXBRPKRHX`, with protocol 5, packet prompt v10 and code index
-v3. `moke-review-engine:latest` resolves to the same image. On 2026-11-04 it reported
-the expected identity in a fresh sandbox with no network; no cloud review has run on
-it yet. The `moke-reviews-opencode-go-api` Modal Secret was created the same day.
+The current worker is `second-set-review-engine:latest` in the `second-set-reviews`
+App, image `im-01M7137QNPVEHAETCAYGKX9EV8`, with protocol 6, packet prompt
+`second-set-packet-review-v11` and code index v3. It was published from `bc722cb` on
+2026-11-09 and reported the expected identity in a fresh sandbox with no network; no
+cloud review has run on it yet. The `second-set-reviews-meta-api`,
+`second-set-reviews-baseten-api` and `second-set-reviews-opencode-go-api` Secrets were
+created the same day and are reachable with `SECOND_SET_API_KEY`.
+
+The last protocol-5 worker is `moke-review-engine:9f4e2fb67`, image
+`im-01M6KD1KYF0PJZMCQJXBRPKRHX`, with packet prompt v10 and code index v3, in the
+`moke-reviews` App. It reported the expected identity on 2026-11-04, and the
+`moke-reviews-opencode-go-api` Secret was created the same day.
 
 The previous worker is `moke-review-engine:4cc8c03`, image
 `im-01M6DBQX7M1HEP05AA68MHBW7R`, with packet prompt v8 and code index v2, kept for
@@ -382,7 +389,7 @@ WARP for the review, or remove the entry with `warp-cli dns fallback remove host
 (`warp-cli dns fallback reset` restores the defaults).
 
 **A finished review stops at "Sync paused" with "A package file could not be written."** Windows
-antivirus and indexing briefly hold files Moke has just written, and replacing such a file fails
+antivirus and indexing briefly hold files Second Set has just written, and replacing such a file fails
 until they let go. Restores, transfers and database replacement now retry that rename for about
 ten seconds (`backend/rename.ts`). A paused sync keeps the downloaded result; choose Retry sync.
 
@@ -403,7 +410,7 @@ it does not deploy Harbor or a parallel evaluation fleet.
 ## Compatibility with drawing-set reviews
 
 The cloud composer follows the whole-set and discipline workflow introduced in
-[PR #9](https://github.com/sc-frederick/moke-meta-hackathon/pull/9); it does not require
+[PR #9](https://github.com/Surfside-Software/second-set/pull/9); it does not require
 an existing count check. The chosen model selects its own provider connection.
 Configured Meta tools remain available with Baseten chat through separate
 outbound header policies. Packet findings, coverage, evidence and reports return
@@ -412,11 +419,11 @@ are fenced while the cloud owns the workspace.
 
 ### Current admission and recovery
 
-New reviews are admitted only to a protocol-5 worker whose identity matches this
+New reviews are admitted only to a protocol-6 worker whose identity matches this
 build exactly: package engine `review-pi-1.4.0-v1`, count prompt
-`moke-selected-coordination-v2`, packet prompt `moke-packet-review-v10`, and the
+`second-set-selected-coordination-v3`, packet prompt `second-set-packet-review-v11`, and the
 current instruction revision and code index version. Every new ownership receipt
-records `workerProtocol: 5`. An image with a different identity fails the
+records `workerProtocol: 6`. An image with a different identity fails the
 identity probe before transfer. Migrations are not part of the identity: a worker
 restores only packages whose migration history is a prefix of its own, so an
 image built before a new migration passes the probe and refuses the package after
@@ -425,7 +432,9 @@ prompts, migrations or the code index change.
 
 Recovery only observes work already `dispatching` or `running`; it never
 redispatches or restarts a model. Earlier identities must still match the current
-engine, count prompt and instruction revision. Protocols 2 to 4 omit the code index; earlier protocol-5 workers use index v1:
+engine and instruction revision. Workers built before protocol 6 announce the MOKE-era
+names they shipped with: count prompt `moke-selected-coordination-v2` and packet prompts
+`moke-packet-review-v1` to `v10`. Protocols 2 to 4 omit the code index; earlier protocol-5 workers use index v1:
 
 | Receipt `workerProtocol`                  | Progress accepted while dispatched                                 |
 | ----------------------------------------- | ------------------------------------------------------------------ |
@@ -433,12 +442,26 @@ engine, count prompt and instruction revision. Protocols 2 to 4 omit the code in
 | `3`                                       | Protocol 3 with packet prompts v1 to v3                            |
 | `4`                                       | Protocol 4 with packet prompts v3 to v5                            |
 | `5`                                       | Protocol 5 with v9 or v10/index v3, v8/index v2, or v6/v7/index v1 |
+| `6`                                       | Current progress                                                   |
 
 Receipts in every other phase accept only current progress.
 
 ### Protocol history
 
-Each entry records what an upgrade required when it shipped.
+Each entry records what an upgrade required when it shipped, with the names in use then.
+
+**Protocol 6** ships the rename from MOKE to Second Set. The worker keeps its files
+under `/second-set` and `/opt/second-set`, reads `SECOND_SET_CLOUD_PROVIDERS`, and
+expects each provider Secret's key as `SECOND_SET_API_KEY`. The defaults become the
+`second-set-reviews` App, `second-set-review-engine` image and
+`second-set-reviews-<provider>-api` Secrets. It ships with count prompt
+`second-set-selected-coordination-v3` and packet prompt `second-set-packet-review-v11`,
+which change only the application's name in model-facing text. Publish the image under
+the new App with `bun run modal:image` and create the renamed Secrets before sending; a
+protocol-5 image fails the identity probe. Jobs already sent to a protocol-5 worker are
+still read from `/moke` and stay recoverable. Migration 0014 renames saved
+`moke-packet-review-vN` and `moke-selected-coordination-v2` records to their
+`second-set-` names.
 
 **Protocol 4** adds the workspace cache: new receipts record the cache Volume and
 `workerProtocol: 4`, and the worker fills skipped files from `/cache` before
@@ -492,7 +515,7 @@ before local ownership returns. An incompatible sync pause saved by an earlier
 build still requires **Retry sync** after upgrading; it is not cleared implicitly.
 
 Before transferring, the desktop resolves the selected published image and required provider
-secrets, including their MOKE_API_KEY keys. A credential-free, network-blocked probe
+secrets, including their SECOND_SET_API_KEY keys. A credential-free, network-blocked probe
 validates the worker identity before ownership is recorded; successful compatibility
 is cached by immutable image ID for the runtime. The probe has a one-minute lifetime
 and is released after validation. Cloud setup reports readiness failures explicitly.

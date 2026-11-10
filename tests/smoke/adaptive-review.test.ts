@@ -129,7 +129,7 @@ function syntheticPdf(): string {
 }
 
 async function prepare() {
-  const directory = await mkdtemp(join(tmpdir(), "moke-adaptive-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-adaptive-"));
   temporary.push(directory);
   await Bun.write(join(directory, "drawing.pdf"), syntheticPdf());
 

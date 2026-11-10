@@ -170,7 +170,7 @@ function requestPublic(
         family: address.family,
         signal,
         headers: {
-          "User-Agent": "Moke/0.1 public-source-review",
+          "User-Agent": "second-set/0.1 public-source-review",
           Accept:
             "text/html,text/plain,application/xhtml+xml,application/xml;q=0.9,application/pdf;q=0.8,*/*;q=0.1",
           "Accept-Encoding": "identity",

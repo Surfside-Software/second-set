@@ -4,7 +4,10 @@ import { Rpc, RpcGroup } from "effect/rpc";
 import { ExecutionState } from "./execution.ts";
 
 /** Directory package format. The manifest is written last and is not an archive. */
-const packageFormat = "moke-review-package";
+export const packageFormat = "second-set-review-package";
+
+/** Packages exported before the rename from MOKE restore unchanged. */
+const legacyPackageFormat = "moke-review-package";
 
 /** Current package manifest version. Older and newer versions are refused. */
 export const packageFormatVersion = 1;
@@ -50,7 +53,7 @@ export class PackageRunSnapshot extends Schema.Class<PackageRunSnapshot>("Packag
  * `database-only` is recognized so a partial package can be refused.
  */
 export class PackageManifest extends Schema.Class<PackageManifest>("PackageManifest")({
-  format: Schema.Literal(packageFormat),
+  format: Schema.Literals([packageFormat, legacyPackageFormat]),
   formatVersion: Schema.Literal(packageFormatVersion),
   scope: Schema.Literals(["application", "database-only"]),
   scopeLabel: Schema.Literals(["whole-application", "database-only"]),

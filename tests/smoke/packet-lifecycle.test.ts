@@ -50,7 +50,7 @@ async function untilSamCompleted(session: Session, reviewId: string) {
 }
 
 test("a successful SAM response drains while paused and explicit resume does not resend it", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-sam-pause-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-sam-pause-"));
   const samAdmitted = Promise.withResolvers<void>();
   const releaseSam = Promise.withResolvers<void>();
   let modelSends = 0;
@@ -188,7 +188,7 @@ test("a successful SAM response drains while paused and explicit resume does not
 }, 120000);
 
 test("shutdown preserves an unresolved admitted request as uncertain across reopening", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-shutdown-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-shutdown-"));
   const admitted = Promise.withResolvers<void>();
   const provider = Promise.withResolvers<Response>();
   let sends = 0;
@@ -251,7 +251,7 @@ test("shutdown preserves an unresolved admitted request as uncertain across reop
 test.each(["uncertain", "completed"] as const)(
   "startup reconciles a prior owner's paused review with a %s request receipt without sending it",
   async (receiptStatus) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-packet-legacy-paused-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-packet-legacy-paused-"));
     let sends = 0;
 
     const transport = async () => {
@@ -353,7 +353,7 @@ const afterIdle = <A, E>(operation: Effect.Effect<A, E>) =>
   }).pipe(Effect.provide(TestClock.layer()));
 
 test("provider HTTP diagnostics survive cancellation without rewriting active duration or replaying inference", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit3-provider-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit3-provider-"));
   let sends = 0;
 
   const session = await open(directory, async () => {
@@ -401,7 +401,7 @@ test("provider HTTP diagnostics survive cancellation without rewriting active du
 }, 120000);
 
 test("pause accepts progress advancing since the displayed version and cancellation excludes paused waiting", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit3-pause-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit3-pause-"));
   const dispatched = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
 

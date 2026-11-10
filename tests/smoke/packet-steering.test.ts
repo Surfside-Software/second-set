@@ -13,7 +13,7 @@ import { decodeRequest, id, open, response, until } from "../fixtures/packet-rev
 test.each(["complete", "budget", "cancel", "admission failure"] as const)(
   "finish-boundary steering owns its idle Pi continuation: %s",
   async (outcome) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-finish-steer-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-finish-steer-"));
     const entered = Promise.withResolvers<void>();
     const releaseInitial = Promise.withResolvers<void>();
     const staged = Promise.withResolvers<void>();
@@ -171,7 +171,7 @@ test.each(["complete", "budget", "cancel", "admission failure"] as const)(
 );
 
 test("a provider failure withdraws queued steering without retrying uncertain work or blocking reopen", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-failed-steer-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-failed-steer-"));
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   let calls = 0;
@@ -302,7 +302,7 @@ test("a provider failure withdraws queued steering without retrying uncertain wo
 test.each(["tool round", "final answer"] as const)(
   "active durable steering at a %s is idempotent, conversation-scoped, delivered, and recorded across reopen",
   async (boundary) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-steer-audit-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-steer-audit-"));
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     const requests: string[] = [];
@@ -421,7 +421,7 @@ test.each(["tool round", "final answer"] as const)(
 );
 
 test("queued follow-up survives an exhausted call budget and explicit resume", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-steer-budget-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-steer-budget-"));
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   const requests: string[] = [];

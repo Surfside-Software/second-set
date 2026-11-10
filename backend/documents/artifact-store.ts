@@ -92,7 +92,7 @@ export const storeBytes = Effect.fnUntraced(function* (
 });
 
 /** Stored artifact bytes read and hashed to verify them against their content hash. */
-export const artifactBytesVerified = Metric.counter("moke_artifact_bytes_verified", {
+export const artifactBytesVerified = Metric.counter("second_set_artifact_bytes_verified", {
   description: "Stored artifact bytes read and hashed to verify their content hash.",
   incremental: true,
 });

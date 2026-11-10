@@ -1,40 +1,38 @@
 # Screenshot sources
 
-The README screenshots are full frames from `moke-demo-voiceover-final.mp4`, the
-local final narrated demo cut rendered on November 4, 2026. They retain the
-recorded app UI, cursor, and footage labels at the video resolution of
-2560 × 1440. The video edit already cropped the window title bar and scaled the
-footage. Frame extraction adds no further cropping or content edits.
+The README screenshots are captures of the application at 1600 × 900 and a 1.6 device
+scale, which gives 2560 × 1440 frames like the narrated demo's. They were taken on
+2026-11-09 from a copy of the workspace that recorded the demo, opened in a private
+display with providers configured but never called. The capture adds no cropping or
+content edits. One empty project in that copy, then named "MOKE Demo", was renamed
+"Second Set Demo" before capture.
 
-[Watch the demo on YouTube](https://youtu.be/wl8wwq_Tlrw).
+[Watch the demo on YouTube](https://youtu.be/wl8wwq_Tlrw). The demo was recorded before the
+rename, so it shows the MOKE name.
 
-Source video SHA-256:
+| Image                            | Content                                                                                                                                |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| [workbench.png](workbench.png)   | Five-sheet civil review with 19 findings, coverage gaps, and findings navigation                                                       |
+| [correction.png](correction.png) | Source evidence with a SAM highlight and a saved false-alarm decision explaining that identifying information was removed for the demo |
 
-```text
-a9fc56262ddd25e83f0aef285f5fd33f95bbe3375d2a0a5840e96d3339afe5cb
-```
+The demo's October 31 revision frame, from a 13-sheet set, is not in the workspace copy,
+so the README links to that moment in the video instead.
 
-| Image                            | Video timestamp | Content                                                                                                                                |
-| -------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| [workbench.png](workbench.png)   | 00:01:32        | Five-sheet civil review with 19 findings, coverage gaps, and findings navigation                                                       |
-| [correction.png](correction.png) | 00:01:48        | Source evidence with a SAM highlight and a saved false-alarm decision explaining that identifying information was removed for the demo |
-| [revision.png](revision.png)     | 00:02:02        | Earlier 13-sheet review showing an unresolved Rev 1 area discrepancy and the saved reviewer decision                                   |
+## Capture the screenshots
 
-The revision frame retains the video's "Oct 31 footage, 13-sheet set" label.
-It is from a different review than the five-sheet civil example.
-
-## Extract the frames
-
-With FFmpeg installed, run these commands from the repository root. Set
-`MOKE_DEMO_VIDEO` to the local copy of the source video; the video itself is not
-stored in this repository.
+`tests/e2e/readme-screenshots.spec.ts` opens the "Single Family Lot Drainage and Grading
+Set" review and writes both frames to `test-results/`. It edits the workspace it is given,
+so point it at a disposable copy, never at a live data folder. It is skipped unless
+`SECOND_SET_SCREENSHOT_WORKSPACE` is set:
 
 ```sh
-export MOKE_DEMO_VIDEO=/path/to/moke-demo-voiceover-final.mp4
-ffmpeg -hide_banner -loglevel error -y -ss 92 -i "$MOKE_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/workbench.png
-ffmpeg -hide_banner -loglevel error -y -ss 108 -i "$MOKE_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/correction.png
-ffmpeg -hide_banner -loglevel error -y -ss 122 -i "$MOKE_DEMO_VIDEO" -frames:v 1 -threads 2 docs/screenshots/revision.png
+cp -a /path/to/workspace-snapshot /tmp/second-set-screenshots
+SECOND_SET_SCREENSHOT_WORKSPACE=/tmp/second-set-screenshots \
+  bun scripts/isolated-desktop.ts tests/e2e/readme-screenshots.spec.ts --project=desktop
 ```
 
-`bun run test:screenshots` captures the offline synthetic fixture into
-`test-results/`. It does not replace these demo frames.
+The snapshot needs `app.sqlite`, `artifacts/` and `execution-journals/`. Take the database
+with SQLite's backup API so a running application cannot leave it inconsistent.
+
+`bun run test:screenshots` captures the offline synthetic fixture into `test-results/`. It
+does not replace these frames.

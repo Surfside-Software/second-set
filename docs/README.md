@@ -1,6 +1,6 @@
 # Project documentation
 
-Start with [Moke's README](../README.md) for the product, workflow, and screenshots.
+Start with [the Second Set README](../README.md) for the product, workflow, and screenshots.
 
 ## Setup and development
 

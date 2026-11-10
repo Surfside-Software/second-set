@@ -10,7 +10,7 @@ import { PacketReview } from "#lib/review/packet.ts";
 import { createHeroPdf } from "../fixtures/hero-case.ts";
 
 test("desktop proves supported, corrected, unchanged-control, revision, media, and reopen outcomes", async () => {
-  const live = process.env.MOKE_E2E_LIVE === "1";
+  const live = process.env.SECOND_SET_E2E_LIVE === "1";
   const screenshots = test.info().project.name === "screenshots";
 
   if (screenshots && live) throw new Error("Documentation screenshots use the offline fixture.");
@@ -30,10 +30,10 @@ test("desktop proves supported, corrected, unchanged-control, revision, media, a
           "MODEL_API_KEY",
           "BASETEN_API_KEY",
           "OPENCODE_API_KEY",
-          "MOKE_SESSION_CREDENTIAL_FILE",
+          "SECOND_SET_SESSION_CREDENTIAL_FILE",
           "MODAL_TOKEN_ID",
           "MODAL_TOKEN_SECRET",
-          "MOKE_MODAL_CONFIG",
+          "SECOND_SET_MODAL_CONFIG",
         ].includes(key))
         ? []
         : [[key, value]],
@@ -275,7 +275,7 @@ test("desktop proves supported, corrected, unchanged-control, revision, media, a
         await expect(reviewPanel).toContainText("Review cancelled");
       }
 
-      await page.screenshot({ path: test.info().outputPath("packaged-live-moke.png") });
+      await page.screenshot({ path: test.info().outputPath("packaged-live-review.png") });
     }
 
     await accept("drawn", 2, "Counted the two type A symbols within Room 101 on L-101.");
@@ -416,7 +416,8 @@ test("desktop proves supported, corrected, unchanged-control, revision, media, a
     await expect
       .poll(
         async () =>
-          (await readdir(packageParent)).filter((name) => name.startsWith("MOKE-review-")).length,
+          (await readdir(packageParent)).filter((name) => name.startsWith("Second-Set-review-"))
+            .length,
       )
       .toBe(1);
     await expect(

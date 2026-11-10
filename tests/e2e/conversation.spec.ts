@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 test("conversation scope is restored and invalid restore explains the selection before confirmation", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit3-workbench-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit3-workbench-"));
   const empty = join(directory, "not-a-package");
   await mkdir(empty);
 
@@ -50,7 +50,7 @@ test("conversation scope is restored and invalid restore explains the selection 
 
 test("a thread keeps following rapid updates until the reader scrolls up", async () => {
   test.setTimeout(60000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-audit-3-follow-latest-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-audit-3-follow-latest-"));
 
   const app = await electron.launch({
     args: ["."],

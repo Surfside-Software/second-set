@@ -25,7 +25,7 @@ It never uses an existing desktop. It needs unprivileged user namespaces for
 `Xvfb` and `xdpyinfo`. Inside private user, mount, network, PID and IPC
 namespaces it starts its own Xvfb on `:99`, strips inherited display, D-Bus and
 audio variables, and refuses to run while the desktop display `:0` is reachable.
-Set `MOKE_XVFB_BINARY` when `Xvfb` is not on `PATH`. Setting `DISPLAY` or wrapping
+Set `SECOND_SET_XVFB_BINARY` when `Xvfb` is not on `PATH`. Setting `DISPLAY` or wrapping
 the command in `xvfb-run` has no effect: the runner discards inherited display
 variables, and the Playwright fixtures refuse runs that bypass it. The fixed
 display's lock is `/tmp/.X99-lock`, so run one desktop suite per host at a time.
@@ -95,7 +95,7 @@ The Electron flow creates its own two-sheet PDFs and browser profile in a
 temporary data directory.
 It captures the real workbench at 1440 × 1000, a corrected finding, and a
 revision recheck. Screenshots go to each test's output directory under
-`test-results/`, leaving the demo frames in `docs/screenshots/` intact.
+`test-results/`, leaving the README screenshots in `docs/screenshots/` intact.
 No model inspection starts. The test refuses screenshot mode with live inference
 enabled, checks renderer errors, and removes its temporary project after closing.
 

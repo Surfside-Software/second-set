@@ -285,7 +285,7 @@ const answers = new Map<string, () => Response>([
                 {
                   id: "1",
                   type: "function",
-                  function: { name: "moke_connection_check", arguments: "{}" },
+                  function: { name: "second_set_connection_check", arguments: "{}" },
                 },
               ],
             },
@@ -337,7 +337,7 @@ test("the connection check tells tool calling apart from prose, refusals and oth
   expect(await Effect.runPromise(check("/huge/v1"))).toEqual({ kind: "unexpected" });
   expect(await Effect.runPromise(check("/missing/v1"))).toEqual({ kind: "rejected", status: 404 });
   expect(seen[0]?.authorization).toBe("Bearer check-key");
-  expect(JSON.stringify(seen[0]?.tools)).toContain("moke_connection_check");
+  expect(JSON.stringify(seen[0]?.tools)).toContain("second_set_connection_check");
 
   // A server that has stopped refuses the connection.
   const stopped = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response() });

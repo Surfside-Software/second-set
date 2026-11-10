@@ -241,7 +241,7 @@ function response(finish: boolean, text = "done") {
 }
 
 async function fixture(transport?: ProviderTransport, includeBaseten = false) {
-  const directory = await mkdtemp(join(tmpdir(), "moke-conversation-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-conversation-"));
   const ownership = ManagedRuntime.make(DataDirectoryOwnership.layer(directory));
   const owner = await ownership.runPromise(DataDirectoryOwnership);
   const filename = join(directory, "app.sqlite");

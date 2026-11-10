@@ -1,4 +1,4 @@
-# MOKE
+# Second Set
 
 <!-- impeccable:product-schema 1 -->
 
@@ -16,7 +16,7 @@ conversation. A review does not require an existing finding or count check.
 Bun and Effect own APIs, SQLite, migrations, PDF processing and Pi Durable
 execution. Electron owns the trusted bridge, file dialogs and credential storage.
 
-The full MOKE AGENTS.md, shared review method and applicable discipline files
+The full vendored AGENTS.md, shared review method and applicable discipline files
 supply Pi's system instructions. Whole-set review includes the general and all
 discipline instructions; a discipline review includes general context and its
 selected instructions. The review inventories the supplied documents, reads
@@ -85,7 +85,7 @@ chooser, with a revision label requested for subsequent imports. The composer
 names its model, reviewer, revision and whole-set, selected-sheet or discipline
 scope. Optional sheet discipline assignments persist independently of count
 verification. Explicit scopes take precedence over request wording. User requests appear as chat
-bubbles, followed by elapsed progress and MOKE's saved response. A note is saved
+bubbles, followed by elapsed progress and Second Set's saved response. A note is saved
 without starting inference. Active reviews accept durable follow-up instructions
 from the composer and show their delivery state. Findings open their source
 evidence in a central canvas with zoom (including Ctrl+scroll and trackpad pinch),

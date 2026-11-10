@@ -1,6 +1,6 @@
 {
-  "appId": "com.scfrederick.moke-meta-hackathon",
-  "productName": "moke-meta-hackathon",
+  "appId": "com.scfrederick.second-set",
+  "artifactName": "second-set-${version}-${arch}.${ext}",
   "directories": {
     "output": "release"
   },
@@ -41,6 +41,7 @@
     "signExecutable": false
   },
   "linux": {
+    "executableName": "second-set",
     "icon": "desktop/icons/icon.png",
     "target": ["AppImage", "deb"],
     "category": "Utility",

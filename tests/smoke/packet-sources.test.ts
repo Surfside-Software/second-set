@@ -413,7 +413,7 @@ const SheetOpening = Schema.Struct({
 });
 
 test("parallel sheet reviewers share one retrieval of a source and reread it by id; page selectors stay distinct", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-source-reads-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-source-reads-"));
   const url = "https://county.gov/amendments.pdf";
   const fetched = new Array<string>();
   const reads = new Map<string, ReadonlyArray<typeof ReadResult.Type>>();

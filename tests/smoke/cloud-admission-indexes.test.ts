@@ -101,7 +101,7 @@ const seed = (filename: string) => {
 };
 
 test("cloud admission queries use indexes after migration 0012 with unchanged results", async () => {
-  const root = await mkdtemp(join(tmpdir(), "moke-admission-indexes-"));
+  const root = await mkdtemp(join(tmpdir(), "second-set-admission-indexes-"));
   const filename = join(root, "app.sqlite");
   const earlier = join(root, "migrations-0011");
   const backups = join(root, "backups");

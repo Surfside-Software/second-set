@@ -98,7 +98,7 @@ export class SamClient extends Context.Service<
       image: Uint8Array,
     ) => Effect.Effect<SamResponse, SegmentationError>;
   }
->()("moke/SamClient") {
+>()("second-set/SamClient") {
   /** Build the fetch adapter without automatic retries of paid requests. */
   static layer(config: typeof SamConfig.Type) {
     return Layer.succeed(

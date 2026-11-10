@@ -100,7 +100,7 @@ the recipe files. This preflight needs no PDF files, API credentials, or model
 calls. Historical scores for the 15 branches remain in `captured-locations.json`
 and `expected-metrics.json`; the test suite no longer reruns the scoring helper.
 
-Source review methods: Moke's
+Source review methods: the vendored
 [electrical](../../backend/review/prompts/assets/disciplines/electrical.md),
 [structural](../../backend/review/prompts/assets/disciplines/structural.md),
 [civil](../../backend/review/prompts/assets/disciplines/civil.md),

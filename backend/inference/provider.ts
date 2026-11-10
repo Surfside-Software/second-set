@@ -67,8 +67,8 @@ export interface ProviderConfiguration {
  * attribution name as `x-opencode-client` (OpenCode Console docs, 2026-11-01).
  */
 const openCodeIdentity: ClientIdentity = {
-  userAgent: { custom: `moke/${packageInfo.version}` },
-  attribution: { name: "moke", url: "https://github.com/sc-frederick/moke-meta-hackathon" },
+  userAgent: { custom: `second-set/${packageInfo.version}` },
+  attribution: { name: "second-set", url: "https://github.com/Surfside-Software/second-set" },
 };
 
 /** Meta serves Muse Spark 1.3 with a larger output ceiling than Pi's catalog records (checked 2026-10-29). */
@@ -127,7 +127,7 @@ const ModelNotFound = Schema.fromJsonString(
 const refusalBudgetMs = 10 * 60_000;
 const maxRefusals = 40;
 
-/** OpenCode's own client resends a rate-limited request at most ten times; MOKE matches it. */
+/** OpenCode's own client resends a rate-limited request at most ten times; Second Set matches it. */
 const openCodeMaxRefusals = 11;
 
 const OpenCodeRefusal = Schema.fromJsonString(
@@ -253,7 +253,7 @@ function refusalDelay(retryAfterMs: number | undefined, retry: number) {
 export function promptCacheKey(role: string, ...prefix: ReadonlyArray<string>) {
   const digest = createHash("sha256").update(JSON.stringify(prefix)).digest("hex");
 
-  return `moke-${role}-${digest.slice(0, 32)}`;
+  return `second-set-${role}-${digest.slice(0, 32)}`;
 }
 
 /**
@@ -646,7 +646,7 @@ export function createAdmittedModels(
   const serverOutputLimit = selected.provider === "baseten" || custom !== null;
 
   // Pi supplies each conversation's durable session; a request outside one gets this adapter's.
-  const fallbackSession = `moke-${randomUUID()}`;
+  const fallbackSession = `second-set-${randomUUID()}`;
 
   /** Send one image to the Files API once a slot is free; any failure or stop leaves it inline. */
   const uploadImage = (image: string, sha256: string, signal: AbortSignal) =>
@@ -1173,7 +1173,7 @@ export function createAdmittedModels(
         return { ...payload, ...changes };
       };
     // OpenCode Go requires a stable session per conversation and routes and caches by it. Pi's
-    // provider sends it as `x-opencode-session`, with MOKE's identity, so sheet reviewers sharing a
+    // provider sends it as `x-opencode-session`, with Second Set's identity, so sheet reviewers sharing a
     // prompt prefix still keep their own sessions, as OpenCode's guidance asks.
     else if (openCodeGo) {
       result.sessionId = options?.sessionId ?? fallbackSession;

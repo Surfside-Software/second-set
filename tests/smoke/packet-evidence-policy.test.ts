@@ -26,7 +26,7 @@ import {
 test.each(["edition", "section", "other section", "document", "short quote", "supported"] as const)(
   "retrieved citation identity gates confirmed regulatory findings: %s",
   async (claim) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-citation-policy-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-citation-policy-"));
 
     const quote =
       "All plumbing installations shall provide accessible cleanouts at the specified locations.";
@@ -140,7 +140,7 @@ test.each(["edition", "section", "other section", "document", "short quote", "su
 );
 
 test("resubmittal closure retains its revision target across an uninspected follow-up", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-prior-comment-policy-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-prior-comment-policy-"));
   const commentId = id();
   let phase: "baseline" | "deferred" | "followup" = "baseline";
   let step = 0;
@@ -382,7 +382,7 @@ test.each([
 ] as const)(
   "an absence claim (%s) requires source search even as a Needs input recommendation",
   async (wording) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-audit3-absence-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-audit3-absence-"));
     let step = 0;
     let inventory: PacketReview | undefined;
     let artifact: Artifact | undefined;
@@ -476,7 +476,7 @@ test.each([
 );
 
 test("a citation records a source only when this review retrieved it", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-citation-source-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-citation-source-"));
   let step = 0;
 
   const placeholder = {
@@ -564,7 +564,7 @@ test("a citation records a source only when this review retrieved it", async () 
 }, 120000);
 
 test("a follow-up that leaves a finding's lists empty keeps what the finding held", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-finding-follow-up-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-finding-follow-up-"));
   const findingId = id();
   const citationId = id();
   const laterComment = id();
@@ -636,7 +636,7 @@ test("a follow-up that leaves a finding's lists empty keeps what the finding hel
 }, 120000);
 
 test("a finding that drops its evidence and citation lists is still recorded", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-finding-defaults-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-finding-defaults-"));
   let step = 0;
 
   const finding = {

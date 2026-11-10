@@ -72,7 +72,7 @@ test.each([
 });
 
 test("the Initial Review request admits every sheet of a first set split across two PDFs and keeps its identity on reopen", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-initial-review-admission-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-initial-review-admission-"));
   const inventories: Array<PacketReview> = [];
   let step = 0;
 

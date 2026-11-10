@@ -1,6 +1,17 @@
 import { Effect, Schema, Struct } from "effect";
 import { CloudReviewError } from "#lib/review/cloud.ts";
-import { CloudEngineIdentity, CloudWorkerProgress, type CloudReviewRecord } from "./contracts.ts";
+import {
+  CloudEngineIdentity,
+  CloudWorkerProgress,
+  cloudEngineIdentity,
+  type CloudReviewRecord,
+} from "./contracts.ts";
+
+/**
+ * Workers before protocol 6 shipped as MOKE. Their progress files still announce the instruction
+ * names they were built with, so recovery matches those exact strings.
+ */
+const legacyPrompt = Schema.Literal("moke-selected-coordination-v2");
 
 /** Workers from earlier protocols, as built with any packet prompt they shipped with. */
 const priorWorkerProgress = (
@@ -13,6 +24,7 @@ const priorWorkerProgress = (
       // The code index entered the identity with protocol 5.
       ...CloudEngineIdentity.mapFields(Struct.omit(["codeIndex"])).fields,
       protocol: Schema.Literal(protocol),
+      prompt: legacyPrompt,
       packetPrompt: Schema.Literals(packetPrompts),
     }),
   });
@@ -30,33 +42,34 @@ const Protocol4CloudWorkerProgress = priorWorkerProgress(4, [
   "moke-packet-review-v5",
 ]);
 
-// Earlier protocol-5 images used packet prompts v6 or v7 with the v1 index, v8 with v2, then v9 with v3.
+const protocol5WorkerProgress = (
+  packetPrompts: ReadonlyArray<`moke-packet-review-v${6 | 7 | 8 | 9 | 10}`>,
+  codeIndex: `florida-code-index-v${1 | 2 | 3}`,
+) =>
+  Schema.Struct({
+    ...CloudWorkerProgress.fields,
+    identity: Schema.Struct({
+      ...CloudEngineIdentity.fields,
+      protocol: Schema.Literal(5),
+      prompt: legacyPrompt,
+      packetPrompt: Schema.Literals(packetPrompts),
+      codeIndex: Schema.Literal(codeIndex),
+    }),
+  });
+
+// Protocol-5 images used packet prompts v6 or v7 with the v1 index, v8 with v2, then v9 and v10
+// with v3. A stopped source's synthesized failure carries the current identity.
 const Protocol5CloudWorkerProgress = Schema.Union([
   CloudWorkerProgress,
-  Schema.Struct({
-    ...CloudWorkerProgress.fields,
-    identity: Schema.Struct({
-      ...CloudEngineIdentity.fields,
-      packetPrompt: Schema.Literals(["moke-packet-review-v6", "moke-packet-review-v7"]),
-      codeIndex: Schema.Literal("florida-code-index-v1"),
-    }),
-  }),
-  Schema.Struct({
-    ...CloudWorkerProgress.fields,
-    identity: Schema.Struct({
-      ...CloudEngineIdentity.fields,
-      packetPrompt: Schema.Literal("moke-packet-review-v8"),
-      codeIndex: Schema.Literal("florida-code-index-v2"),
-    }),
-  }),
-  Schema.Struct({
-    ...CloudWorkerProgress.fields,
-    identity: Schema.Struct({
-      ...CloudEngineIdentity.fields,
-      packetPrompt: Schema.Literal("moke-packet-review-v9"),
-      codeIndex: Schema.Literal("florida-code-index-v3"),
-    }),
-  }),
+  protocol5WorkerProgress(
+    ["moke-packet-review-v6", "moke-packet-review-v7"],
+    "florida-code-index-v1",
+  ),
+  protocol5WorkerProgress(["moke-packet-review-v8"], "florida-code-index-v2"),
+  protocol5WorkerProgress(
+    ["moke-packet-review-v9", "moke-packet-review-v10"],
+    "florida-code-index-v3",
+  ),
 ]);
 
 /** Unmarked receipts were saved by protocol 2 or 3 desktops, never by protocol 4. */
@@ -93,18 +106,19 @@ export const parseCloudWorkerProgress = Effect.fn("parseCloudWorkerProgress")(fu
     });
 
   // Old receipts also include v3 jobs saved before this marker was introduced. Only
-  // observation of already dispatched work can accept protocols 2 to 4; this never admits a request.
+  // observation of already dispatched work can accept protocols 2 to 5; this never admits a request.
   const dispatched = record.phase === "dispatching" || record.phase === "running";
 
-  const schema = !dispatched
-    ? CloudWorkerProgress
-    : record.workerProtocol === undefined
-      ? UnmarkedCloudWorkerProgress
-      : record.workerProtocol === 3
-        ? Protocol3CloudWorkerProgress
-        : record.workerProtocol === 4
-          ? Protocol4CloudWorkerProgress
-          : Protocol5CloudWorkerProgress;
+  const schema =
+    !dispatched || record.workerProtocol === cloudEngineIdentity.protocol
+      ? CloudWorkerProgress
+      : record.workerProtocol === undefined
+        ? UnmarkedCloudWorkerProgress
+        : record.workerProtocol === 3
+          ? Protocol3CloudWorkerProgress
+          : record.workerProtocol === 4
+            ? Protocol4CloudWorkerProgress
+            : Protocol5CloudWorkerProgress;
 
   const progress = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(text).pipe(
     Effect.mapError(

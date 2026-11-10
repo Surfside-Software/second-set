@@ -25,7 +25,7 @@ const codeSectionUrl =
 
 test("document QA needs no count check and persisted findings support evidence, completion, and reopen", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-desktop-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-desktop-"));
   const fixture = join(directory, "Drawing packet.pdf");
   const credentialFile = join(directory, "offline-provider-config.json");
   await writeFile(fixture, createHeroPdf("A"));
@@ -55,13 +55,13 @@ test("document QA needs no count check and persisted findings support evidence, 
       value === undefined ||
       [
         "ELECTRON_RUN_AS_NODE",
-        "MOKE_SESSION_CREDENTIAL_FILE",
+        "SECOND_SET_SESSION_CREDENTIAL_FILE",
         "MODEL_API_KEY",
         "BASETEN_API_KEY",
         "OPENCODE_API_KEY",
         "MODAL_TOKEN_ID",
         "MODAL_TOKEN_SECRET",
-        "MOKE_MODAL_CONFIG",
+        "SECOND_SET_MODAL_CONFIG",
       ].includes(key)
         ? []
         : [[key, value]],
@@ -73,7 +73,7 @@ test("document QA needs no count check and persisted findings support evidence, 
     env: {
       ...environment,
       PROJECT_KIT_DATA_DIRECTORY: directory,
-      MOKE_SESSION_CREDENTIAL_FILE: credentialFile,
+      SECOND_SET_SESSION_CREDENTIAL_FILE: credentialFile,
     },
   };
 
@@ -242,12 +242,12 @@ test("document QA needs no count check and persisted findings support evidence, 
     // Record the URL the trusted shell would open, instead of launching a browser.
     await app.evaluate(({ shell }) => {
       shell.openExternal = async (url) => {
-        process.env.MOKE_E2E_OPENED_URL = url;
+        process.env.SECOND_SET_E2E_OPENED_URL = url;
       };
     });
     await panel.getByRole("button", { name: "Open 1004 Occupant Load", exact: true }).click();
     await expect
-      .poll(() => app.evaluate(() => process.env.MOKE_E2E_OPENED_URL))
+      .poll(() => app.evaluate(() => process.env.SECOND_SET_E2E_OPENED_URL))
       .toBe(codeSectionUrl);
     await panel.getByTestId("source-row").locator("summary").click();
     await expect(

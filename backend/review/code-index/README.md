@@ -1,6 +1,6 @@
 # Florida code index
 
-Moke's `search_code` tool searches this index for the code section, statute or
+Second Set's `search_code` tool searches this index for the code section, statute or
 rule behind a review check. Each entry gives the section number and title, a
 one-line plan review note and a link. The index contains no copied code text.
 
@@ -19,7 +19,7 @@ Each entry's `access` says how a reviewer reads the text it points to.
 - `open_in_browser`: ICC Digital Codes blocks automated clients, and its
   [website user agreement](https://iccsafe.org/website-user-agreement/) does
   not license robots or data extraction tools. Florida rules publish their text
-  as Word documents. Moke records these citations as unverified with the
+  as Word documents. Second Set records these citations as unverified with the
   section and link, and the engineer opens the link to confirm them.
 - `read_source`: Florida Statutes pages on leg.state.fl.us return their
   official text, so `read_source` can retrieve them and a citation can be
@@ -39,7 +39,7 @@ instead. That entry describes the link whichever way a citation reaches it.
 
 ### How far the links are checked
 
-Nobody has opened an ICC link from Moke by automation, because the user agreement
+Nobody has opened an ICC link from Second Set by automation, because the user agreement
 excludes it. A test rebuilds each of the owner's hand-written anchors by swapping the
 section number in another anchor from the same chapter, the same rule the host uses
 for a section listed in a combined title. Every section the host links this way, and

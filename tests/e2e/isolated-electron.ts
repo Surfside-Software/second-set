@@ -9,15 +9,15 @@ import {
 /** Launch only on the wrapper's private Xvfb, with an isolated profile and no desktop services. */
 export const electron = {
   async launch(options: NonNullable<Parameters<typeof _electron.launch>[0]>) {
-    const display = process.env.MOKE_TEST_ISOLATED_DISPLAY;
-    const runtime = process.env.MOKE_TEST_RUNTIME;
+    const display = process.env.SECOND_SET_TEST_ISOLATED_DISPLAY;
+    const runtime = process.env.SECOND_SET_TEST_RUNTIME;
 
     assertDesktopTestEnvironment(process.env);
 
     if (!runtime) throw new Error("Missing private test runtime.");
 
     const hosted =
-      process.env.MOKE_TEST_HOSTED_RUNNER === "1" && isHostedDesktopRunner(process.env);
+      process.env.SECOND_SET_TEST_HOSTED_RUNNER === "1" && isHostedDesktopRunner(process.env);
 
     const profile = await mkdtemp(join(runtime, "electron-"));
 
@@ -51,10 +51,10 @@ export const electron = {
               "MODEL_API_KEY",
               "BASETEN_API_KEY",
               "OPENCODE_API_KEY",
-              "MOKE_SESSION_CREDENTIAL_FILE",
+              "SECOND_SET_SESSION_CREDENTIAL_FILE",
               "MODAL_TOKEN_ID",
               "MODAL_TOKEN_SECRET",
-              "MOKE_MODAL_CONFIG",
+              "SECOND_SET_MODAL_CONFIG",
             ].includes(key)
               ? []
               : [[key, value]],

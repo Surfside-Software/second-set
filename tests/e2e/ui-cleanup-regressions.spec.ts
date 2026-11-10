@@ -19,7 +19,7 @@ import {
 
 test("coverage keeps unexplained exclusions in Needs input and clears details hidden by filters", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-coverage-ui-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-coverage-ui-"));
   const source = join(directory, "Drawing set.pdf");
   await writeFile(source, createHeroPdf("A"));
   const options = await offlineDesktop(directory, ["meta"]);
@@ -235,7 +235,7 @@ test("coverage keeps unexplained exclusions in Needs input and clears details hi
 
 test("cloud Send blockers always explain the missing estimate, limits and active local reviews", async () => {
   test.setTimeout(90000);
-  const directory = await mkdtemp(join(tmpdir(), "moke-composer-blockers-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-composer-blockers-"));
   const source = join(directory, "Drawing set.pdf");
   await writeFile(source, createHeroPdf("A"));
   const app = await electron.launch(await offlineDesktop(directory, ["meta"]));

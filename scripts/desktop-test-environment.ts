@@ -4,14 +4,15 @@ export const isHostedDesktopRunner = (environment: NodeJS.ProcessEnv) =>
 
 /** Fail closed before Electron can access any local graphical session. */
 export function assertDesktopTestEnvironment(environment: NodeJS.ProcessEnv) {
-  if (!environment.MOKE_TEST_RUNTIME)
+  if (!environment.SECOND_SET_TEST_RUNTIME)
     throw new Error("Desktop tests require a private runtime/profile directory.");
 
-  if (environment.MOKE_TEST_HOSTED_RUNNER === "1" && isHostedDesktopRunner(environment)) return;
+  if (environment.SECOND_SET_TEST_HOSTED_RUNNER === "1" && isHostedDesktopRunner(environment))
+    return;
 
   if (
-    !environment.MOKE_TEST_ISOLATED_DISPLAY ||
-    environment.DISPLAY !== environment.MOKE_TEST_ISOLATED_DISPLAY ||
+    !environment.SECOND_SET_TEST_ISOLATED_DISPLAY ||
+    environment.DISPLAY !== environment.SECOND_SET_TEST_ISOLATED_DISPLAY ||
     environment.WAYLAND_DISPLAY ||
     environment.DBUS_SESSION_BUS_ADDRESS !== "unix:path=/dev/null"
   )

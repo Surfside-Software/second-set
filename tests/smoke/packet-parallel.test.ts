@@ -305,7 +305,7 @@ function script(
 test.each(["pending-summary", "pending-summary-reversed"] as const)(
   "sheet and coordinator finishing cannot silently drop pending summaries: %s",
   async (order) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-parallel-summary-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-parallel-summary-"));
     const { transport } = script(order);
     const session = await open(directory, transport, true, undefined, "observe", parallel);
 
@@ -330,7 +330,7 @@ test.each(["pending-summary", "pending-summary-reversed"] as const)(
 );
 
 test("a large packet reviews its sheets in concurrent conversations between coordinator setup and coordination", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-"));
   const { transport, observed } = script("none", true);
   const session = await open(directory, transport, true, undefined, "observe", parallel);
 
@@ -387,7 +387,7 @@ const WireRequest = Schema.fromJsonString(
 );
 
 test("every conversation's next request extends its previous request byte for byte", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-prefix-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-prefix-"));
   const { transport } = script("none");
 
   const requests: Array<{
@@ -473,7 +473,7 @@ test("every conversation's next request extends its previous request byte for by
 }, 120000);
 
 test("one sheet reviewer's unresolved provider request stops only that sheet", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-failure-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-failure-"));
   const { transport, observed } = script("second-sheet");
   const session = await open(directory, transport, true, undefined, "observe", parallel);
 
@@ -504,7 +504,7 @@ test("one sheet reviewer's unresolved provider request stops only that sheet", a
 }, 120000);
 
 test("a call budget pauses a parallel review mid-sheet and resume finishes the queued sheets", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-resume-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-resume-"));
   const { transport, observed } = script("none");
   const session = await open(directory, transport, true, undefined, "observe", parallel);
 
@@ -560,7 +560,7 @@ test("a call budget pauses a parallel review mid-sheet and resume finishes the q
 }, 120000);
 
 test("a sheet reviewer that ends without finish_sheet is not reported to the coordinator as completed", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-notes-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-notes-"));
   const { transport, observed } = script("second-sheet-without-notes");
   const session = await open(directory, transport, true, undefined, "observe", parallel);
 
@@ -582,7 +582,7 @@ test("a sheet reviewer that ends without finish_sheet is not reported to the coo
 }, 120000);
 
 test("a sheet reviewer's SAM request and its peer's model requests do not block each other", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-sam-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-sam-"));
   const peerHeld = Promise.withResolvers<void>();
   const samArrived = Promise.withResolvers<void>();
   const peerContinued = Promise.withResolvers<void>();
@@ -685,7 +685,7 @@ test("a sheet reviewer's SAM request and its peer's model requests do not block 
 }, 120000);
 
 test("coordinator setup is offered and runs only configuration work, ends at its request limit, and stays ended across a restart", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-setup-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-setup-"));
   const setupRequests = new Array<typeof Request.Type>();
   let samSends = 0;
   let current: Session | undefined;
@@ -844,7 +844,7 @@ test("coordinator setup is offered and runs only configuration work, ends at its
 }, 120000);
 
 test("a sheet reviewer cannot record, adopt or segment another sheet's findings and evidence", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-fence-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-fence-"));
   const findingId = crypto.randomUUID();
   let firstArtifact: string | undefined;
   let refusals: ReadonlyArray<string> = [];
@@ -964,7 +964,7 @@ test("a sheet reviewer cannot record, adopt or segment another sheet's findings 
 }, 120000);
 
 test("sheet reviewers choosing one citation id keep their own citations and findings", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-citation-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-citation-"));
   // Models number their citations, so every reviewer's first citation can carry this id.
   const shared = "11111111-1111-1111-8111-111111111111";
   const later = "22222222-2222-2222-8222-222222222222";
@@ -1098,7 +1098,7 @@ test("sheet reviewers choosing one citation id keep their own citations and find
 test.each(["segment_objects", "finding zoom"] as const)(
   "a sheet reviewer's failed SAM request (%s) stops only that sheet; its peer and coordination finish",
   async (kind) => {
-    const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-sam-failure-"));
+    const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-sam-failure-"));
     const peerHeld = Promise.withResolvers<void>();
     const stages = new Array<string>();
     let current: Session | undefined;
@@ -1230,7 +1230,7 @@ test.each(["segment_objects", "finding zoom"] as const)(
 );
 
 test("every sheet reviewer opens from the setup snapshot after a peer adds a source, across a restart", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-snapshot-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-snapshot-"));
   const openings = new Map<string, string>();
   let setupCalls = 0;
 
@@ -1343,7 +1343,7 @@ test("every sheet reviewer opens from the setup snapshot after a peer adds a sou
 }, 120000);
 
 test("sheet reviewers sharing a prior comment id cannot overwrite each other", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-comment-race-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-comment-race-"));
   const commentId = crypto.randomUUID();
   const refusals = new Array<string>();
   let waiting = 0;
@@ -1426,7 +1426,7 @@ test("sheet reviewers sharing a prior comment id cannot overwrite each other", a
 }, 120000);
 
 test("a revised sheet's reviewer updates the carried finding by id", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-carried-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-carried-"));
   const findingId = crypto.randomUUID();
   const citationId = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
   let earlierSheet = "";
@@ -1583,7 +1583,7 @@ test("a revised sheet's reviewer updates the carried finding by id", async () =>
 }, 120000);
 
 test("a sheet reviewer that keeps requesting stops at its request limit and the review finishes", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-parallel-sheet-limit-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-parallel-sheet-limit-"));
   let looping = "";
 
   const transport: ProviderTransport = async (_url, init) => {

@@ -23,7 +23,7 @@ import {
 const operationId = () => Schema.decodeUnknownSync(OperationId)(crypto.randomUUID());
 
 test("crop and segment lookups read only their own records, not the workbench snapshot", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-scoped-reads-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-scoped-reads-"));
   const source = join(directory, "plans.pdf");
   await writeFile(source, createHeroPdf("A"));
 

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { sha256 } from "../../backend/segmentation/fixtures.ts";
 
 test("real offline CLI preserves candidate provenance and rejects changed image evidence", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-inventory-cli-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-inventory-cli-"));
 
   const png = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3WQAAAAASUVORK5CYII=",

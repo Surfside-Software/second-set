@@ -171,7 +171,11 @@ export class CountFact extends Schema.Class<CountFact>("CountFact")({
       model: Schema.String,
       promptVersion: Schema.Literals([
         "selected-finding-review-v1",
+        // Read only: facts in a 0.2.2 package or cloud result keep this name until migration
+        // 0014 runs at the next launch.
         "moke-selected-coordination-v2",
+        "second-set-selected-coordination-v2",
+        "second-set-selected-coordination-v3",
       ]),
       instructionRevision: Schema.optionalKey(Schema.String),
       discipline: Schema.optionalKey(Schema.String),

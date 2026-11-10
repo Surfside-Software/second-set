@@ -23,7 +23,7 @@ const failed = () =>
 const main = Effect.scoped(
   Effect.gen(function* () {
     const text = yield* Effect.tryPromise({
-      try: () => readFile("/moke/request.json", "utf8"),
+      try: () => readFile("/second-set/request.json", "utf8"),
       catch: failed,
     });
 
@@ -31,13 +31,13 @@ const main = Effect.scoped(
 
     const [provider, ...alternatives] = yield* Schema.decodeUnknownEffect(
       Schema.fromJsonString(CloudProviders),
-    )(process.env.MOKE_CLOUD_PROVIDERS);
+    )(process.env.SECOND_SET_CLOUD_PROVIDERS);
 
     // This exclusive marker fences even two exec requests with an ambiguous delivery outcome.
     yield* Effect.tryPromise({
       try: async () => {
-        await mkdir("/moke", { recursive: true, mode: 0o700 });
-        const file = await open("/moke/dispatch.lock", "wx", 0o600);
+        await mkdir("/second-set", { recursive: true, mode: 0o700 });
+        const file = await open("/second-set/dispatch.lock", "wx", 0o600);
 
         try {
           await file.writeFile(job.id);
@@ -51,7 +51,7 @@ const main = Effect.scoped(
 
     const progress = (update: Omit<typeof CloudWorkerProgress.Type, "id" | "identity">) =>
       writeCloudFile(
-        "/moke/progress.json",
+        "/second-set/progress.json",
         JSON.stringify({ id: job.id, identity: cloudEngineIdentity, ...update }),
       );
 
@@ -65,7 +65,7 @@ const main = Effect.scoped(
       });
 
       // Files the desktop skipped come from the read-only workspace cache, checked by hash.
-      yield* materializeCloudInput("/moke/input", "/cache").pipe(
+      yield* materializeCloudInput("/second-set/input", "/cache").pipe(
         Effect.tapError((error) =>
           Effect.sync(() => {
             failure = `${error.message} No model calls were made.`;
@@ -74,16 +74,16 @@ const main = Effect.scoped(
       );
 
       const config = new BackendConfig({
-        dataDirectory: "/moke/workspace",
-        migrationDirectory: "/opt/moke/migrations",
+        dataDirectory: "/second-set/workspace",
+        migrationDirectory: "/opt/second-set/migrations",
         token: Redacted.make(crypto.randomUUID()),
         inference: provider,
         inferenceAlternatives: alternatives,
         processing: {
-          workerCommand: ["bun", "/opt/moke/pdf-worker.mjs"],
-          assetsDirectory: "/opt/moke/node_modules/pdfjs-dist",
+          workerCommand: ["bun", "/opt/second-set/pdf-worker.mjs"],
+          assetsDirectory: "/opt/second-set/node_modules/pdfjs-dist",
           nativeLibraryPath:
-            "/opt/moke/node_modules/@napi-rs/canvas-linux-x64-gnu/skia.linux-x64-gnu.node",
+            "/opt/second-set/node_modules/@napi-rs/canvas-linux-x64-gnu/skia.linux-x64-gnu.node",
         },
       });
 
@@ -107,11 +107,13 @@ const main = Effect.scoped(
 
       callbacks = runtime;
       const application = yield* Effect.promise(() => runtime.runPromise(Application));
-      yield* Effect.promise(() => runtime.runPromise(application.restorePackage("/moke/input")));
+      yield* Effect.promise(() =>
+        runtime.runPromise(application.restorePackage("/second-set/input")),
+      );
 
       yield* Effect.promise(() =>
         runtime.runPromise(
-          runCloudReview(application, job.request, job.timeoutMs, "/moke/output", progress),
+          runCloudReview(application, job.request, job.timeoutMs, "/second-set/output", progress),
         ),
       );
     });

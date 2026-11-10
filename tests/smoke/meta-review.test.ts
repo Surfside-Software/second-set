@@ -38,7 +38,7 @@ async function withAdapter(
   work: (directory: string, layer: ReturnType<typeof MetaReviewClient.layer>) => Promise<void>,
   maximumRequests = 8,
 ) {
-  const directory = await mkdtemp(join(tmpdir(), "moke-meta-review-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-meta-review-"));
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: handler });
 
   const config = Schema.decodeUnknownSync(MetaReviewConfig)({

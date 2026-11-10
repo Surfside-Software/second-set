@@ -15,7 +15,7 @@ import {
 } from "../fixtures/packet-review.ts";
 
 test("an OpenCode Go usage limit pauses a parallel review after one refused request", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-go-limit-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-go-limit-"));
   let sheetSends = 0;
 
   const transport: ProviderTransport = async (_url, init) => {
@@ -65,7 +65,7 @@ test("an OpenCode Go usage limit pauses a parallel review after one refused requ
 }, 120000);
 
 test("a request the provider refuses past its budget pauses the review uncharged and resumes explicitly", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "moke-packet-refusal-"));
+  const directory = await mkdtemp(join(tmpdir(), "second-set-packet-refusal-"));
   let sends = 0;
 
   const session = await open(directory, async () => {
