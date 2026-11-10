@@ -218,6 +218,22 @@ export async function readInferenceConfigurations(directory: string, packaged: b
   return { configurations, unreadable };
 }
 
+/**
+ * Delete saved copies that no longer unlock, so a key replaced only in Review settings stops
+ * prompting at every launch. They can't be decrypted, so nothing readable is lost; files skipped
+ * because storage itself is unavailable are kept.
+ */
+export async function forgetUnreadableCredentials(
+  directory: string,
+  unreadable: ReadonlyArray<UnreadableCredential>,
+) {
+  const known = new Set<string>([importedFile, ...Object.values(settingsFiles)]);
+
+  for (const entry of unreadable)
+    if (entry.reason === "locked" && known.has(entry.file))
+      await rm(join(directory, entry.file), { force: true });
+}
+
 /** Save a Review settings connection; the next launch passes it to the backend. */
 export async function storeSettingsConnection(
   directory: string,

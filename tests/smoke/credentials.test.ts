@@ -100,6 +100,43 @@ test("keys saved under the old app name are skipped, and new keys replace them",
   }
 });
 
+test("forgetting keys that no longer unlock stops the prompt after a Review settings restore", async () => {
+  delete process.env.SECOND_SET_SESSION_CREDENTIAL_FILE;
+  const directory = await mkdtemp(join(tmpdir(), "second-set-credentials-"));
+
+  try {
+    await credentials.storeInferenceConfiguration(
+      directory,
+      await importFile(directory, "old-meta"),
+    );
+    keychain.name = "Second Set";
+    await credentials.storeSettingsConnection(
+      directory,
+      parseProviderConfiguration(JSON.stringify(connection("opencode-go", "new-go"))),
+    );
+
+    const before = await credentials.readInferenceConfigurations(directory, true);
+    expect(providers(before.configurations)).toEqual(["opencode-go"]);
+    expect(before.unreadable.map(({ file }) => file)).toEqual(["provider-credential.json"]);
+
+    await credentials.forgetUnreadableCredentials(directory, before.unreadable);
+    const after = await credentials.readInferenceConfigurations(directory, true);
+    expect(providers(after.configurations)).toEqual(["opencode-go"]);
+    expect(after.unreadable).toEqual([]);
+
+    // Files skipped only because storage is unavailable are kept for when it returns.
+    keychain.available = false;
+    const unavailable = await credentials.readInferenceConfigurations(directory, true);
+    await credentials.forgetUnreadableCredentials(directory, unavailable.unreadable);
+    keychain.available = true;
+    expect(
+      providers((await credentials.readInferenceConfigurations(directory, true)).configurations),
+    ).toEqual(["opencode-go"]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("saved keys report unavailable storage instead of stopping startup", async () => {
   delete process.env.SECOND_SET_SESSION_CREDENTIAL_FILE;
   const directory = await mkdtemp(join(tmpdir(), "second-set-credentials-"));
