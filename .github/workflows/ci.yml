@@ -13,12 +13,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}${{ github.event.action == 'labeled' && github.event.label.name != 'ci:all-os' && '-label' || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  # scripts/ci-changes.ts maps the changed paths to lanes. Linux checks and unit-tests every run.
-  # Windows and macOS (1.7x and 10x a Linux minute) run only for platform-sensitive paths. The
-  # packaged app is built and tested only when packaging inputs change, and installers only when
-  # electron-builder.json or CI does. Pushes to main run every Linux lane. Release tags run all three
-  # operating systems before publishing. The ci:all-os label or a manual run selects everything.
-  # If the change cannot be listed, or this job fails, every lane runs.
+  # scripts/ci-changes.ts maps the changed paths to lanes. Linux checks and unit-tests every run,
+  # and unless only docs changed, it packages the app and runs the Electron suite against it.
+  # Windows and macOS (1.7x and 10x a Linux minute) run only for platform-sensitive paths.
+  # Installers are built only when electron-builder.json or CI changes. Pushes to main run the
+  # Linux lanes. Release tags run all three operating systems before publishing. The ci:all-os
+  # label or a manual run selects everything. If the change cannot be listed, or this job fails,
+  # every lane runs.
   changes:
     name: Changes
     if: github.event.action != 'labeled' || github.event.label.name == 'ci:all-os'
@@ -27,9 +28,7 @@ jobs:
     outputs:
       app: ${{ steps.detect.outputs.app }}
       cross_os: ${{ steps.detect.outputs.cross_os }}
-      packaged: ${{ steps.detect.outputs.packaged }}
       installers: ${{ steps.detect.outputs.installers }}
-      packaged_suite: ${{ steps.detect.outputs.packaged_suite }}
     steps:
       # Depth 2 brings the pull request's base, the merge commit's first parent.
       - uses: actions/checkout@v7
@@ -77,9 +76,7 @@ jobs:
     # An output that is missing because Changes failed runs its lane.
     env:
       APP: ${{ needs.changes.outputs.app != 'false' }}
-      PACKAGED: ${{ needs.changes.outputs.packaged != 'false' }}
       INSTALLERS: ${{ needs.changes.outputs.installers != 'false' }}
-      PACKAGED_SUITE: ${{ needs.changes.outputs.packaged_suite || 'full' }}
     steps:
       # repos/ holds vendored reference source that no check, build or test reads.
       - uses: actions/checkout@v7
@@ -93,6 +90,7 @@ jobs:
           bun-version-file: .bun-version
       # Tests open SQLite with synchronous=FULL in the temporary directory, which defaults to C:.
       # The hosted runner's D: drive, which also holds the workspace, is faster for this I/O.
+      # Bun's package store moves there too, so installs hard-link into node_modules on one drive.
       - name: Use the D drive for temporary files on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -101,18 +99,10 @@ jobs:
           New-Item -ItemType Directory -Force -Path $temp | Out-Null
           "TEMP=$temp" >> $env:GITHUB_ENV
           "TMP=$temp" >> $env:GITHUB_ENV
-      # The Bun cache lives under runner.temp so that on Windows it shares the workspace's D: drive:
-      # restoring tens of thousands of files to C: took about a minute, and Bun could not hard-link
-      # across drives into node_modules.
-      - name: Cache Bun dependencies
-        uses: actions/cache@v6
-        with:
-          path: ${{ runner.temp }}/bun-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
-          restore-keys: ${{ runner.os }}-${{ runner.arch }}-bun-
+          "BUN_INSTALL_CACHE_DIR=$(Join-Path $env:RUNNER_TEMP 'bun-cache')" >> $env:GITHUB_ENV
+      # No dependency cache: a fresh install took 4-19 seconds, less than restoring and saving the
+      # cache, which took up to two minutes on Windows.
       - run: bun install --frozen-lockfile
-        env:
-          BUN_INSTALL_CACHE_DIR: ${{ runner.temp }}/bun-cache
       # Type checks, lint and formatting give the same result on every OS.
       - if: runner.os == 'Linux'
         run: bun run check
@@ -121,21 +111,17 @@ jobs:
       - run: bun run test
       - if: env.APP == 'true'
         run: bun run build
-      - name: Test the unpackaged desktop app
-        if: env.APP == 'true'
-        run: ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}bun run test:e2e
-      # The packaged tests need only the unpacked app. Installers are built when their own inputs
-      # change, on manual runs, and for releases.
+      # The Electron suite runs once, against the packaged app. `--dir` builds the unpacked app in
+      # seconds. Installers are built when their own inputs change, on manual runs, and for
+      # releases.
       - name: Package the desktop app
-        if: env.PACKAGED == 'true'
+        if: env.APP == 'true'
         run: bun --bun electron-builder --publish never ${{ env.INSTALLERS != 'true' && '--dir' || '' }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
       - name: Test the packaged desktop app
-        if: env.PACKAGED == 'true'
-        run: >-
-          ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}bun run test:packaged
-          ${{ env.PACKAGED_SUITE == 'smoke' && '--smoke' || '' }}
+        if: env.APP == 'true'
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}bun run test:packaged
       - name: Upload desktop installers
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7

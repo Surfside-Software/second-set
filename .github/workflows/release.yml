@@ -16,10 +16,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Pull requests run Windows and macOS only for platform-sensitive changes, and main runs Linux
     # alone, so every release tag repeats the unit tests on all three before publishing. Each OS
-    # then builds its installers and drives the packaged app through every end-to-end spec. The
-    # unpackaged end-to-end run is left out: it runs the same specs, and the packaged run is the
-    # build users install. Type checks, lint and formatting give the same result on every OS and
-    # run on Linux for every pull request and push to main.
+    # then builds its installers and drives the packaged app through the Electron suite, as
+    # ci.yml does. Type checks, lint and formatting give the same result on every OS and run on
+    # Linux for every pull request and push to main.
     steps:
       # repos/ holds vendored reference source that no check, build or test reads.
       - uses: actions/checkout@v7
@@ -38,6 +37,7 @@ jobs:
         run: bun -e 'const p=require("./package.json"); if (process.env.RELEASE_TAG !== `v${p.version}`) process.exit(1)'
       # Tests open SQLite with synchronous=FULL in the temporary directory, which defaults to C:.
       # The hosted runner's D: drive, which also holds the workspace, is faster for this I/O.
+      # Bun's package store moves there too, so installs hard-link into node_modules on one drive.
       - name: Use the D drive for temporary files on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -46,16 +46,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path $temp | Out-Null
           "TEMP=$temp" >> $env:GITHUB_ENV
           "TMP=$temp" >> $env:GITHUB_ENV
-      # Same cache as ci.yml: under runner.temp, Windows restores it to the workspace's D: drive.
-      - name: Cache Bun dependencies
-        uses: actions/cache@v6
-        with:
-          path: ${{ runner.temp }}/bun-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
-          restore-keys: ${{ runner.os }}-${{ runner.arch }}-bun-
+          "BUN_INSTALL_CACHE_DIR=$(Join-Path $env:RUNNER_TEMP 'bun-cache')" >> $env:GITHUB_ENV
+      # No dependency cache, as in ci.yml: a fresh install is faster than restoring one.
       - run: bun install --frozen-lockfile
-        env:
-          BUN_INSTALL_CACHE_DIR: ${{ runner.temp }}/bun-cache
       - run: bun run test
       - run: bun run build
       - run: bun --bun electron-builder --publish never

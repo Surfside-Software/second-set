@@ -9,7 +9,7 @@
  * file, so a rename cannot silently stop a lane from running.
  */
 
-/** Paths that no build, end-to-end or packaged test reads. Release changes run only at a tag. */
+/** Paths that no build or end-to-end test reads. Release changes run only at a tag. */
 export const inertPaths = [
   ".github/workflows/release.yml",
   "docs/",
@@ -25,9 +25,9 @@ export const inertPaths = [
 ] as const;
 
 /**
- * Inputs of the distributable installers alone: their targets and settings. Icons and
- * dependency updates, including Electron Builder's, package the unpacked app, which embeds the
- * icons. Release tags build every installer.
+ * Inputs of the distributable installers alone: their targets and settings. Every other run
+ * packages only the unpacked app, which already embeds the icons and dependencies. Release tags
+ * build every installer.
  */
 export const installerInputs = [
   "electron-builder.json",
@@ -36,27 +36,10 @@ export const installerInputs = [
 ] as const;
 
 /**
- * Inputs of the packaged app: dependencies and app metadata, icons, resource paths, and the
- * bundled backend with its PDF assets.
- */
-export const packagingInputs = [
-  "package.json",
-  "bun.lock",
-  ".bun-version",
-  "desktop/icons/",
-  "desktop/main.ts",
-  "desktop/backend.ts",
-  "scripts/build-icns.ts",
-  "scripts/build-icons.ts",
-  "scripts/pinned-bun.ts",
-  "scripts/prepare-pdf-assets.ts",
-  "scripts/test-packaged.ts",
-] as const;
-
-/**
- * Code whose behavior differs between Linux, Windows and macOS: the Electron main process, files,
- * processes and SQLite databases on disk, native modules, the desktop test harness, and the
- * toolchain. Tests of those modules count as well.
+ * Code whose behavior differs between Linux, Windows and macOS: the Electron main process with
+ * its packaged resource paths, files, processes and SQLite databases on disk, the PDF worker and
+ * its native canvas, dependencies and the toolchain, packaging, and the desktop test harness.
+ * Tests of those modules count as well.
  */
 export const platformSensitivePaths = [
   "desktop/",
@@ -70,11 +53,19 @@ export const platformSensitivePaths = [
   "backend/cloud/transfer.ts",
   "backend/review/package-files.ts",
   "backend/review/packages.ts",
+  "package.json",
+  "bun.lock",
+  ".bun-version",
   "bunfig.toml",
   "playwright.config.ts",
   ".gitattributes",
+  "scripts/build-icns.ts",
+  "scripts/build-icons.ts",
   "scripts/desktop-test-environment.ts",
   "scripts/isolated-desktop.ts",
+  "scripts/pinned-bun.ts",
+  "scripts/prepare-pdf-assets.ts",
+  "scripts/test-packaged.ts",
   "tests/e2e/isolated-electron.ts",
   "tests/e2e/rpc-boundary.ts",
   "tests/e2e/rpc-control.ts",
@@ -100,16 +91,12 @@ export type ChangeScope = "pull-request" | "main" | "everything";
 
 /** Verify desktop lanes beyond the Linux checks and unit tests that every run performs. */
 export interface Lanes {
-  /** Build the app and drive it unpackaged through the end-to-end suite. */
+  /** Build and package the app, then drive the packaged app through the end-to-end suite. */
   readonly app: boolean;
-  /** Repeat the unit tests, build and end-to-end suite on Windows and macOS. */
+  /** Repeat the unit tests, packaging and end-to-end suite on Windows and macOS. */
   readonly crossOs: boolean;
-  /** Package the app and test the packaged executable. */
-  readonly packaged: boolean;
   /** Build the distributable installers instead of only the unpacked app. */
   readonly installers: boolean;
-  /** Run every packaged spec instead of the packaged smoke subset. */
-  readonly fullPackagedSuite: boolean;
 }
 
 /** The lanes to run and the changed paths that selected them. */
@@ -130,47 +117,38 @@ export function pathMatches(entry: string, file: string) {
 const matching = (entries: ReadonlyArray<string>, files: ReadonlyArray<string>) =>
   files.filter((file) => entries.some((entry) => pathMatches(entry, file)));
 
-const allLanes: Lanes = {
-  app: true,
-  crossOs: true,
-  packaged: true,
-  installers: true,
-  fullPackagedSuite: true,
-};
+const allLanes: Lanes = { app: true, crossOs: true, installers: true };
 
 /**
- * Choose the lanes for a run. A pull request runs what its changed paths can affect; each tier
- * includes the ones below it. Pushes to main run every Linux lane and the full packaged suite as
- * the backstop; Windows and macOS ran on the pull request when they were needed, and release tags
- * run them again before publishing.
+ * Choose the lanes for a run. A pull request runs what its changed paths can affect; each lane
+ * includes the ones below it. Pushes to main run the Linux lanes as the backstop; Windows and
+ * macOS ran on the pull request when they were needed, and release tags run them again before
+ * publishing.
  */
 export function decideLanes(scope: ChangeScope, files: ReadonlyArray<string>): LaneDecision {
   if (scope === "everything") return { lanes: allLanes, reasons: ["Running every lane."] };
 
   if (scope === "main")
     return {
-      lanes: { ...allLanes, crossOs: false, installers: false },
-      reasons: ["A push to main runs every Linux lane."],
+      lanes: { app: true, crossOs: false, installers: false },
+      reasons: ["A push to main runs the Linux lanes."],
     };
 
   const installerPaths = matching(installerInputs, files);
-  const packagingPaths = matching(packagingInputs, files);
   const platformPaths = matching(platformSensitivePaths, files);
   const installers = installerPaths.length > 0;
-  const packaged = installers || packagingPaths.length > 0;
-  const crossOs = packaged || platformPaths.length > 0;
+  const crossOs = installers || platformPaths.length > 0;
 
   const app =
     crossOs || files.some((file) => !inertPaths.some((entry) => pathMatches(entry, file)));
 
   const reasons = [
     ["installers", installerPaths],
-    ["packaged app", packagingPaths],
     ["Windows and macOS", platformPaths],
   ] as const;
 
   return {
-    lanes: { app, crossOs, packaged, installers, fullPackagedSuite: false },
+    lanes: { app, crossOs, installers },
     reasons: reasons.flatMap(([lane, paths]) =>
       paths.length > 0 ? [`${lane}: ${paths.slice(0, 5).join(", ")}`] : [],
     ),
@@ -179,13 +157,9 @@ export function decideLanes(scope: ChangeScope, files: ReadonlyArray<string>): L
 
 /** Format lanes as GITHUB_OUTPUT lines. */
 export function laneOutputs(lanes: Lanes) {
-  return [
-    `app=${lanes.app}`,
-    `cross_os=${lanes.crossOs}`,
-    `packaged=${lanes.packaged}`,
-    `installers=${lanes.installers}`,
-    `packaged_suite=${lanes.fullPackagedSuite ? "full" : "smoke"}`,
-  ].join("\n");
+  return [`app=${lanes.app}`, `cross_os=${lanes.crossOs}`, `installers=${lanes.installers}`].join(
+    "\n",
+  );
 }
 
 const scopes: ReadonlyArray<ChangeScope> = ["pull-request", "main", "everything"];

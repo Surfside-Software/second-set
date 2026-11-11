@@ -16,7 +16,7 @@ by `svelte-check --tsgo` for Effect diagnostics.
 | `bun run test:e2e`         | Drive the built Electron app through Playwright                          |
 | `bun run verify`           | Run checks, smoke tests, builds, and Electron flows                      |
 | `bun run package:desktop`  | Build installers without publishing                                      |
-| `bun run test:packaged`    | Run desktop flows against one packaged app; `--smoke` runs the PR subset |
+| `bun run test:packaged`    | Run the desktop flows against exactly one packaged executable            |
 | `bun run test:screenshots` | Capture the offline Electron fixture in `test-results/`                  |
 
 Local Electron tests run only on Linux, through `scripts/isolated-desktop.ts`.
