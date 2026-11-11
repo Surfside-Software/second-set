@@ -14,8 +14,19 @@ jobs:
       matrix:
         os: [ubuntu-26.04, windows-2025, macos-26]
     runs-on: ${{ matrix.os }}
+    # Pull requests run Windows and macOS only for platform-sensitive changes, and main runs Linux
+    # alone, so every release tag repeats the unit tests on all three before publishing. Each OS
+    # then builds its installers and drives the packaged app through the Electron suite, as
+    # ci.yml does. Type checks, lint and formatting give the same result on every OS and run on
+    # Linux for every pull request and push to main.
     steps:
+      # repos/ holds vendored reference source that no check, build or test reads.
       - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            /*
+            !/repos/
+          sparse-checkout-cone-mode: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
@@ -24,15 +35,9 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: bun -e 'const p=require("./package.json"); if (process.env.RELEASE_TAG !== `v${p.version}`) process.exit(1)'
-      - name: Cache Bun dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
-          restore-keys: ${{ runner.os }}-${{ runner.arch }}-bun-
-      - run: bun install --frozen-lockfile
       # Tests open SQLite with synchronous=FULL in the temporary directory, which defaults to C:.
       # The hosted runner's D: drive, which also holds the workspace, is faster for this I/O.
+      # Bun's package store moves there too, so installs hard-link into node_modules on one drive.
       - name: Use the D drive for temporary files on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -41,18 +46,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path $temp | Out-Null
           "TEMP=$temp" >> $env:GITHUB_ENV
           "TMP=$temp" >> $env:GITHUB_ENV
-      - run: bun run check
-      - if: runner.os != 'Windows'
-        run: bun run test
-      # Windows runner disk stalls can slow tests tenfold for tens of seconds. Tests with their
-      # own limit allow for that; this gives the rest 20 seconds instead of 5.
-      - if: runner.os == 'Windows'
-        run: bun run test --timeout 20000
+          "BUN_INSTALL_CACHE_DIR=$(Join-Path $env:RUNNER_TEMP 'bun-cache')" >> $env:GITHUB_ENV
+      # No dependency cache, as in ci.yml: a fresh install is faster than restoring one.
+      - run: bun install --frozen-lockfile
+      - run: bun run test
       - run: bun run build
-      - if: runner.os == 'Linux'
-        run: xvfb-run -a bun run test:e2e
-      - if: runner.os != 'Linux'
-        run: bun run test:e2e
       - run: bun --bun electron-builder --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
