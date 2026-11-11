@@ -5,20 +5,39 @@ Development uses a loopback Vite server. Release builds package a static SvelteK
 chooser operations. The main process authorizes the trusted top-level frame before
 connecting it, then forwards calls through the same shared schemas to Bun.
 
-GitHub CI checks and packages Windows, macOS, and Linux builds concurrently on
-pull requests, pushes to main, and manual runs of the Verify desktop workflow.
-All three jobs can run at once, and a failure on one platform leaves the others
-running. New commits cancel superseded CI runs. Each job uploads its installers
-as a `desktop-<OS>-<architecture>` artifact, available on the workflow run for seven
-days. CI builds Windows NSIS installers, macOS DMG and ZIP files, and Linux
-AppImage and Debian packages using each runner's native architecture. Repository
-text files use LF line endings on every OS so Windows passes the same format
-checks. Windows runner disk stalls have slowed tests tenfold for tens of seconds, so
-Windows CI keeps temporary files on the faster D: drive and gives smoke tests without
-their own limit 20 seconds instead of 5. Tests with their own limit allow for these
-stalls on every OS.
+The Verify desktop workflow runs on pull requests, pushes to main, and manual runs.
+Its Changes job, `scripts/ci-changes.ts`, maps a pull request's changed paths to lanes:
 
-Releases run from version tags matching package.json. They publish unsigned
+- Linux checks types, lint and formatting and runs the smoke tests on every run. Unless
+  the change touches only documentation or other paths no build reads, it also builds
+  the app and drives it unpackaged through the Electron flows.
+- Windows and macOS repeat the smoke tests, build and Electron flows when the change
+  touches platform-sensitive code: the Electron main process, backend file, process and
+  SQLite handling, the PDF worker, dependencies, the toolchain, the desktop test
+  harness, or CI itself.
+- When packaging inputs change, such as dependencies, package metadata or the packaged
+  resource layout, each of those runners also packages the unpacked app and runs
+  `bun run test:packaged --smoke` against it. Installers are built only when
+  `electron-builder.json` or CI changes.
+
+Pushes to main run every Linux lane, including every Electron flow against the
+packaged app, but not Windows or macOS. Label a pull request `ci:all-os`, or run the
+workflow manually, to run everything on all three operating systems. Manual runs also
+upload each runner's installers as a `desktop-<OS>-<architecture>` artifact, kept for
+seven days. CI builds Windows NSIS installers, macOS DMG and ZIP files, and Linux
+AppImage and Debian packages using each runner's native architecture. New commits
+cancel superseded pull request runs, and a failure on one platform leaves the others
+running.
+
+Smoke tests run in one worker per core and give tests without their own limit 20
+seconds instead of Bun's 5. Windows runner disk stalls have slowed tests tenfold for
+tens of seconds, and parallel workers slow CPU-heavy tests. Windows CI keeps temporary
+files and the Bun cache on the faster D: drive. Repository text files use LF line
+endings on every OS.
+
+Releases run from version tags matching package.json. Because Windows and macOS do
+not run on main, each release runs the smoke tests on all three, builds the installers
+and drives the packaged app through every Electron flow. It publishes unsigned
 installers and SHA256SUMS to GitHub Releases after all builds succeed. Code signing and notarization are not
 configured; the workflow does not require Apple or Windows developer credentials.
 Unsigned applications retain the platform's normal installation prompts.
@@ -48,8 +67,8 @@ minified duplicates and the web viewer are not shipped. `app.asar` carries only
 the production packages the Electron bundle leaves external, Effect and
 electron-effect-rpc. The Modal SDK is a development dependency compiled into
 `app-backend`. No system Bun or Node is
-required by the packaged app. CI launches the packaged application after building
-its installers on each OS, verifying the compiled backend and renderer together.
+required by the packaged app. Releases launch the packaged application on each OS
+after building its installers, verifying the compiled backend and renderer together.
 
 Electron starts one backend and sends its schema-validated startup configuration
 over a private stdin pipe. The backend migrates the database, binds an ephemeral

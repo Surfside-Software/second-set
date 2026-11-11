@@ -26,7 +26,7 @@
     "lint": "bun --bun oxlint -c oxlint.config.ts --disable-nested-config src desktop backend scripts tests tools *.ts",
     "format": "bun fmt",
     "format:check": "bun fmt --check",
-    "test": "bun test ./tests/smoke",
+    "test": "bun test ./tests/smoke --parallel --no-isolate --timeout 20000",
     "test:sam": "bun scripts/test-sam.ts",
     "test:lint-rule-cli": "bun tools/oxlint/anti-slop/rules/require-readable-spacing-cli.test.ts",
     "reconcile:fixtures": "bun scripts/reconcile-fixtures.ts",

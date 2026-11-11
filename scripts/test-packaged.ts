@@ -28,7 +28,18 @@ if (executable === undefined || executables.length !== 1) {
   process.exit(1);
 }
 
-const child = Bun.spawn([process.execPath, "run", "test:e2e"], {
+// The packaged app differs from `bun run test:e2e` only in how it is assembled: the backend, PDF
+// worker, assets and migrations load from its resources, and credentials use the packaged app's
+// own OS encryption and data directory. These specs cover startup, PDF import and rendering,
+// encrypted credentials and a reopen. Pull request CI runs them; main and releases run every spec.
+const smokeSpecs = ["e2e/credentials.spec.ts", "e2e/polish.spec.ts", "e2e/review.spec.ts"];
+const args = process.argv.slice(2);
+
+const filters = args.includes("--smoke")
+  ? [...smokeSpecs, ...args.filter((argument) => argument !== "--smoke")]
+  : args;
+
+const child = Bun.spawn([process.execPath, "run", "test:e2e", ...filters], {
   stdin: "inherit",
   stdout: "inherit",
   stderr: "inherit",

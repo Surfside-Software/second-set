@@ -1,36 +1,96 @@
 name: Verify desktop
 on:
   pull_request:
+    # `labeled` lets the ci:all-os label start a full run. Other labels skip every job.
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # A label other than ci:all-os gets its own group, so adding it cannot cancel a real run.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}${{ github.event.action == 'labeled' && github.event.label.name != 'ci:all-os' && '-label' || '' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  verify:
-    name: Build (${{ matrix.os }})
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        os: [ubuntu-26.04, windows-2025, macos-26]
-    runs-on: ${{ matrix.os }}
+  # scripts/ci-changes.ts maps the changed paths to lanes. Linux checks and unit-tests every run.
+  # Windows and macOS (1.7x and 10x a Linux minute) run only for platform-sensitive paths. The
+  # packaged app is built and tested only when packaging inputs change, and installers only when
+  # electron-builder.json or CI does. Pushes to main run every Linux lane. Release tags run all three
+  # operating systems before publishing. The ci:all-os label or a manual run selects everything.
+  # If the change cannot be listed, or this job fails, every lane runs.
+  changes:
+    name: Changes
+    if: github.event.action != 'labeled' || github.event.label.name == 'ci:all-os'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    outputs:
+      app: ${{ steps.detect.outputs.app }}
+      cross_os: ${{ steps.detect.outputs.cross_os }}
+      packaged: ${{ steps.detect.outputs.packaged }}
+      installers: ${{ steps.detect.outputs.installers }}
+      packaged_suite: ${{ steps.detect.outputs.packaged_suite }}
     steps:
+      # Depth 2 brings the pull request's base, the merge commit's first parent.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          sparse-checkout: |
+            /.bun-version
+            /scripts/ci-changes.ts
+          sparse-checkout-cone-mode: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
-      - name: Cache Bun dependencies
-        uses: actions/cache@v6
+      - name: Detect affected lanes
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ALL_OS: ${{ github.event.label.name == 'ci:all-os' || contains(github.event.pull_request.labels.*.name, 'ci:all-os') }}
+        run: |
+          set -uo pipefail
+          paths="$RUNNER_TEMP/changed-paths"
+          args=(everything)
+          if [[ "$EVENT_NAME" == push ]]; then
+            args=(main)
+          elif [[ "$EVENT_NAME" == pull_request && "$ALL_OS" != true ]]; then
+            # --no-renames lists a rename as its old and new path, so moving a file counts for both.
+            if git diff --name-only --no-renames HEAD^1 HEAD > "$paths"; then
+              args=(pull-request "$paths")
+            else
+              echo "Could not list the pull request's changes. Running every lane."
+            fi
+          fi
+          bun scripts/ci-changes.ts "${args[@]}" | tee -a "$GITHUB_OUTPUT"
+          exit "${PIPESTATUS[0]}"
+
+  verify:
+    name: Build (${{ matrix.os }})
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.result != 'skipped' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.changes.outputs.cross_os == 'false' && '["ubuntu-26.04"]' || '["ubuntu-26.04","windows-2025","macos-26"]') }}
+    runs-on: ${{ matrix.os }}
+    # An output that is missing because Changes failed runs its lane.
+    env:
+      APP: ${{ needs.changes.outputs.app != 'false' }}
+      PACKAGED: ${{ needs.changes.outputs.packaged != 'false' }}
+      INSTALLERS: ${{ needs.changes.outputs.installers != 'false' }}
+      PACKAGED_SUITE: ${{ needs.changes.outputs.packaged_suite || 'full' }}
+    steps:
+      # repos/ holds vendored reference source that no check, build or test reads.
+      - uses: actions/checkout@v7
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
-          restore-keys: ${{ runner.os }}-${{ runner.arch }}-bun-
-      - run: bun install --frozen-lockfile
+          sparse-checkout: |
+            /*
+            !/repos/
+          sparse-checkout-cone-mode: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       # Tests open SQLite with synchronous=FULL in the temporary directory, which defaults to C:.
       # The hosted runner's D: drive, which also holds the workspace, is faster for this I/O.
       - name: Use the D drive for temporary files on Windows
@@ -41,29 +101,43 @@ jobs:
           New-Item -ItemType Directory -Force -Path $temp | Out-Null
           "TEMP=$temp" >> $env:GITHUB_ENV
           "TMP=$temp" >> $env:GITHUB_ENV
-      - run: bun run check
-      - if: runner.os != 'Windows'
-        run: bun run test
-      # Windows runner disk stalls can slow tests tenfold for tens of seconds. Tests with their
-      # own limit allow for that; this gives the rest 20 seconds instead of 5.
-      - if: runner.os == 'Windows'
-        run: bun run test --timeout 20000
-      - run: bun run build
+      # The Bun cache lives under runner.temp so that on Windows it shares the workspace's D: drive:
+      # restoring tens of thousands of files to C: took about a minute, and Bun could not hard-link
+      # across drives into node_modules.
+      - name: Cache Bun dependencies
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/bun-cache
+          key: ${{ runner.os }}-${{ runner.arch }}-bun-${{ hashFiles('.bun-version', 'bun.lock') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-bun-
+      - run: bun install --frozen-lockfile
+        env:
+          BUN_INSTALL_CACHE_DIR: ${{ runner.temp }}/bun-cache
+      # Type checks, lint and formatting give the same result on every OS.
       - if: runner.os == 'Linux'
-        run: xvfb-run -a bun run test:e2e
-      - if: runner.os != 'Linux'
-        run: bun run test:e2e
-      - name: Package desktop installers
-        run: bun --bun electron-builder --publish never
+        run: bun run check
+      # The test script runs files in one worker per core and gives tests without their own
+      # limit 20 seconds: Windows runner disk stalls and parallel workers both slow some past 5.
+      - run: bun run test
+      - if: env.APP == 'true'
+        run: bun run build
+      - name: Test the unpackaged desktop app
+        if: env.APP == 'true'
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}bun run test:e2e
+      # The packaged tests need only the unpacked app. Installers are built when their own inputs
+      # change, on manual runs, and for releases.
+      - name: Package the desktop app
+        if: env.PACKAGED == 'true'
+        run: bun --bun electron-builder --publish never ${{ env.INSTALLERS != 'true' && '--dir' || '' }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      - name: Test packaged application on Linux
-        if: runner.os == 'Linux'
-        run: xvfb-run -a bun run test:packaged
-      - name: Test packaged application on Windows and macOS
-        if: runner.os != 'Linux'
-        run: bun run test:packaged
+      - name: Test the packaged desktop app
+        if: env.PACKAGED == 'true'
+        run: >-
+          ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}bun run test:packaged
+          ${{ env.PACKAGED_SUITE == 'smoke' && '--smoke' || '' }}
       - name: Upload desktop installers
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ runner.os }}-${{ runner.arch }}
