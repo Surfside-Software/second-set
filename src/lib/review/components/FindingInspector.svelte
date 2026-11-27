@@ -39,7 +39,7 @@
       },
     ) => void;
     onEvaluate: () => void;
-    onStatus: (closed: boolean, taskCompleted: boolean) => void;
+    onStatus: (closed: boolean, taskCompleted: boolean) => Promise<void>;
     onRequestDetail: (side: "drawn" | "scheduled", region: Region) => void;
     onChooseRegion: (side: "drawn" | "scheduled", apply: (region: Region) => void) => void;
   } = $props();
@@ -482,14 +482,25 @@
       ><input
         type="checkbox"
         checked={finding.closed}
-        onchange={(event) => onStatus(event.currentTarget.checked, finding.taskCompleted)}
+        disabled={busy}
+        onchange={async (event) => {
+          const input = event.currentTarget;
+          await onStatus(input.checked, finding.taskCompleted);
+          // A rejected save leaves the prop unchanged, which would not reset the box.
+          input.checked = finding.closed;
+        }}
       />Close finding</label
     >
     <label class="checkbox"
       ><input
         type="checkbox"
         checked={finding.taskCompleted}
-        onchange={(event) => onStatus(finding.closed, event.currentTarget.checked)}
+        disabled={busy}
+        onchange={async (event) => {
+          const input = event.currentTarget;
+          await onStatus(finding.closed, input.checked);
+          input.checked = finding.taskCompleted;
+        }}
       />Mark task complete</label
     >
   </div>

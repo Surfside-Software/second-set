@@ -998,6 +998,8 @@
     if (id === selectedProjectId) return;
     selectedProjectId = id;
     selection++;
+    // A load of the previous project may still advance the cursor before this one's first load.
+    eventCursor = 0;
     // The previous project's progress no longer refreshes or replaces this selection.
     packetSubscription?.abort();
     packetSubscription = null;
@@ -1098,7 +1100,12 @@
   }
 
   async function runCommand(command: Parameters<ReviewClient["command"]>[0]) {
-    if (cloudBlocked) return false;
+    return (await applyCommand(command)) !== null;
+  }
+
+  /** Apply a command and reload its project; resolves to the receipt, or null if it failed. */
+  async function applyCommand(command: Parameters<ReviewClient["command"]>[0]) {
+    if (cloudBlocked) return null;
     busy = true;
     const result = await client.command(command);
 
@@ -1106,7 +1113,7 @@
       busy = false;
       error = result.error.message;
 
-      return false;
+      return null;
     }
 
     error = "";
@@ -1114,7 +1121,7 @@
     await refresh(result.value.projectId);
     busy = false;
 
-    return true;
+    return result.value;
   }
 
   async function createProject(event: SubmitEvent) {
@@ -1125,15 +1132,20 @@
     rememberConversation();
     eventCursor = 0;
 
-    const ok = await runCommand(
+    const receipt = await applyCommand(
       reviewCommand(ReviewCommand.cases.CreateProject.make({ commandId: newCommandId(), name })),
     );
 
-    if (!ok) return;
+    if (receipt === null) return;
     newProjectName = "";
     projectDialog?.close();
     selectedFindingId = null;
-    await chooseConversation(snapshot?.conversations[0]?.id ?? null, false);
+
+    // A failed reload still holds the previous project's conversations.
+    await chooseConversation(
+      snapshot?.project?.id === receipt.projectId ? (snapshot.conversations[0]?.id ?? null) : null,
+      false,
+    );
     reviewFindingId = null;
     executionStatus = null;
     replaceDraft("");
@@ -1171,7 +1183,8 @@
   async function selectProject(entry: Project, conversationId?: string) {
     rememberConversation();
 
-    if (entry.id === selectedProjectId) {
+    // A selection whose load failed still shows the previous project, so selecting it again retries.
+    if (entry.id === selectedProjectId && snapshot?.project?.id === entry.id) {
       if (conversationId) await chooseConversation(conversationId);
 
       return;
@@ -1196,10 +1209,11 @@
   }
 
   async function createConversation() {
-    if (project === null) return;
+    // The shortcut reaches here without the button's gate, and key repeat would send duplicates.
+    if (project === null || busy || cloudBlocked) return;
     rememberConversation();
 
-    const ok = await runCommand(
+    const receipt = await applyCommand(
       reviewCommand(
         ReviewCommand.cases.CreateConversation.make({
           commandId: newCommandId(),
@@ -1210,7 +1224,14 @@
       ),
     );
 
-    if (ok) await chooseConversation(snapshot?.conversations.at(-1)?.id ?? null, false);
+    if (receipt === null) return;
+
+    // Open the created conversation only once the reload shows it.
+    const created = snapshot?.conversations.find(
+      (conversation) => conversation.id === receipt.entityId,
+    );
+
+    if (created) await chooseConversation(created.id, false);
   }
 
   async function postMessage(event: SubmitEvent) {
@@ -1588,7 +1609,7 @@
       return false;
     }
 
-    const ok = await runCommand(
+    const receipt = await applyCommand(
       reviewCommand(
         ReviewCommand.cases.CreateFinding.make({
           commandId: newCommandId(),
@@ -1603,11 +1624,12 @@
       ),
     );
 
-    if (!ok) return false;
+    if (receipt === null) return false;
     createFindingOpen = false;
-    const latest = snapshot?.findings.at(-1);
+    // A failed reload must not open whichever finding happens to be last.
+    const created = snapshot?.findings.find((finding) => finding.id === receipt.entityId);
 
-    if (latest) openFinding(latest);
+    if (created) openFinding(created);
 
     return true;
   }
@@ -1898,7 +1920,7 @@
   }
 
   async function setFindingStatus(closed: boolean, taskCompleted: boolean) {
-    if (project === null || selectedFinding === null) return;
+    if (project === null || selectedFinding === null || busy) return;
     await runCommand(
       reviewCommand(
         ReviewCommand.cases.SetFindingStatus.make({
@@ -2277,6 +2299,9 @@
         class="pdf-drop-zone"
         ondragover={(event) => event.preventDefault()}
         ondrop={(event) => {
+          // An uncancelled drop navigates the window to the dropped file.
+          event.preventDefault();
+
           if (!importing) void receiveDrop(event);
         }}
       >

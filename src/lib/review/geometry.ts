@@ -27,13 +27,19 @@ export function invertTransform(transform: typeof Affine.Type) {
   ]);
 }
 
+/**
+ * Slack in PDF points for floating-point error. A box drawn to the edge of a delivered image comes
+ * back through two affine maps and can land about 1e-13 pt outside the page.
+ */
+const containmentTolerance = 1e-6;
+
 /** A requested region must fit inside its source page, including a nonzero page origin. */
 export function containsRegion(page: Region, region: Region) {
   return (
-    region.x >= page.x &&
-    region.y >= page.y &&
-    region.x + region.width <= page.x + page.width &&
-    region.y + region.height <= page.y + page.height
+    region.x >= page.x - containmentTolerance &&
+    region.y >= page.y - containmentTolerance &&
+    region.x + region.width <= page.x + page.width + containmentTolerance &&
+    region.y + region.height <= page.y + page.height + containmentTolerance
   );
 }
 
@@ -70,6 +76,12 @@ export function deliveredBoxToPdf(
   },
   box: ImageBox,
 ) {
+  // PDF originals have no pixel size, and a box on them has no meaning.
+  if (artifact.width <= 0 || artifact.height <= 0)
+    return new ReviewInputError({
+      message: "An image box must come from a rendered sheet image, not the original PDF.",
+    });
+
   const delivered = deliveredImageSize(artifact.width, artifact.height);
 
   if (

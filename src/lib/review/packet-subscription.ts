@@ -19,10 +19,15 @@ function backoff(signal: AbortSignal, milliseconds: number) {
 
 /** The time source and reconnect delay a packet review subscription runs on. */
 export interface ReconnectClock {
-  /** Milliseconds, compared between connect and end to tell a lasting connection from a failing one. */
+  /** Milliseconds, compared across an attempt to tell a lasting connection from a failing one. */
   readonly now: () => number;
   /** Resolve after `milliseconds`, or as soon as `signal` aborts. */
   readonly sleep: (signal: AbortSignal, milliseconds: number) => Promise<void>;
+}
+
+/** One subscription attempt; the delivery callback records when the connection first carried data. */
+interface Attempt {
+  deliveredAt: number | null;
 }
 
 /** Native timers and wall-clock time. */
@@ -53,21 +58,30 @@ export async function followPacketReviews(options: {
 
   while (!signal.aborted) {
     const connectedAt = clock.now();
+    // A slow failed attempt never connected, so only time after the first delivery counts.
+    const attempt: Attempt = { deliveredAt: null };
 
     const result = await client.observePacketReviews(
       projectId,
       async (review) => {
         if (signal.aborted) return;
+        attempt.deliveredAt ??= clock.now();
         onReview(review);
         onConnectionLost(false);
 
-        if (clock.now() - connectedAt > 10000) failures = 0;
+        if (clock.now() - attempt.deliveredAt > 10000) failures = 0;
       },
       signal,
     );
 
     if (signal.aborted) return;
-    failures = clock.now() - connectedAt > 10000 ? 1 : failures + 1;
+    const endedAt = clock.now();
+
+    const lasted =
+      (attempt.deliveredAt !== null && endedAt - attempt.deliveredAt > 10000) ||
+      (result.ok && endedAt - connectedAt > 10000);
+
+    failures = lasted ? 1 : failures + 1;
 
     if (failures >= 3) onConnectionLost(true);
 

@@ -59,8 +59,14 @@ export function createCloudReturnHydration(view: CloudReturnView) {
         result.value.projectId !== receipt.projectId ||
         result.value.findingId !== receipt.findingId ||
         result.value.runId !== receipt.execution.runId
-      )
+      ) {
+        view.reportError(
+          "The returned review run does not match this check. Reopen the check to reload its controls.",
+        );
+
         return false;
+      }
+
       view.applyExecution(result.value);
     }
 
