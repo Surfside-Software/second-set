@@ -36,16 +36,19 @@ export async function openReviewJournal(directory: string, journalId: string, ex
       await database.get("PRAGMA journal_mode"),
     );
 
-    if (!existing) {
-      await database.exec(
-        "CREATE TABLE review_journal_identity (id INTEGER PRIMARY KEY CHECK(id=1), journal_id TEXT NOT NULL UNIQUE, format TEXT NOT NULL)",
-      );
-      await database.run(
-        "INSERT INTO review_journal_identity VALUES (1, ?, ?)",
-        journalId,
-        journalFormat,
-      );
-    }
+    // The table and its row commit together. A failure or crash between them would otherwise
+    // leave a journal that neither opens as existing nor can be created again.
+    if (!existing)
+      await database.transaction(async (transaction) => {
+        await transaction.exec(
+          "CREATE TABLE review_journal_identity (id INTEGER PRIMARY KEY CHECK(id=1), journal_id TEXT NOT NULL UNIQUE, format TEXT NOT NULL)",
+        );
+        await transaction.run(
+          "INSERT INTO review_journal_identity VALUES (1, ?, ?)",
+          journalId,
+          journalFormat,
+        );
+      });
 
     const identity = Schema.decodeUnknownSync(Identity)(
       await database.get("SELECT journal_id, format FROM review_journal_identity WHERE id=1"),

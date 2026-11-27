@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { type PacerClock, type PacerLease, RequestPacer } from "../../backend/inference/pacing.ts";
+import {
+  maxCooldownMs,
+  type PacerClock,
+  type PacerLease,
+  RequestPacer,
+} from "../../backend/inference/pacing.ts";
 
 /** Wall time when every manual clock starts. */
 const startedAt = Date.UTC(2026, 9, 31, 12, 0, 0);
@@ -243,3 +248,59 @@ test.each(["0", "soon"])(
     expect(pacer.refused("rate_limit", lease.dispatchedAt, requested)).toBe(2000);
   },
 );
+
+test.each(["999999999", "86400", new Date(startedAt + 400 * 24 * 60 * 60_000).toUTCString()])(
+  "a provider Retry-After of %p holds the shared cooldown for at most ten minutes",
+  async (value) => {
+    const { clock, advance } = manualClock();
+    const pacer = new RequestPacer({ requestsPerMinute: 6000, tokensPerMinute: 10_000_000 }, clock);
+    const lease = await pacer.acquire(1);
+
+    // The provider's own wait is still reported, so its request can end at once.
+    const requested = pacer.retryAfter(new Headers({ "retry-after": value }));
+    expect(requested).toBeGreaterThan(maxCooldownMs);
+    expect(pacer.refused("rate_limit", lease.dispatchedAt, requested)).toBe(maxCooldownMs);
+
+    const order: Array<string> = [];
+    const next = track(pacer, clock, "next", order);
+    await advance(maxCooldownMs - 1);
+    expect(order).toEqual([]);
+    await advance(1);
+    expect(order).toEqual([`next@${maxCooldownMs}`]);
+    await next;
+  },
+);
+
+test.each([
+  ["0.000001", "4000000"],
+  ["2.5", "4000000"],
+  ["0", "4000000"],
+  ["3000", "1e-9"],
+  ["3000", "999"],
+  ["3000", "1500.5"],
+])(
+  "an implausible limit header (requests %p, tokens %p) keeps the previous limit",
+  async (requests, tokens) => {
+    const { clock } = manualClock();
+    const pacer = new RequestPacer({ requestsPerMinute: 3000, tokensPerMinute: 4_000_000 }, clock);
+
+    pacer.observe(
+      new Headers({ "x-ratelimit-limit-requests": requests, "x-ratelimit-limit-tokens": tokens }),
+    );
+
+    expect(pacer.limits).toEqual({ requestsPerMinute: 3000, tokensPerMinute: 4_000_000 });
+    // The pacer still releases requests instead of waiting out a near-zero allowance.
+    expect((await pacer.acquire(1)).dispatchedAt).toBe(0);
+  },
+);
+
+test("the smallest plausible limits are accepted", () => {
+  const { clock } = manualClock();
+  const pacer = new RequestPacer({ requestsPerMinute: 3000, tokensPerMinute: 4_000_000 }, clock);
+
+  pacer.observe(
+    new Headers({ "x-ratelimit-limit-requests": "1", "x-ratelimit-limit-tokens": "1000" }),
+  );
+
+  expect(pacer.limits).toEqual({ requestsPerMinute: 1, tokensPerMinute: 1000 });
+});

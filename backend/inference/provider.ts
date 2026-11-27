@@ -212,12 +212,13 @@ async function refusalBody(response: Response) {
  * Why a response refused the request before generating anything: a rate limit (429), an OpenCode
  * account cap (429 with a typed body), missing serving capacity (529, or a quick gateway 502 or 503), or Meta's intermittent 404
  * `model_not_found` for a served model (about one request in eight for one team's key on
- * 2026-10-30).
+ * 2026-10-30). Only Meta showed that 404; elsewhere it means a wrong model name and fails at once.
  */
 async function refusalOf(
   response: Response,
   elapsedMs: number,
   openCodeGo: boolean,
+  meta: boolean,
 ): Promise<Refusal | "model_not_found" | "usage_limit" | undefined> {
   if (response.status === 429) {
     if (!openCodeGo) return "rate_limit";
@@ -231,7 +232,7 @@ async function refusalOf(
   if (response.status === 529 || isQuickGatewayRefusal(response.status, elapsedMs))
     return "overloaded";
 
-  if (response.status !== 404) return undefined;
+  if (response.status !== 404 || !meta) return undefined;
 
   return Option.isSome(Schema.decodeUnknownOption(ModelNotFound)(await refusalBody(response)))
     ? "model_not_found"
@@ -328,15 +329,25 @@ const ImageUrl = Schema.String.check(
   Schema.isPattern(/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/),
 );
 
-/** Reserve UTF-8 text bytes as an upper bound on text tokens; image tokens remain explicitly unknown. */
+/** Fields whose string value the provider reads as an image URL. */
+const imageFields = new Set(["image_url", "url"]);
+
+/**
+ * Reserve UTF-8 text bytes as an upper bound on text tokens; image tokens remain explicitly unknown.
+ * An image field must hold a supported data URL. Elsewhere a string that only looks like one, such
+ * as extracted text or model prose, is counted as text instead of failing every later request.
+ */
 function requestBounds(body: string) {
   const payload = Schema.decodeUnknownSync(Schema.MutableJson)(JSON.parse(body));
   let imageBytes = 0;
   let images = 0;
 
-  const withoutPixels = (value: Schema.MutableJson): Schema.MutableJson => {
+  const withoutPixels = (value: Schema.MutableJson, key?: string): Schema.MutableJson => {
     if (Predicate.isString(value)) {
-      if (value.startsWith("data:image/")) {
+      if (
+        value.startsWith("data:image/") &&
+        ((key !== undefined && imageFields.has(key)) || Schema.is(ImageUrl)(value))
+      ) {
         const image = Schema.decodeUnknownSync(ImageUrl)(value);
         imageBytes += Buffer.byteLength(image.slice(image.indexOf(",") + 1), "base64");
         images++;
@@ -347,7 +358,7 @@ function requestBounds(body: string) {
       return value;
     }
 
-    if (Array.isArray(value)) return value.map(withoutPixels);
+    if (Array.isArray(value)) return value.map((child) => withoutPixels(child));
 
     if (Predicate.isObject(value)) {
       // Uploaded images are sent as Files API references; their bytes were bounded before upload.
@@ -356,7 +367,7 @@ function requestBounds(body: string) {
       return Object.fromEntries(
         Object.entries(value).map(([key, child]) => [
           key,
-          withoutPixels(Schema.decodeUnknownSync(Schema.MutableJson)(child)),
+          withoutPixels(Schema.decodeUnknownSync(Schema.MutableJson)(child), key),
         ]),
       );
     }
@@ -934,7 +945,12 @@ export function createAdmittedModels(
 
               // A rate-limit, capacity or model-routing refusal happens before generation, so
               // resending it cannot duplicate paid work. Parallel sheet reviewers rely on this.
-              const refused = await refusalOf(response, elapsedMs, openCodeGo);
+              const refused = await refusalOf(
+                response,
+                elapsedMs,
+                openCodeGo,
+                selected.provider === "meta",
+              );
 
               const retryAfterMs =
                 refused === undefined ? undefined : pacer.retryAfter(response.headers);
@@ -1033,11 +1049,13 @@ export function createAdmittedModels(
               : refused.cooldownMs;
 
           // A usage limit lasts for hours, so resending only spends requests against it. A resend
-          // that could go out only after the budget ends the attempt now, without waiting.
+          // that could go out only after the budget ends the attempt now, without waiting. The
+          // shared cooldown is capped, so the provider's own longer wait decides that too.
           if (
             refused.kind === "usage_limit" ||
             refusals + 1 >= (openCodeGo ? openCodeMaxRefusals : maxRefusals) ||
-            pacer.now() + waitMs - admittedAt > refusalBudgetMs ||
+            pacer.now() + Math.max(waitMs, refused.retryAfterMs ?? 0) - admittedAt >
+              refusalBudgetMs ||
             options?.signal?.aborted
           )
             response = result;
