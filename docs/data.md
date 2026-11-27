@@ -155,6 +155,9 @@ Legacy notes-only database restore checks integrity and migration compatibility 
 operations have closed their connections, keeps a pre-restore backup, asks SQLite
 to checkpoint and leave WAL mode, replaces the database, and restarts the desktop
 app. SQLite manages its journal files; never remove live WAL files manually.
+A backup from an earlier version is migrated on its private restore copy before it
+replaces the database; the chosen backup file stays unchanged, and a failed
+migration stops the restore before anything is replaced.
 Failed restores leave the backend usable and preserve the current database.
 A migration or restore failure must never reset or delete user data.
 The obsolete notes UI and RPC are removed. Migration `0001_notes.sql` remains
@@ -178,7 +181,9 @@ normal journal adapter.
 
 Restore validates the entire package before replacement, retains a complete
 pre-restore snapshot, and journals replacement phases. Startup rolls an
-interrupted replacement back before opening databases. Restored runs have a
+interrupted replacement back before opening databases. Restore refuses a data
+directory that holds execution journals but no `app.sqlite`, because it could not
+retain those journals for rollback. Restored runs have a
 persistent historical engine marker and cannot resume their copied Pi journals;
 no model or SAM work starts on reopen. This applies to packet reviews and
 selected-count runs. Uncertain model and SAM attempts and their accounting are

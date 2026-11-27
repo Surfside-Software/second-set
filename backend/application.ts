@@ -534,8 +534,13 @@ export class Application extends Context.Service<
           restore: (source) =>
             Effect.scoped(
               Effect.gen(function* () {
-                if (maintaining || pendingRestore())
+                if (pendingRestore())
                   return yield* new DatabaseFileError({ message: restoreMessage });
+
+                if (maintaining)
+                  return yield* new DatabaseFileError({
+                    message: "Review maintenance is in progress. Wait for it to finish.",
+                  });
                 yield* cloud.assertLocal.pipe(
                   Effect.mapError((error) => new DatabaseFileError({ message: error.message })),
                 );
@@ -550,12 +555,18 @@ export class Application extends Context.Service<
                 yield* restoreDatabase(filename, source, config.migrationDirectory, backups);
               }),
             ).pipe(
-              Effect.mapError(
-                () =>
-                  new DatabaseFileError({
-                    message:
-                      "Use a complete review package to restore review data. Existing data was preserved.",
-                  }),
+              // Keep the specific reason (cloud lock, pending recovery, incompatible or corrupt
+              // backup, failed replacement). Only an unreadable review check maps to this hint.
+              Effect.mapError((error) =>
+                Schema.is(DatabaseFileError)(error)
+                  ? error
+                  : new DatabaseFileError({
+                      message:
+                        "Use a complete review package to restore review data. Existing data was preserved.",
+                    }),
+              ),
+              Effect.tapError((error) =>
+                Effect.logWarning("database_restore_failed", { message: error.message }),
               ),
               Semaphore.withPermit(operations),
               Effect.uninterruptible,

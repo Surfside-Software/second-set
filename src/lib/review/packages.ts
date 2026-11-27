@@ -22,16 +22,32 @@ const Sha256 = Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/));
 const ByteCount = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 8_589_934_592 }));
 const Uuid = Schema.String.check(Schema.isUUID());
 
+/**
+ * A package-relative POSIX path. Absolute paths, drive letters, backslashes, NUL, and empty,
+ * "." or ".." segments are refused so a manifest cannot name files outside the package.
+ */
+const PackagePath = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(240),
+  Schema.makeFilter<string>(
+    (path) =>
+      (!path.startsWith("/") &&
+        !/[\\\0:]/u.test(path) &&
+        path.split("/").every((part) => part !== "" && part !== "." && part !== "..")) ||
+      "Use a package-relative path without traversal.",
+  ),
+);
+
 /** A hashed file inside a package directory. Paths are package-relative. */
 export class PackageFile extends Schema.Class<PackageFile>("PackageFile")({
-  path: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(240)),
+  path: PackagePath,
   sha256: Sha256,
   bytes: ByteCount,
 }) {}
 
 /** A closed Pi journal included by id, hash, and engine format. */
 export class PackageJournalFile extends Schema.Class<PackageJournalFile>("PackageJournalFile")({
-  path: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(240)),
+  path: PackagePath,
   sha256: Sha256,
   bytes: ByteCount,
   journalId: Uuid,
