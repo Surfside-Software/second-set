@@ -155,3 +155,50 @@ test.each(["check", "project", "receipt"] as const)(
     }
   },
 );
+
+test("a returned execution for another run reports an error instead of silently dropping the controls", async () => {
+  const original = receipt();
+
+  const execution = (runId: string) =>
+    Schema.decodeUnknownSync(ExecutionStatus)({
+      runId,
+      projectId: original.projectId,
+      findingId: original.findingId,
+      state: "completed",
+      version: 2,
+      route: "live",
+      provider: "meta",
+      model: "muse-spark-1.3",
+      admittedCalls: 1,
+      reservedInputTokens: 1000,
+      reservedOutputTokens: 256,
+      unresolvedAttempts: 0,
+      uncertaintyAcknowledged: false,
+      costUsd: null,
+      imageInputTokens: null,
+    });
+
+  const returning = Schema.decodeUnknownSync(CloudReviewStatus)({
+    ...Schema.encodeSync(CloudReviewStatus)(original),
+    execution: Schema.encodeSync(ExecutionStatus)(execution(crypto.randomUUID())),
+  });
+
+  const errors: Array<string> = [];
+  const applied: Array<ExecutionStatus | null> = [];
+
+  const hydrate = createCloudReturnHydration({
+    selection: () => ({
+      projectId: returning.projectId,
+      findingId: returning.findingId,
+      receipt: returning,
+    }),
+    refreshSnapshot: async () => true,
+    loadExecution: async () => ({ ok: true, value: execution(crypto.randomUUID()) }),
+    applyExecution: (status) => applied.push(status),
+    reportError: (message) => errors.push(message),
+  });
+
+  expect(await hydrate("import")).toBe(false);
+  expect(applied).toEqual([null]);
+  expect(errors).toHaveLength(1);
+});

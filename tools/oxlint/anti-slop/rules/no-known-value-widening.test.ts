@@ -128,6 +128,15 @@ tester.run("anti-slop/no-known-value-widening", noKnownValueWideningRule, {
 			code: `${prelude} type Key = string; const commands: Record<Key, Command> = { start: startCommand };`,
 			errors: [error],
 		},
+		// An argument that names the callee's parameter resolves in the caller's scope instead of recursing.
+		{
+			code: `${prelude} type Index<K> = Record<K, Command>; type Wider<K> = Index<K | 'start'>; const commands: Wider<string> = { start: startCommand };`,
+			errors: [error],
+		},
+		{
+			code: `${prelude} type Index<T> = Readonly<Record<string, T>>; type Boxed<T> = Index<Readonly<T>>; const commands: Boxed<Command> = { start: startCommand };`,
+			errors: [error],
+		},
 		{
 			code: `${prelude} const commands: Record<PropertyKey, Command> = { start: startCommand };`,
 			errors: [error],

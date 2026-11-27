@@ -78,6 +78,8 @@ export class SourceView {
     sheet: Sheet,
     overlays: ReadonlyArray<SourceOverlay>,
   ) {
+    // A superseded claim must not clear the canvas a newer request owns.
+    if (!this.current(request)) return null;
     this.loading = true;
     this.sheet = sheet;
     this.zoom = 1;
@@ -90,6 +92,8 @@ export class SourceView {
 
   /** Render a sheet region and show it. Resolves to an error to present, or null. */
   async renderSheet(sheet: Sheet, render: SheetRender) {
+    // A superseded claim must not clear the canvas a newer request owns.
+    if (render.request !== undefined && !this.current(render.request)) return null;
     const request = render.request ?? this.begin();
     this.#clearImage();
     this.overlays = [];
@@ -112,7 +116,15 @@ export class SourceView {
       return rendered.error.message;
     }
 
-    if (!this.current(request) || render.projectId !== this.#ports.selectedProject()) return null;
+    if (!this.current(request)) return null;
+
+    // This request still owns the canvas, so it stops the loading state it started.
+    if (render.projectId !== this.#ports.selectedProject()) {
+      this.loading = false;
+
+      return null;
+    }
+
     const image = await this.#ports.loadImage(render.projectId, rendered.value);
     const failure = this.#show(request, image, rendered.value, render.overlays);
 

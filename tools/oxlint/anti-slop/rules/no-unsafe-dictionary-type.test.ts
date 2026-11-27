@@ -35,6 +35,10 @@ tester.run("anti-slop/no-unsafe-dictionary-type", noUnsafeDictionaryTypeRule, {
 		"function run<T extends Record<string, unknown>>(input: T): T { return input; }",
 		"declare class Store<T extends Record<string, unknown>> { read(): T }",
 		"type Deep<T extends Readonly<Record<string, unknown>>> = T;",
+		// An argument that names the callee's parameter resolves in the caller's scope instead of recursing.
+		"type Maybe<T> = Record<string, T>; type Wrapper<T> = Maybe<T | undefined>; type A = Wrapper<string>;",
+		"type Maybe<T> = Record<string, T>; type Wrapper<T> = Maybe<Readonly<T>>; type A = Wrapper<string>;",
+		"type Maybe<T> = Record<string, T>; type Wrapper<T> = Maybe<T | undefined>; const x: Wrapper<string> = {};",
 	],
 	invalid: [
 		{ code: "type A = Record<string, unknown>;", errors: [error] },
@@ -109,6 +113,14 @@ tester.run("anti-slop/no-unsafe-dictionary-type", noUnsafeDictionaryTypeRule, {
 		},
 		{
 			code: "function local() { type Record<K, V> = { key: K; value: V }; type A = Record<string, unknown>; } function global() { type A = Record<string, unknown>; }",
+			errors: 1,
+		},
+		{
+			code: "type Maybe<T> = Record<string, T>; type Wrapper<T> = Maybe<T | undefined>; type A = Wrapper<unknown>;",
+			errors: 1,
+		},
+		{
+			code: "type Maybe<T> = Record<string, T>; type Box<T> = Maybe<Readonly<T>>; type A = Box<unknown>;",
 			errors: 1,
 		},
 	],
