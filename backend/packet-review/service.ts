@@ -68,6 +68,7 @@ import type { DataDirectoryOwnership } from "../ownership.ts";
 import type { createReviewOperations } from "../review/operations.ts";
 import type { ExecutionImage } from "../review/execution-port.ts";
 import { executionPersistence } from "../review/execution-store.ts";
+import { recordLimit } from "../review/store.ts";
 import {
   createAdmittedModels,
   promptCacheKey,
@@ -264,6 +265,23 @@ const invalidateSheetNotes = (review: PacketReview, sheetId: string) =>
 
 const error = (reason: ExecutionError["reason"], message: string) =>
   new ExecutionError({ reason, message });
+
+/** Refuses a message that would leave the project with more messages than a snapshot can read. */
+const assertMessageRoom = Effect.fn("PacketReviews.assertMessageRoom")(function* (
+  projectId: typeof ProjectId.Type,
+) {
+  const sql = yield* SqlClient.SqlClient;
+
+  const rows = yield* Schema.decodeUnknownEffect(Schema.Array(Schema.Struct({ n: Schema.Int })))(
+    yield* sql`SELECT count(*) AS n FROM review_records WHERE project_id=${projectId} AND kind='message'`,
+  );
+
+  if ((rows[0]?.n ?? 0) >= recordLimit)
+    return yield* error(
+      "input",
+      `This project can hold at most ${recordLimit} messages. Export its evidence and continue in a new project.`,
+    );
+});
 
 const Row = Schema.Struct({
   id: Schema.String,
@@ -676,6 +694,22 @@ export class PacketReviews extends Context.Service<
                 : error("unavailable", "The review operation could not finish."),
           });
 
+        /** Log a failure that a background path cannot return; only the error's own text is kept. */
+        const logFailure = (
+          event: string,
+          cause: unknown,
+          fields: Readonly<Record<string, string>>,
+        ) =>
+          run(
+            Effect.logWarning(event, {
+              ...fields,
+              cause:
+                cause instanceof Error
+                  ? `${cause.name}: ${cause.message}`.slice(0, 1000)
+                  : "Unknown failure",
+            }),
+          ).catch(() => undefined);
+
         const load = Effect.fn("PacketReviews.load")(function* (
           projectId: typeof ProjectId.Type,
           reviewId: string,
@@ -904,6 +938,7 @@ export class PacketReviews extends Context.Service<
             createdAt: new Date(now(yield* DateTime.now)).toISOString(),
           });
 
+          yield* assertMessageRoom(row.project_id);
           yield* sql`INSERT INTO review_records(project_id,id,kind,payload) VALUES (${row.project_id},${message.id},'message',${JSON.stringify(message)})`;
           yield* sql`UPDATE review_projects SET version=version+1,payload=json_set(payload,'$.version',version+1) WHERE id=${row.project_id}`;
 
@@ -1085,25 +1120,32 @@ export class PacketReviews extends Context.Service<
             try {
               return await work();
             } finally {
-              const finishedAt = now(await run(DateTime.now));
+              // The tool's durable records are already saved, so failing to mark its activity
+              // finished must not replace its result or its own error.
               await run(
-                mutate(
-                  row.project_id,
-                  row.id,
-                  (review) =>
-                    review.activity?.id !== id || review.activity.status !== "active"
-                      ? review
-                      : new PacketReview(
-                          Struct.assign(review, {
-                            activity: {
-                              ...review.activity,
-                              status: "finished" as const,
-                              finishedAt,
-                            },
-                          }),
-                        ),
-                  false,
+                DateTime.now.pipe(
+                  Effect.flatMap((finished) =>
+                    mutate(
+                      row.project_id,
+                      row.id,
+                      (review) =>
+                        review.activity?.id !== id || review.activity.status !== "active"
+                          ? review
+                          : new PacketReview(
+                              Struct.assign(review, {
+                                activity: {
+                                  ...review.activity,
+                                  status: "finished" as const,
+                                  finishedAt: now(finished),
+                                },
+                              }),
+                            ),
+                      false,
+                    ),
+                  ),
                 ),
+              ).catch((cause: unknown) =>
+                logFailure("packet_review_activity_failed", cause, { reviewId: row.id, tool }),
               );
             }
           };
@@ -1281,7 +1323,35 @@ export class PacketReviews extends Context.Service<
 
                 if (previous !== null) return { raw: previous, prepared, replayed: true };
 
-                await run(get(row.project_id, row.id).pipe(Effect.flatMap(publish)));
+                /**
+                 * Withdraw this SAM attempt uncharged: a refused one, or with `unsent` one that
+                 * never left the process. Returns the refunded review, or undefined if no attempt
+                 * matched.
+                 */
+                const withdraw = (unsent: boolean) =>
+                  run(
+                    query(
+                      Effect.gen(function* () {
+                        const sql = yield* SqlClient.SqlClient;
+
+                        const held = unsent
+                          ? yield* sql`SELECT task_id FROM packet_review_attempts WHERE review_id=${row.id} AND task_id=${taskId} AND attempt=1 AND kind='sam' AND status='uncertain' AND sent=0`
+                          : yield* sql`SELECT task_id FROM packet_review_attempts WHERE review_id=${row.id} AND task_id=${taskId} AND attempt=1 AND kind='sam' AND status='uncertain'`;
+
+                        if (!held.length) return undefined;
+                        yield* sql`DELETE FROM packet_review_attempts WHERE review_id=${row.id} AND task_id=${taskId} AND attempt=1 AND kind='sam' AND status='uncertain'`;
+                        const fresh = yield* load(row.project_id, row.id);
+
+                        return yield* save(
+                          fresh,
+                          new PacketReview({
+                            ...fresh.payload,
+                            admittedCalls: Math.max(0, fresh.payload.admittedCalls - 1),
+                          }),
+                        );
+                      }),
+                    ),
+                  );
 
                 const controller = new AbortController();
                 const controllers = samControllers.get(row.id) ?? new Set<AbortController>();
@@ -1291,6 +1361,7 @@ export class PacketReviews extends Context.Service<
                 let answered: Response | undefined;
 
                 try {
+                  await run(get(row.project_id, row.id).pipe(Effect.flatMap(publish)));
                   await run(
                     query(
                       Effect.gen(function* () {
@@ -1333,7 +1404,9 @@ export class PacketReviews extends Context.Service<
                   for (let resend = 0; refused && resend < samRefusalResends; resend++) {
                     await response.body?.cancel();
                     const retryAfter = Number(response.headers.get("retry-after"));
+                    const status = response.status;
 
+                    // An abort while waiting to resend ends a request whose every send was refused.
                     await abortableDelay(
                       Math.min(
                         30_000,
@@ -1342,7 +1415,9 @@ export class PacketReviews extends Context.Service<
                           : 2000 * 2 ** resend,
                       ),
                       controller.signal,
-                    );
+                    ).catch(() => {
+                      throw new SamRefused(status);
+                    });
                     ({ response, refused } = await timedSend());
                   }
 
@@ -1420,28 +1495,24 @@ export class PacketReviews extends Context.Service<
                   // Every send was refused before generation, so the attempt is withdrawn uncharged
                   // and the reviewer continues without SAM.
                   if (cause instanceof SamRefused) {
-                    await run(
-                      query(
-                        Effect.gen(function* () {
-                          const fresh = yield* load(row.project_id, row.id);
-                          const sql = yield* SqlClient.SqlClient;
-                          yield* sql`DELETE FROM packet_review_attempts WHERE review_id=${row.id} AND task_id=${taskId} AND attempt=1 AND kind='sam' AND status='uncertain'`;
+                    const refunded = await withdraw(false);
 
-                          return yield* save(
-                            fresh,
-                            new PacketReview({
-                              ...fresh.payload,
-                              admittedCalls: Math.max(0, fresh.payload.admittedCalls - 1),
-                            }),
-                          );
-                        }),
-                      ).pipe(Effect.flatMap(publish)),
-                    );
+                    if (refunded !== undefined) await run(publish(refunded));
 
                     throw error(
                       "unavailable",
                       `SAM refused the request (HTTP ${cause.status}) on every send. Nothing was generated or charged; continue without SAM for this area.`,
                     );
+                  }
+
+                  // A request stopped before dispatch (a cancel, close or packet change) was never
+                  // sent, so it is withdrawn uncharged and its own failure stands.
+                  const unsent = await withdraw(true).catch(() => undefined);
+
+                  if (unsent !== undefined) {
+                    await run(publish(unsent));
+
+                    throw cause;
                   }
 
                   // An HTTP refusal is reported apart from a request whose outcome is unknown; the
@@ -1530,6 +1601,7 @@ export class PacketReviews extends Context.Service<
               return {
                 artifactId: finding.focus.artifactId,
                 segments: finding.focus.segments.length,
+                detected: finding.focus.detected,
               };
             const { sheet, region } = target;
             const pad = Math.max(36, 0.25 * Math.max(region.width, region.height));
@@ -1603,6 +1675,8 @@ export class PacketReviews extends Context.Service<
                 model: "sam-3.1" as const,
                 responseId: decoded.responseId,
                 segments: decoded.segments,
+                detected: decoded.detected,
+                oversized: decoded.oversized,
               };
 
               // Saving the same zoom again is harmless, so a drained pause may still record it.
@@ -1627,7 +1701,11 @@ export class PacketReviews extends Context.Service<
                 ).pipe(Effect.flatMap(publish)),
               );
 
-              return { artifactId: artifact.id, segments: focus.segments.length };
+              return {
+                artifactId: artifact.id,
+                segments: focus.segments.length,
+                detected: focus.detected,
+              };
             } catch (cause) {
               return {
                 skipped: cause instanceof ExecutionError ? cause.message : "SAM focus unavailable.",
@@ -1887,7 +1965,7 @@ export class PacketReviews extends Context.Service<
             ),
             tool(
               "calculate",
-              "Evaluate a repeatable formula using named values and explicit units. Retain inputs, method, numerical result and explanation in the report. Units are declared, not automatically converted.",
+              "Evaluate a repeatable formula using named values and explicit units. Retain inputs, method, numerical result and explanation in the report. Units are declared, not automatically converted. Trigonometric functions take and return radians; convert degrees with * pi / 180.",
               CalculationInput,
               async (task, input) => {
                 const result = await run(calculate(input));
@@ -2252,7 +2330,13 @@ export class PacketReviews extends Context.Service<
                       api.conversationId,
                       (await run(config.review.artifact(row.project_id, artifactId))).sheetId,
                     );
-                const id = input.id ?? stableId(row.id, task, "finding");
+
+                // The all-zeros placeholder names no finding, so it never updates an earlier one.
+                const id =
+                  input.id === undefined || input.id === placeholderId
+                    ? stableId(row.id, task, "finding")
+                    : input.id;
+
                 const revision = stableId(row.id, task, "finding-summary");
                 const sheetId = assignments.sheets.get(api.conversationId) ?? null;
 
@@ -3128,9 +3212,18 @@ export class PacketReviews extends Context.Service<
 
             const next = async () => {
               for (let sheetId = queue.shift(); sheetId !== undefined; sheetId = queue.shift())
-                await reviewSheet(sheetId).catch(() =>
-                  sheetState(sheetId, { state: "failed" }, false).catch(() => undefined),
-                );
+                await reviewSheet(sheetId).catch(async (cause: unknown) => {
+                  await logFailure("packet_review_sheet_failed", cause, {
+                    reviewId: row.id,
+                    sheetId,
+                  });
+                  await sheetState(sheetId, { state: "failed" }, false).catch((cause: unknown) =>
+                    logFailure("packet_review_sheet_state_failed", cause, {
+                      reviewId: row.id,
+                      sheetId,
+                    }),
+                  );
+                });
             };
 
             // Started together, every reviewer would miss the cache. One goes first; the rest
@@ -3394,13 +3487,16 @@ export class PacketReviews extends Context.Service<
                           mutate(
                             row.project_id,
                             row.id,
+                            // A cancel or uncertain outcome saved meanwhile stays; only a run pauses.
                             (review) =>
-                              new PacketReview({
-                                ...review,
-                                state: "paused",
-                                error:
-                                  "The optional call budget was reached. Add calls on resume to continue.",
-                              }),
+                              review.state === "running"
+                                ? new PacketReview({
+                                    ...review,
+                                    state: "paused",
+                                    error:
+                                      "The optional call budget was reached. Add calls on resume to continue.",
+                                  })
+                                : review,
                             false,
                           ),
                         );
@@ -3621,244 +3717,292 @@ export class PacketReviews extends Context.Service<
               throw cause;
             }
 
-            const thinkingLevel = packetReasoning(row.payload.model);
+            // Until the runtime is registered nothing else closes this harness and its journal.
+            try {
+              const thinkingLevel = packetReasoning(row.payload.model);
 
-            // A parallel coordinator starts with setup's tools; coordination widens them once.
-            const root = await harness.root(BACKGROUND_CONTEXT, {
-              agent: {
-                model: admitted.model,
-                instructions: packetReviewPrompt(row.payload.scope, {
-                  provider: row.payload.provider,
-                  role: row.payload.parallel === undefined ? "review" : "coordinator",
-                  firmChecklist: row.payload.firmChecklist,
-                }),
-                thinkingLevel,
-                tools: toolRegistry.toolsFor(
-                  row.payload.parallel === undefined ? "review" : "setup",
-                ),
-              },
-            });
+              // A parallel coordinator starts with setup's tools; coordination widens them once.
+              const root = await harness.root(BACKGROUND_CONTEXT, {
+                agent: {
+                  model: admitted.model,
+                  instructions: packetReviewPrompt(row.payload.scope, {
+                    provider: row.payload.provider,
+                    role: row.payload.parallel === undefined ? "review" : "coordinator",
+                    firmChecklist: row.payload.firmChecklist,
+                  }),
+                  thinkingLevel,
+                  tools: toolRegistry.toolsFor(
+                    row.payload.parallel === undefined ? "review" : "setup",
+                  ),
+                },
+              });
 
-            // Explicit resume carries unresolved instructions into its own durable input.
-            // A stopped Pi submission can remain `unanswered` even when its text is in the journal.
-            const resumedInstructions = existing
-              ? (row.payload.steering ?? []).filter((item) => item.status !== "applied")
-              : [];
+              // Explicit resume carries unresolved instructions into its own durable input.
+              // A stopped Pi submission can remain `unanswered` even when its text is in the journal.
+              const resumedInstructions = existing
+                ? (row.payload.steering ?? []).filter((item) => item.status !== "applied")
+                : [];
 
-            const resumedInstructionIds = new Set(
-              resumedInstructions.map((item) => item.commandId),
-            );
-
-            if (resumedInstructionIds.size)
-              await run(
-                mutate(
-                  row.project_id,
-                  row.id,
-                  (review) =>
-                    new PacketReview(
-                      Struct.assign(review, {
-                        steering: (review.steering ?? []).map((item) =>
-                          resumedInstructionIds.has(item.commandId)
-                            ? { ...item, status: "queued" as const }
-                            : item,
-                        ),
-                      }),
-                    ),
-                ),
+              const resumedInstructionIds = new Set(
+                resumedInstructions.map((item) => item.commandId),
               );
 
-            const input = {
-              continuation: existing
-                ? "Continue the saved review from its coverage and findings. Do not repeat completed checks; retain stable issue IDs."
-                : null,
-              request: row.payload.request,
-              conversation: row.payload.conversationContext ?? [],
-              inventory: row.payload.sheets,
-              scope: row.payload.scope,
-              previousFindings: withoutFocus(row.payload.findings),
-              previousComments: row.payload.priorComments,
-              followUpInstructions: resumedInstructions.map(({ commandId, text }) => ({
-                commandId,
-                text,
-              })),
-            };
-
-            const steering: Runtime["steering"] = {
-              accepting: true,
-              pending: new Set(),
-              unanswered: false,
-              admissions: new Map(),
-            };
-
-            const children = new Map<number, Conversation>();
-            const lease = { closed: false };
-
-            const work: Promise<{ readonly status: string }> =
-              row.payload.parallel === undefined
-                ? (
-                    await root.submit(
-                      {
-                        type: "input",
-                        requestId: resumeRequestId ?? row.id,
-                        content: JSON.stringify(input),
-                      },
-                      BACKGROUND_CONTEXT,
-                    )
-                  ).wait(BACKGROUND_CONTEXT)
-                : reviewInParallel({
-                    row,
-                    harness,
-                    storage,
-                    root,
-                    children,
-                    assignments,
-                    toolsFor: toolRegistry.toolsFor,
-                    agent: { model: admitted.model, thinkingLevel },
-                    input,
-                    requestId: resumeRequestId ?? row.id,
-                    lease,
-                  });
-
-            const done = work
-              .then(async (result) => {
-                steering.accepting = false;
-
-                while (steering.pending.size) await Promise.all(steering.pending);
-
-                const value = await run(
-                  query(
-                    Effect.gen(function* () {
-                      const current = yield* load(row.project_id, row.id);
-
-                      if (
-                        current.owner_generation !== config.owner.generation ||
-                        current.payload.state !== "running"
-                      )
-                        return current.payload;
-                      const sql = yield* SqlClient.SqlClient;
-
-                      const unresolved =
-                        yield* sql`SELECT task_id FROM packet_review_attempts WHERE review_id=${row.id} AND status='uncertain' LIMIT 1`;
-
-                      let summary = current.payload.summary;
-
-                      if (!summary) {
-                        const rows = yield* Schema.decodeUnknownEffect(
-                          Schema.Array(
-                            Schema.Struct({
-                              response_json: Schema.fromJsonString(ResponseReceipt),
-                            }),
-                          ),
-                        )(
-                          yield* sql`SELECT response_json FROM packet_review_attempts WHERE review_id=${row.id} AND kind='model' AND status='completed' ORDER BY task_id DESC LIMIT 1`,
-                        );
-
-                        summary =
-                          rows[0]?.response_json.content
-                            .flatMap((part) => (part.type === "text" ? [part.text] : []))
-                            .join("\n")
-                            .trim()
-                            .slice(0, 32000) ?? "";
-                      }
-
-                      const pendingSummaries = current.payload.findings.some(
-                        (finding) => finding.summary?._tag === "Pending",
-                      );
-
-                      const state = unresolved.length
-                        ? "uncertain"
-                        : result.status === "done" &&
-                            current.payload.finished &&
-                            !pendingSummaries &&
-                            !steering.unanswered &&
-                            (current.payload.steering ?? []).every(
-                              (item) =>
-                                item.status === "applied" ||
-                                resumedInstructionIds.has(item.commandId),
-                            )
-                          ? "completed"
-                          : "failed";
-
-                      const stoppedSheets = (current.payload.parallel?.sheets ?? []).filter(
-                        (entry) => entry.providerFailure !== undefined,
-                      );
-
-                      // A sheet reviewer's provider failure explains an uncertain parallel review.
-                      const inheritedFailure = current.payload.providerFailure
-                        ? undefined
-                        : stoppedSheets[0]?.providerFailure;
-
-                      const payload =
-                        inheritedFailure === undefined
-                          ? current.payload
-                          : new PacketReview(
-                              Struct.assign(current.payload, { providerFailure: inheritedFailure }),
-                            );
-
-                      const review = yield* save(
-                        current,
-                        new PacketReview({
-                          ...payload,
-                          state,
-                          summary,
-                          steering: (current.payload.steering ?? []).map((item) =>
-                            resumedInstructionIds.has(item.commandId) || item.status !== "applied"
-                              ? {
-                                  ...item,
-                                  status:
-                                    state === "completed"
-                                      ? ("applied" as const)
-                                      : ("unanswered" as const),
-                                }
-                              : item,
-                          ),
-                          error:
-                            state === "failed"
-                              ? pendingSummaries
-                                ? "Full technical findings are saved, but short summaries remain pending. The review is incomplete."
-                                : current.payload.finished
-                                  ? "The review stopped before finishing. Saved findings and coverage remain available."
-                                  : "The reviewer stopped without recording a completed source review. Saved findings, coverage and the partial summary remain available."
-                              : state === "uncertain" && stoppedSheets.length > 0
-                                ? `${stoppedSheets.length} of ${current.payload.parallel?.sheets.length ?? 0} sheet reviewers stopped on an unresolved provider request. Their sheets keep their gaps; those requests may have been charged and will not be sent again.`
-                                : current.payload.error,
-                        }),
-                      );
-
-                      if (summary) yield* appendMessage(current, summary);
-
-                      return review;
-                    }),
-                  ),
-                );
-
-                await run(publish(value));
-              })
-              .catch(async () => {
+              if (resumedInstructionIds.size)
                 await run(
                   mutate(
                     row.project_id,
                     row.id,
                     (review) =>
-                      review.state === "running"
-                        ? new PacketReview({
-                            ...review,
-                            state: "failed",
-                            steering: (review.steering ?? []).map((item) =>
-                              resumedInstructionIds.has(item.commandId)
-                                ? { ...item, status: "unanswered" as const }
+                      new PacketReview(
+                        Struct.assign(review, {
+                          steering: (review.steering ?? []).map((item) =>
+                            resumedInstructionIds.has(item.commandId)
+                              ? { ...item, status: "queued" as const }
+                              : item,
+                          ),
+                        }),
+                      ),
+                  ),
+                );
+
+              const input = {
+                continuation: existing
+                  ? "Continue the saved review from its coverage and findings. Do not repeat completed checks; retain stable issue IDs."
+                  : null,
+                request: row.payload.request,
+                conversation: row.payload.conversationContext ?? [],
+                inventory: row.payload.sheets,
+                scope: row.payload.scope,
+                previousFindings: withoutFocus(row.payload.findings),
+                previousComments: row.payload.priorComments,
+                followUpInstructions: resumedInstructions.map(({ commandId, text }) => ({
+                  commandId,
+                  text,
+                })),
+              };
+
+              const steering: Runtime["steering"] = {
+                accepting: true,
+                pending: new Set(),
+                unanswered: false,
+                admissions: new Map(),
+              };
+
+              const children = new Map<number, Conversation>();
+              const lease = { closed: false };
+
+              const work: Promise<{ readonly status: string }> =
+                row.payload.parallel === undefined
+                  ? (
+                      await root.submit(
+                        {
+                          type: "input",
+                          requestId: resumeRequestId ?? row.id,
+                          content: JSON.stringify(input),
+                        },
+                        BACKGROUND_CONTEXT,
+                      )
+                    ).wait(BACKGROUND_CONTEXT)
+                  : reviewInParallel({
+                      row,
+                      harness,
+                      storage,
+                      root,
+                      children,
+                      assignments,
+                      toolsFor: toolRegistry.toolsFor,
+                      agent: { model: admitted.model, thinkingLevel },
+                      input,
+                      requestId: resumeRequestId ?? row.id,
+                      lease,
+                    });
+
+              const done = work
+                .then(async (result) => {
+                  steering.accepting = false;
+
+                  while (steering.pending.size) await Promise.all(steering.pending);
+
+                  const value = await run(
+                    query(
+                      Effect.gen(function* () {
+                        const current = yield* load(row.project_id, row.id);
+
+                        if (
+                          current.owner_generation !== config.owner.generation ||
+                          current.payload.state !== "running"
+                        )
+                          return current.payload;
+                        const sql = yield* SqlClient.SqlClient;
+
+                        const unresolved =
+                          yield* sql`SELECT task_id FROM packet_review_attempts WHERE review_id=${row.id} AND status='uncertain' LIMIT 1`;
+
+                        let summary = current.payload.summary;
+
+                        if (!summary) {
+                          // The reply is a fallback summary; an unreadable receipt leaves it empty
+                          // rather than failing a review whose provider work finished.
+                          const rows = yield* Schema.decodeUnknownEffect(
+                            Schema.Array(
+                              Schema.Struct({
+                                response_json: Schema.fromJsonString(ResponseReceipt),
+                              }),
+                            ),
+                          )(
+                            yield* sql`SELECT response_json FROM packet_review_attempts WHERE review_id=${row.id} AND kind='model' AND status='completed' ORDER BY task_id DESC LIMIT 1`,
+                          ).pipe(Effect.orElseSucceed(() => []));
+
+                          summary =
+                            rows[0]?.response_json.content
+                              .flatMap((part) => (part.type === "text" ? [part.text] : []))
+                              .join("\n")
+                              .trim()
+                              .slice(0, 32000) ?? "";
+                        }
+
+                        const pendingSummaries = current.payload.findings.some(
+                          (finding) => finding.summary?._tag === "Pending",
+                        );
+
+                        const state = unresolved.length
+                          ? "uncertain"
+                          : result.status === "done" &&
+                              current.payload.finished &&
+                              !pendingSummaries &&
+                              !steering.unanswered &&
+                              (current.payload.steering ?? []).every(
+                                (item) =>
+                                  item.status === "applied" ||
+                                  resumedInstructionIds.has(item.commandId),
+                              )
+                            ? "completed"
+                            : "failed";
+
+                        const stoppedSheets = (current.payload.parallel?.sheets ?? []).filter(
+                          (entry) => entry.providerFailure !== undefined,
+                        );
+
+                        // A sheet reviewer's provider failure explains an uncertain parallel review.
+                        const inheritedFailure = current.payload.providerFailure
+                          ? undefined
+                          : stoppedSheets[0]?.providerFailure;
+
+                        const payload =
+                          inheritedFailure === undefined
+                            ? current.payload
+                            : new PacketReview(
+                                Struct.assign(current.payload, {
+                                  providerFailure: inheritedFailure,
+                                }),
+                              );
+
+                        const review = yield* save(
+                          current,
+                          new PacketReview({
+                            ...payload,
+                            state,
+                            summary,
+                            steering: (current.payload.steering ?? []).map((item) =>
+                              resumedInstructionIds.has(item.commandId) || item.status !== "applied"
+                                ? {
+                                    ...item,
+                                    status:
+                                      state === "completed"
+                                        ? ("applied" as const)
+                                        : ("unanswered" as const),
+                                  }
                                 : item,
                             ),
                             error:
-                              "The review stopped. Its records remain available; unresolved provider work is not retried.",
-                          })
-                        : review,
-                    false,
-                  ),
-                ).catch(() => undefined);
-              });
+                              state === "failed"
+                                ? pendingSummaries
+                                  ? "Full technical findings are saved, but short summaries remain pending. The review is incomplete."
+                                  : current.payload.finished
+                                    ? "The review stopped before finishing. Saved findings and coverage remain available."
+                                    : "The reviewer stopped without recording a completed source review. Saved findings, coverage and the partial summary remain available."
+                                : state === "uncertain" && stoppedSheets.length > 0
+                                  ? `${stoppedSheets.length} of ${current.payload.parallel?.sheets.length ?? 0} sheet reviewers stopped on an unresolved provider request. Their sheets keep their gaps; those requests may have been charged and will not be sent again.`
+                                  : current.payload.error,
+                          }),
+                        );
 
-            runtimes.set(row.id, { harness, root, children, lease, done, steering });
+                        // A project at its message limit keeps this outcome and its summary; only
+                        // the conversation reply is left out.
+                        if (summary)
+                          yield* appendMessage(current, summary).pipe(
+                            Effect.catchIf(
+                              (cause) =>
+                                cause instanceof ExecutionError && cause.reason === "input",
+                              (cause) =>
+                                Effect.logWarning("packet_review_reply_skipped", {
+                                  reviewId: row.id,
+                                  cause: cause.message,
+                                }),
+                            ),
+                          );
+
+                        return review;
+                      }),
+                    ),
+                  );
+
+                  await run(publish(value));
+                })
+                .catch(async (cause: unknown) => {
+                  // A run replaced by resume or closed for shutdown ends this way by design.
+                  if (!lease.closed)
+                    await logFailure("packet_review_completion_failed", cause, {
+                      reviewId: row.id,
+                    });
+                  await run(
+                    mutate(
+                      row.project_id,
+                      row.id,
+                      (review) =>
+                        review.state === "running"
+                          ? new PacketReview({
+                              ...review,
+                              state: "failed",
+                              steering: (review.steering ?? []).map((item) =>
+                                resumedInstructionIds.has(item.commandId)
+                                  ? { ...item, status: "unanswered" as const }
+                                  : item,
+                              ),
+                              error:
+                                "The review stopped. Its records remain available; unresolved provider work is not retried.",
+                            })
+                          : review,
+                      false,
+                    ),
+                  ).catch((cause: unknown) =>
+                    logFailure("packet_review_completion_state_failed", cause, {
+                      reviewId: row.id,
+                    }),
+                  );
+                })
+                .then(async () => {
+                  // A paused run keeps its runtime until resume replaces it. Any other outcome
+                  // releases the harness and its journal now rather than at service close.
+                  const settled = await run(get(row.project_id, row.id)).catch(() => undefined);
+
+                  if (settled?.state === "paused" || runtimes.get(row.id)?.harness !== harness)
+                    return;
+                  lease.closed = true;
+                  await harness
+                    .close(BACKGROUND_CONTEXT)
+                    .catch((cause: unknown) =>
+                      logFailure("packet_review_release_failed", cause, { reviewId: row.id }),
+                    );
+
+                  if (runtimes.get(row.id)?.harness === harness) runtimes.delete(row.id);
+                });
+
+              runtimes.set(row.id, { harness, root, children, lease, done, steering });
+            } catch (cause) {
+              await harness.close(BACKGROUND_CONTEXT).catch(() => undefined);
+              throw cause;
+            }
           } finally {
             starting.delete(row.id);
             launched.resolve();
@@ -4283,6 +4427,7 @@ export class PacketReviews extends Context.Service<
                         createdAt: new Date(now(yield* DateTime.now)).toISOString(),
                       });
 
+                      yield* assertMessageRoom(request.projectId);
                       yield* sql`INSERT INTO review_records(project_id,id,kind,payload) VALUES (${request.projectId},${entry.id},'message',${JSON.stringify(entry)})`;
                       yield* sql`UPDATE review_projects SET version=version+1,payload=json_set(payload,'$.version',version+1) WHERE id=${request.projectId}`;
 
@@ -4559,7 +4704,34 @@ export class PacketReviews extends Context.Service<
               });
             }
 
-            yield* callback(() => launch(value.row, true, input.commandId));
+            // A resume that cannot launch leaves no runtime, so the review returns to paused (or
+            // uncertain) with the cause, and its control receipt is dropped so a retry relaunches.
+            yield* callback(() => launch(value.row, true, input.commandId)).pipe(
+              Effect.catch((cause) =>
+                query(
+                  Effect.gen(function* () {
+                    const row = yield* load(input.projectId, input.reviewId);
+
+                    if (row.payload.state !== "running" || runtimes.has(row.id)) return row.payload;
+                    const sql = yield* SqlClient.SqlClient;
+                    yield* sql`DELETE FROM packet_review_tools WHERE review_id=${row.id} AND task_id=0 AND operation=${`control:${input.commandId}`}`;
+
+                    const unresolved =
+                      yield* sql`SELECT task_id FROM packet_review_attempts WHERE review_id=${row.id} AND status='uncertain' LIMIT 1`;
+
+                    return yield* save(
+                      row,
+                      new PacketReview(
+                        Struct.assign(row.payload, {
+                          state: unresolved.length ? ("uncertain" as const) : ("paused" as const),
+                          error: cause.message,
+                        }),
+                      ),
+                    );
+                  }),
+                ).pipe(Effect.flatMap(publish), Effect.ignore, Effect.andThen(Effect.fail(cause))),
+              ),
+            );
           }
 
           return yield* get(input.projectId, input.reviewId);

@@ -13,6 +13,7 @@ import {
   Stream,
   Struct,
 } from "effect";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -144,6 +145,10 @@ function open(
     beforePropose?: () => Promise<void>;
     selected?: ExecutionEvidence;
     imagePort?: Pick<ExecutionPort, "render" | "readImage">;
+    /** Configure the provider only through `providers`, as a list without a singular default. */
+    providersOnly?: boolean;
+    /** The configured provider's own model. */
+    providerModel?: string;
   } = {},
 ) {
   let factVersion = 0;
@@ -247,17 +252,24 @@ function open(
         Effect.gen(function* () {
           const owner = yield* acquireDataDirectoryOwnership(path);
 
+          const fixtureProvider = {
+            apiKey: Redacted.make("local-fixture-only"),
+            route: "recorded" as const,
+            transport,
+            timeoutMs: options.timeoutMs ?? 2000,
+          };
+
+          const provider =
+            options.providerModel === undefined
+              ? fixtureProvider
+              : { ...fixtureProvider, model: options.providerModel };
+
           return ReviewExecution.layer({
             owner,
             queries,
             port,
             runPromise: (effect) => runtime.runPromise(effect),
-            provider: {
-              apiKey: Redacted.make("local-fixture-only"),
-              route: "recorded",
-              transport,
-              timeoutMs: options.timeoutMs ?? 2000,
-            },
+            ...(options.providersOnly === true ? { providers: [provider] } : { provider }),
             closeTimeoutMs: options.closeTimeoutMs ?? 200,
           });
         }),
@@ -1347,6 +1359,195 @@ test("a missed execution transition rolls its transaction back without a phantom
     expect(
       await fixture.runtime.runPromise(store.query(store.events(started.projectId, 0))),
     ).toEqual(before);
+  } finally {
+    await fixture.runtime.dispose();
+    await rm(path, { recursive: true, force: true });
+  }
+});
+
+function journalPath(path: string) {
+  const db = new Database(join(path, "app.sqlite"));
+
+  try {
+    const row = Schema.decodeUnknownSync(Schema.Struct({ journal_id: Schema.String }))(
+      db.query("SELECT journal_id FROM review_execution_runs ORDER BY started_at LIMIT 1").get(),
+    );
+
+    return join(path, "execution-journals", `${row.journal_id}.sqlite`);
+  } finally {
+    db.close();
+  }
+}
+
+/** SQLite removes a WAL journal's -wal file once its last connection closes. */
+async function journalClosed(path: string) {
+  const wal = `${journalPath(path)}-wal`;
+
+  for (let i = 0; i < 200; i++) {
+    if (!existsSync(wal)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  return false;
+}
+
+test("a run configured only through the providers list resumes after a pause", async () => {
+  const path = await directory();
+  const sent = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<Response>();
+  let sends = 0;
+
+  const proposal = {
+    side: "drawn",
+    value: 4,
+    evidence: { sheetId, region: { x: 0, y: 0, width: 10, height: 10 }, statement: "Four doors" },
+    rationale: "Fixture evidence",
+  };
+
+  const fixture = open(
+    path,
+    async () => {
+      sends++;
+
+      if (sends === 1) {
+        sent.resolve();
+
+        return answer.promise;
+      }
+
+      return response();
+    },
+    { providersOnly: true },
+  );
+
+  try {
+    const run = await fixture.start();
+    expect(run.provider).toBe("meta");
+    await sent.promise;
+    await fixture.control(run, "pause");
+    answer.resolve(response("propose_count", proposal));
+    const paused = await until(() => fixture.status(run), "paused");
+    expect((await fixture.control(paused, "resume")).state).toBe("running");
+    await until(() => fixture.status(run), "completed");
+    expect(sends).toBe(2);
+  } finally {
+    answer.resolve(response());
+    await fixture.runtime.dispose();
+    await rm(path, { recursive: true, force: true });
+  }
+});
+
+test("a run that finishes while paused completes on resume and admits the next inspection", async () => {
+  const path = await directory();
+  const sent = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<Response>();
+  let sends = 0;
+
+  const fixture = open(path, async () => {
+    sends++;
+
+    if (sends === 1) {
+      sent.resolve();
+
+      return answer.promise;
+    }
+
+    return response();
+  });
+
+  try {
+    const run = await fixture.start();
+    await sent.promise;
+    expect((await fixture.control(run, "pause")).state).toBe("pausing");
+    // The final call returns a plain answer, so Pi finishes the submission while the run is paused.
+    answer.resolve(response());
+    const paused = await until(() => fixture.status(run), "paused");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await fixture.status(run)).state).toBe("paused");
+    await fixture.control(paused, "resume");
+    await until(() => fixture.status(run), "completed");
+    expect(sends).toBe(1);
+    expect(await journalClosed(path)).toBe(true);
+    const next = await fixture.start();
+    expect(next.state).toBe("running");
+    await until(() => fixture.status(next), "completed");
+  } finally {
+    answer.resolve(response());
+    await fixture.runtime.dispose();
+    await rm(path, { recursive: true, force: true });
+  }
+});
+
+test("a finished run closes its journal without waiting for shutdown", async () => {
+  const path = await directory();
+  const fixture = open(path, async () => response());
+
+  try {
+    const run = await fixture.start();
+    await until(() => fixture.status(run), "completed");
+    expect(await journalClosed(path)).toBe(true);
+  } finally {
+    await fixture.runtime.dispose();
+    await rm(path, { recursive: true, force: true });
+  }
+});
+
+test("a resumed journal whose submission cannot be read is closed before the run fails", async () => {
+  const path = await directory();
+  const sent = Promise.withResolvers<void>();
+  const answer = Promise.withResolvers<Response>();
+
+  const transport: ProviderTransport = async () => {
+    sent.resolve();
+
+    return answer.promise;
+  };
+
+  let fixture = open(path, transport);
+
+  try {
+    const run = await fixture.start();
+    await sent.promise;
+    await fixture.control(run, "pause");
+    answer.resolve(response("inspect_selected_evidence"));
+    await until(() => fixture.status(run), "paused");
+    await fixture.runtime.dispose();
+    // Harness.open accepts this journal, but resubmitting the run's request then fails.
+    const journal = new Database(journalPath(path));
+    journal.exec("UPDATE submissions SET record=json_set(record,'$.type','write')");
+    journal.close();
+    fixture = open(path, transport);
+    const paused = await fixture.status(run);
+
+    const error = await fixture.runtime.runPromise(
+      Effect.flatMap(ReviewExecution, (execution) =>
+        execution.control(paused.projectId, paused.runId, paused.version, "resume"),
+      ).pipe(Effect.flip),
+    );
+
+    expect(error.reason).toBe("incompatible");
+    expect((await fixture.status(run)).state).toBe("incompatible");
+    expect(await journalClosed(path)).toBe(true);
+  } finally {
+    answer.resolve(response());
+    await fixture.runtime.dispose();
+    await rm(path, { recursive: true, force: true });
+  }
+});
+
+test("a count check without a model uses the model configured in the providers list", async () => {
+  const path = await directory();
+
+  const fixture = open(path, async () => response(), {
+    providersOnly: true,
+    providerModel: "muse-wonder-1.0",
+  });
+
+  try {
+    const run = await fixture.start();
+    expect(run.provider).toBe("meta");
+    expect(run.model).toBe("muse-wonder-1.0");
+    await until(() => fixture.status(run), "completed");
   } finally {
     await fixture.runtime.dispose();
     await rm(path, { recursive: true, force: true });

@@ -3,6 +3,7 @@ import {
   citationStanding,
   citationStandingLabels,
   packetFindingText,
+  packetFocusCount,
   packetVerdictLabels,
   type PacketFinding,
   type PacketReview,
@@ -94,8 +95,12 @@ export function renderPacketReport(
   review: PacketReview,
   evidence: ReadonlyMap<string, string>,
 ): string {
-  const sheetLabel = (id: string) =>
-    review.sheets.find((sheet) => sheet.id === id)?.label ?? `Unknown sheet ${id}`;
+  const sheetLabels = new Map<string, string>(
+    review.sheets.map((sheet) => [sheet.id, sheet.label]),
+  );
+
+  const sheetLabel = (id: string) => sheetLabels.get(id) ?? `Unknown sheet ${id}`;
+  const inspected = new Set<string>(review.inspectedSheetIds);
 
   const scope = Match.value(review.scope).pipe(
     Match.tagsExhaustive({
@@ -116,9 +121,7 @@ export function renderPacketReport(
 
   const coverageProgress = packetCoverageProgress(review);
 
-  const unopenedSheets = review.sheets.filter(
-    (sheet) => !review.inspectedSheetIds.includes(sheet.id),
-  ).length;
+  const unopenedSheets = review.sheets.filter((sheet) => !inspected.has(sheet.id)).length;
 
   const unreviewedPasses = coverageProgress.rows.filter(
     (entry) => entry.status === "unreviewed",
@@ -184,11 +187,13 @@ export function renderPacketReport(
   // One SVG keeps the zoom, SAM mask outlines and finding box in the same pixel space.
   const focusImage = (finding: PacketReview["findings"][number]) => {
     const focus = finding.focus;
-    const uri = focus === undefined ? undefined : evidence.get(focus.artifactId);
 
-    if (focus === undefined || uri === undefined || !imageUri.test(uri)) return "";
+    if (focus === undefined) return "";
+    const uri = evidence.get(focus.artifactId);
+
+    if (uri === undefined || !imageUri.test(uri))
+      return `<p class="missing-evidence">SAM focus ${escape(focus.artifactId)} of ${escape(sheetLabel(focus.sheetId))} is unavailable in this report.</p>`;
     const { box, width, height } = focus;
-    const count = focus.segments.length;
 
     const masks = focusOutlines(focus)
       .map(
@@ -196,28 +201,36 @@ export function renderPacketReport(
       )
       .join("");
 
-    return `<figure><svg class="sam-focus" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escape(`SAM focus of ${finding.title}`)}"><image href="${escape(uri)}" width="${width}" height="${height}"/><g fill="#0369a1" fill-opacity="0.32">${masks}</g><rect x="${box.left}" y="${box.top}" width="${box.right - box.left}" height="${box.bottom - box.top}" fill="none" stroke="#b07b25" stroke-width="${Math.max(2, Math.round(width / 400))}"/></svg><figcaption>SAM 3.1 focus of ${escape(sheetLabel(focus.sheetId))}: ${count} segmented ${count === 1 ? "object" : "objects"} in the finding region · Evidence ${escape(focus.artifactId)}. Segments are geometry proposals, not verified symbols or dimensions.</figcaption></figure>`;
+    return `<figure><svg class="sam-focus" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escape(`SAM focus of ${finding.title}`)}"><image href="${escape(uri)}" width="${width}" height="${height}"/><g fill="#0369a1" fill-opacity="0.32">${masks}</g><rect x="${box.left}" y="${box.top}" width="${box.right - box.left}" height="${box.bottom - box.top}" fill="none" stroke="#b07b25" stroke-width="${Math.max(2, Math.round(width / 400))}"/></svg><figcaption>SAM 3.1 focus of ${escape(sheetLabel(focus.sheetId))}: ${escape(packetFocusCount(focus))} in the finding region · Evidence ${escape(focus.artifactId)}. Segments are geometry proposals, not verified symbols or dimensions.</figcaption></figure>`;
   };
+
+  // Whole-set ledgers hold sheets × disciplines × passes rows, so index them once.
+  const ledgerRows = Map.groupBy(
+    coverageProgress.ledger,
+    (entry) => `${entry.sheetId}\u0000${entry.pass}`,
+  );
+
+  const gapReasons = new Map(
+    coverageProgress.gaps.map((gap) => [
+      `${gap.sheetId}\u0000${gap.discipline}\u0000${gap.pass}`,
+      gap.reason,
+    ]),
+  );
 
   const coverageRows = review.sheets
     .map(
       (sheet) =>
-        `<tr><th scope="row">${escape(sheet.label)}<small>${escape(sheet.documentName)} · PDF page ${sheet.pageIndex + 1}<br>Source ${escape(sheet.sha256)}<br>${review.inspectedSheetIds.includes(sheet.id) ? "Source image opened" : "Source image not opened"}</small></th>${passes
+        `<tr><th scope="row">${escape(sheet.label)}<small>${escape(sheet.documentName)} · PDF page ${sheet.pageIndex + 1}<br>Source ${escape(sheet.sha256)}<br>${inspected.has(sheet.id) ? "Source image opened" : "Source image not opened"}</small></th>${passes
           .map(([pass]) => {
-            const rows = coverageProgress.ledger.filter(
-              (entry) => entry.sheetId === sheet.id && entry.pass === pass,
-            );
+            const rows = ledgerRows.get(`${sheet.id}\u0000${pass}`) ?? [];
 
             return `<td>${rows
               .map((entry) => {
-                const gap = coverageProgress.gaps.find(
-                  (item) =>
-                    item.sheetId === entry.sheetId &&
-                    item.discipline === entry.discipline &&
-                    item.pass === entry.pass,
+                const reason = gapReasons.get(
+                  `${entry.sheetId}\u0000${entry.discipline}\u0000${entry.pass}`,
                 );
 
-                const note = Match.value(gap?.reason).pipe(
+                const note = Match.value(reason).pipe(
                   Match.when("missing", () => "No coverage entry recorded."),
                   Match.when("needs_reason", () => "Not applicable requires an explicit reason."),
                   Match.orElse(() => entry.note),
@@ -235,16 +248,18 @@ export function renderPacketReport(
     ...(finding.focus === undefined
       ? []
       : [
-          `<tr><td>${escape(finding.id)}</td><td>SAM focus ${escape(finding.focus.artifactId)}</td><td>${escape(sheetLabel(finding.focus.sheetId))}: zoom of the finding region</td><td>${finding.focus.segments.length} SAM-segmented ${finding.focus.segments.length === 1 ? "object" : "objects"}; geometry proposals only${evidence.has(finding.focus.artifactId) && imageUri.test(evidence.get(finding.focus.artifactId) ?? "") ? "" : " — image unavailable"}</td></tr>`,
+          `<tr><td>${escape(finding.id)}</td><td>SAM focus ${escape(finding.focus.artifactId)}</td><td>${escape(sheetLabel(finding.focus.sheetId))}: zoom of the finding region</td><td>SAM: ${escape(packetFocusCount(finding.focus))}; geometry proposals only${evidence.has(finding.focus.artifactId) && imageUri.test(evidence.get(finding.focus.artifactId) ?? "") ? "" : " — image unavailable"}</td></tr>`,
         ]),
     ...(finding.evidenceIds.length
       ? finding.evidenceIds.map(
           (id) =>
             `<tr><td>${escape(finding.id)}</td><td>Embedded evidence ${escape(id)}</td><td>${escape(finding.locations.map((location) => `${sheetLabel(location.sheetId)}: ${location.detail}`).join("; "))}</td><td>${escape(finding.evidenceNote || finding.observed)}${evidence.has(id) && imageUri.test(evidence.get(id) ?? "") ? "" : " — image unavailable"}</td></tr>`,
         )
-      : [
-          `<tr><td>${escape(finding.id)}</td><td>No image attached</td><td>${escape(finding.locations.map((location) => `${sheetLabel(location.sheetId)}: ${location.detail}`).join("; ") || "No location recorded")}</td><td>${escape(finding.evidenceNote || "No reason for missing image evidence was recorded.")}</td></tr>`,
-        ]),
+      : finding.focus !== undefined
+        ? []
+        : [
+            `<tr><td>${escape(finding.id)}</td><td>No image attached</td><td>${escape(finding.locations.map((location) => `${sheetLabel(location.sheetId)}: ${location.detail}`).join("; ") || "No location recorded")}</td><td>${escape(finding.evidenceNote || "No reason for missing image evidence was recorded.")}</td></tr>`,
+          ]),
   ]);
 
   const priorEvidence = review.priorComments.flatMap((comment) =>
@@ -289,7 +304,7 @@ ${findings
             `${sheetLabel(location.sheetId)}: ${location.detail}${location.region === null ? "" : ` (PDF points x=${location.region.x}, y=${location.region.y}, width=${location.region.width}, height=${location.region.height})`}`,
         ),
         "No source location was recorded.",
-      )}<h4>Observed condition</h4>${paragraph(packetFindingText(finding).observed)}<h4>Specific correction or missing input</h4>${paragraph(packetFindingText(finding).correction)}${technicalDetails(finding)}<h4>Source and calculation references</h4>${list([...finding.citationIds.filter((id) => review.citations.some((citation) => citation.id === id)).map((id) => `Citation ${id}`), ...finding.calculationIds.map((id) => `Calculation ${id}`), ...(review.priorComments.some((comment) => comment.id === finding.priorCommentId) ? [`Prior comment ${finding.priorCommentId}`] : [])], finding.classification === "Drawing conflict" ? "Drawing coordination; see source locations and evidence." : "No supporting citation or calculation was recorded.")}<h4>Focused evidence</h4>${focusImage(finding)}${finding.evidenceIds.map((id) => evidenceImage(id, finding.evidenceNote || finding.observed)).join("") || paragraph(finding.evidenceNote || "No image evidence or explanation was recorded.")}</article>`,
+      )}<h4>Observed condition</h4>${paragraph(packetFindingText(finding).observed)}<h4>Specific correction or missing input</h4>${paragraph(packetFindingText(finding).correction)}${technicalDetails(finding)}<h4>Source and calculation references</h4>${list([...finding.citationIds.filter((id) => review.citations.some((citation) => citation.id === id)).map((id) => `Citation ${id}`), ...finding.calculationIds.map((id) => `Calculation ${id}`), ...(review.priorComments.some((comment) => comment.id === finding.priorCommentId) ? [`Prior comment ${finding.priorCommentId}`] : [])], finding.classification === "Drawing conflict" ? "Drawing coordination; see source locations and evidence." : "No supporting citation or calculation was recorded.")}<h4>Focused evidence</h4>${focusImage(finding)}${finding.evidenceIds.map((id) => evidenceImage(id, finding.evidenceNote || finding.observed)).join("") || (finding.focus === undefined ? paragraph(finding.evidenceNote || "No image evidence or explanation was recorded.") : finding.evidenceNote ? paragraph(finding.evidenceNote) : "")}</article>`,
   )
   .join("")}</section>
 <section aria-labelledby="coverage"><h2 id="coverage">Document inventory and review coverage</h2><p>Coverage is recorded for every requested sheet, discipline and pass. Whole-set reviews account for all 11 disciplines; excluded work requires an explicit Not applicable reason. Opening a source image does not establish completion of its checks. Missing entries remain unreviewed. Compatible coverage from earlier scopes remains visible but does not settle a different discipline's checks.</p>${review.sheets.length ? `<div class="table-wrap"><table class="coverage"><thead><tr><th>Document / sheet</th>${passes.map(([, title]) => `<th>${title}</th>`).join("")}</tr></thead><tbody>${coverageRows}</tbody></table></div>` : paragraph("No source sheets were recorded for this review.")}</section>

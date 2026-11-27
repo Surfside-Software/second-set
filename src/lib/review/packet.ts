@@ -229,7 +229,25 @@ export const PacketFindingFocus = Schema.Struct({
       }),
     }),
   ).check(Schema.isMaxLength(8)),
+  /**
+   * Instances SAM returned, and how many of them had masks too large to embed. `segments` keeps
+   * the most confident embeddable ones. Zooms saved before these counts existed omit them.
+   */
+  detected: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  oversized: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
 });
+
+/** How a focus's kept segments relate to what SAM returned, e.g. "8 of 12 segmented objects". */
+export function packetFocusCount(focus: typeof PacketFindingFocus.Type) {
+  const shown = focus.segments.length;
+  const detected = Math.max(focus.detected ?? shown, shown);
+  const noun = detected === 1 ? "object" : "objects";
+  const oversized = focus.oversized ?? 0;
+
+  return detected === shown
+    ? `${shown} segmented ${noun}`
+    : `${shown} of ${detected} segmented ${noun} shown${oversized > 0 ? ` (${oversized} too large to embed)` : ""}`;
+}
 
 const Pixel = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0));
 

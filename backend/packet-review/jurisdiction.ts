@@ -73,6 +73,23 @@ export interface JurisdictionPlace {
 }
 
 /**
+ * Whether a state name in jurisdiction text is part of a place name instead: "Washington County",
+ * "City of Nevada", "Washington, DC", or, beside an explicit state code, "Kansas City, MO" and
+ * "Virginia Beach, VA".
+ */
+function namesPlace(before: string, after: string, name: string, codes: ReadonlyArray<string>) {
+  const code = /^\s*,\s*([A-Z]{2})\b(?![a-z])/.exec(after)?.[1];
+  const coded = code === undefined ? undefined : byCode.get(code);
+
+  return (
+    /\b(?:City|Town|Village|Township)\s+of\s+$/i.test(before) ||
+    /^\s+(?:County|Parish|Borough)\b/i.test(after) ||
+    (codes.length > 0 && /^\s+(?:City|Beach)\b/i.test(after)) ||
+    (coded !== undefined && coded !== name)
+  );
+}
+
+/**
  * Reads US states (full names, or a two-letter code after a comma, as in "Tampa, FL") and
  * "X County", "City of X" style localities. Text without either has no place.
  */
@@ -80,20 +97,24 @@ export function jurisdictionPlace(text: string): JurisdictionPlace {
   let rest = ` ${text} `;
   const found = new Set<string>();
 
+  const codes = [...text.matchAll(/,\s*([A-Z]{2})\b(?![a-z])/g)].flatMap((match) => {
+    const name = byCode.get(match[1] ?? "");
+
+    return name === undefined ? [] : [name];
+  });
+
   for (const name of names) {
     const pattern = new RegExp(`\\b${name.replaceAll(" ", "\\s+")}\\b`, "gi");
 
-    if (pattern.test(rest)) {
-      found.add(name);
-      rest = rest.replace(pattern, " ");
-    }
+    rest = rest.replace(pattern, (match: string, offset: number, whole: string) => {
+      if (!namesPlace(whole.slice(0, offset), whole.slice(offset + match.length), name, codes))
+        found.add(name);
+
+      return " ";
+    });
   }
 
-  for (const match of text.matchAll(/,\s*([A-Z]{2})\b(?![a-z])/g)) {
-    const name = byCode.get(match[1] ?? "");
-
-    if (name !== undefined) found.add(name);
-  }
+  for (const name of codes) found.add(name);
 
   const localities = new Set<string>();
 

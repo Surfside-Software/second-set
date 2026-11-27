@@ -71,6 +71,27 @@ const Link = Schema.Struct({
   content: Schema.String,
 });
 
+const CountRows = Schema.Array(Schema.Struct({ n: Schema.Int }));
+
+const SheetRows = Schema.Array(Schema.Struct({ old_sheet_id: SheetId }));
+
+/** Snapshot reads fail above these limits, so every write stops before crossing them. */
+const projectLimit = 100;
+
+/** Records of one kind a project snapshot can read; writers must stay within it. */
+export const recordLimit = 2000;
+
+const recordLabels = {
+  revision: "revisions",
+  sheet: "sheets",
+  artifact: "stored images",
+  finding: "findings",
+  fact: "counts",
+  check: "calculations",
+  conversation: "conversations",
+  message: "messages",
+} as const;
+
 const failure = (message: string) => new ReviewInputError({ message });
 
 const fingerprint = <A extends object>(value: A) =>
@@ -168,11 +189,11 @@ export class ReviewStore extends Context.Service<
         kind: string,
       ) {
         const rows =
-          yield* sql`SELECT payload FROM review_records WHERE project_id=${projectId} AND kind=${kind} ORDER BY rowid LIMIT 2001`.pipe(
+          yield* sql`SELECT payload FROM review_records WHERE project_id=${projectId} AND kind=${kind} ORDER BY rowid LIMIT ${recordLimit + 1}`.pipe(
             Effect.flatMap(Schema.decodeUnknownEffect(PayloadRows)),
           );
 
-        if (rows.length > 2000)
+        if (rows.length > recordLimit)
           return yield* new ReviewStorageError({
             message:
               "This project exceeds the workbench record limit; export its evidence before continuing.",
@@ -207,6 +228,23 @@ export class ReviewStore extends Context.Service<
       ) =>
         sql`INSERT INTO review_records (project_id,id,kind,payload) VALUES (${value.projectId},${value.id},${kind},${JSON.stringify(value)})
         ON CONFLICT(project_id,id) DO UPDATE SET payload=excluded.payload`;
+
+      /** Rejects a write that would leave more records of one kind than a snapshot can read. */
+      const reserve = Effect.fn("ReviewStore.reserve")(function* (
+        projectId: typeof ProjectId.Type,
+        kind: keyof typeof recordLabels,
+        added: number,
+      ) {
+        const rows =
+          yield* sql`SELECT count(*) AS n FROM review_records WHERE project_id=${projectId} AND kind=${kind}`.pipe(
+            Effect.flatMap(Schema.decodeUnknownEffect(CountRows)),
+          );
+
+        if ((rows[0]?.n ?? 0) + added > recordLimit)
+          return yield* failure(
+            `This project can hold at most ${recordLimit} ${recordLabels[kind]}. Export its evidence and continue in a new project.`,
+          );
+      });
 
       const receiptFor = Effect.fn("ReviewStore.receiptFor")(function* (
         commandId: string,
@@ -274,12 +312,12 @@ export class ReviewStore extends Context.Service<
         afterSequence: number,
       ) {
         const projectRows =
-          yield* sql`SELECT payload FROM review_projects ORDER BY rowid LIMIT 101`.pipe(
+          yield* sql`SELECT payload FROM review_projects ORDER BY rowid LIMIT ${projectLimit + 1}`.pipe(
             Effect.flatMap(Schema.decodeUnknownEffect(PayloadRows)),
           );
 
-        if (projectRows.length > 100)
-          return yield* failure("The workbench supports at most 100 projects.");
+        if (projectRows.length > projectLimit)
+          return yield* failure(`The workbench supports at most ${projectLimit} projects.`);
 
         const projects = yield* Effect.forEach(projectRows, (row) =>
           Schema.decodeUnknownEffect(Schema.fromJsonString(Project))(row.payload),
@@ -399,6 +437,7 @@ export class ReviewStore extends Context.Service<
         if (existing === undefined) {
           if (artifact.operationId !== operationId)
             return yield* failure("A reused render must already be stored for this source.");
+          yield* reserve(artifact.projectId, "artifact", 1);
           yield* save("artifact", artifact);
         }
 
@@ -425,6 +464,13 @@ export class ReviewStore extends Context.Service<
         const createdAt = yield* now;
 
         if (ReviewCommand.guards.CreateProject(command)) {
+          const projectCount = yield* sql`SELECT count(*) AS n FROM review_projects`.pipe(
+            Effect.flatMap(Schema.decodeUnknownEffect(CountRows)),
+          );
+
+          if ((projectCount[0]?.n ?? 0) >= projectLimit)
+            return yield* failure(`The workbench supports at most ${projectLimit} projects.`);
+
           const project = new Project({
             id: Schema.decodeUnknownSync(ProjectId)(randomUUID()),
             name: command.name,
@@ -480,6 +526,7 @@ export class ReviewStore extends Context.Service<
                   createdAt,
                 });
 
+                yield* reserve(project.id, "conversation", 1);
                 yield* save("conversation", conversation);
                 entityId = conversation.id;
                 message = "Review conversation created.";
@@ -502,6 +549,7 @@ export class ReviewStore extends Context.Service<
                   createdAt,
                 });
 
+                yield* reserve(project.id, "message", 1);
                 yield* save("message", entry);
                 entityId = entry.id;
                 message = "Reviewer instruction saved; conversation text is not accepted evidence.";
@@ -586,6 +634,7 @@ export class ReviewStore extends Context.Service<
                   taskCompleted: false,
                 });
 
+                yield* reserve(project.id, "finding", 1);
                 yield* save("finding", finding);
                 entityId = finding.id;
                 message = "Coordination check created; accepted inputs are still required.";
@@ -633,6 +682,7 @@ export class ReviewStore extends Context.Service<
                   createdAt,
                 });
 
+                yield* reserve(project.id, "fact", 1);
                 yield* save("fact", fact);
                 yield* sql`INSERT INTO review_fact_versions (project_id,fact_id,finding_id,side,version) VALUES (${project.id},${fact.id},${finding.id},${fact.side},${fact.version})`;
                 yield* staleFinding(finding);
@@ -733,6 +783,7 @@ export class ReviewStore extends Context.Service<
                   createdAt,
                 });
 
+                yield* reserve(project.id, "check", 1);
                 yield* save("check", check);
 
                 for (const fact of [currentDrawn, currentScheduled])
@@ -783,14 +834,20 @@ export class ReviewStore extends Context.Service<
                   yield* sql`SELECT old_sheet_id,new_sheet_id,confirmed,content FROM review_sheet_links WHERE project_id=${project.id}`,
                 );
 
-                const confirmedDestinations = new Set(
-                  command.correspondence
-                    .filter((pair) => pair.confirmed && pair.newSheetId !== null)
-                    .map((pair) => pair.newSheetId),
+                // A confirmed removal is final; the sheet cannot later gain a successor or decision.
+                const removed = new Set(
+                  (yield* sql`SELECT DISTINCT old_sheet_id FROM review_sheet_dispositions WHERE project_id=${project.id} AND state='removed'`.pipe(
+                    Effect.flatMap(Schema.decodeUnknownEffect(SheetRows)),
+                  )).map((row) => row.old_sheet_id),
                 );
 
                 for (const pair of command.correspondence) {
                   const old = findSheet(pair.oldSheetId);
+
+                  if (removed.has(pair.oldSheetId))
+                    return yield* failure(
+                      "This sheet was confirmed as removed. Its revision decision cannot change.",
+                    );
 
                   if (pair.newSheetId === null) {
                     if (
@@ -870,6 +927,8 @@ export class ReviewStore extends Context.Service<
                     yield* sql`INSERT INTO review_sheet_link_proposals(project_id,old_sheet_id,new_sheet_id,content,command_id) VALUES (${project.id},${old.id},${next.id},${pair.content},${command.commandId})`;
                 }
 
+                // Only operands this command decides about change. Sheets it does not mention,
+                // including ones already carried forward by an earlier confirmed link, keep their state.
                 for (const finding of state.findings) {
                   const mapSide = (id: typeof SheetId.Type) =>
                     command.correspondence.find((pair) => pair.oldSheetId === id);
@@ -877,22 +936,13 @@ export class ReviewStore extends Context.Service<
                   const drawn = mapSide(finding.drawnSheetId);
                   const scheduled = mapSide(finding.scheduledSheetId);
 
-                  const previousRevision = state.sheets.find(
-                    (sheet) => sheet.id === finding.drawnSheetId,
-                  )?.revisionId;
+                  if (drawn === undefined && scheduled === undefined) continue;
 
-                  const affected =
-                    drawn !== undefined ||
-                    scheduled !== undefined ||
-                    previousRevision !== command.revisionId;
-
-                  if (!affected) continue;
-
-                  const unchanged =
-                    drawn?.confirmed === true &&
-                    drawn.content === "unchanged" &&
-                    scheduled?.confirmed === true &&
-                    scheduled.content === "unchanged";
+                  const unchanged = [drawn, scheduled].every(
+                    (pair) =>
+                      pair === undefined ||
+                      (pair.confirmed && pair.content === "unchanged" && pair.newSheetId !== null),
+                  );
 
                   yield* save(
                     "finding",
@@ -914,10 +964,7 @@ export class ReviewStore extends Context.Service<
                   for (const id of [finding.drawnSheetId, finding.scheduledSheetId]) {
                     const pair = mapSide(id);
 
-                    if (
-                      (pair === undefined || !pair.confirmed || pair.newSheetId === null) &&
-                      !confirmedDestinations.has(id)
-                    ) {
+                    if (pair !== undefined && (!pair.confirmed || pair.newSheetId === null)) {
                       const old = findSheet(id);
 
                       if (old !== undefined)
@@ -989,6 +1036,9 @@ export class ReviewStore extends Context.Service<
           importedAt: yield* now,
         });
 
+        yield* reserve(project.id, "artifact", 1);
+        yield* reserve(project.id, "revision", 1);
+        yield* reserve(project.id, "sheet", imported.pages.length);
         yield* save("artifact", original);
         yield* save("revision", revision);
 
@@ -1161,6 +1211,7 @@ export class ReviewStore extends Context.Service<
                   createdAt,
                 });
 
+                yield* reserve(project.id, "fact", 1);
                 yield* save("fact", fact);
                 yield* sql`INSERT INTO review_fact_versions (project_id,fact_id,finding_id,side,version) VALUES (${project.id},${fact.id},${finding.id},${fact.side},${fact.version})`;
 
@@ -1210,6 +1261,7 @@ export class ReviewStore extends Context.Service<
                   origin: elapsed === null ? origin : { ...origin, elapsedMs: elapsed },
                 });
 
+                yield* reserve(project.id, "message", 1);
                 yield* save("message", entry);
 
                 return yield* finish(

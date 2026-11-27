@@ -6,7 +6,10 @@ import { ExecutionError } from "#lib/review/execution.ts";
 const Name = Schema.String.check(Schema.isPattern(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/));
 const Unit = Schema.Trim.check(Schema.isMaxLength(160));
 
-/** Explicit values and units for repeatable arithmetic; units are retained, not inferred or converted. */
+/**
+ * Explicit values and units for repeatable arithmetic; units are retained, not inferred or converted.
+ * Trigonometric functions take and return radians.
+ */
 export const CalculationInput = Schema.Struct({
   title: Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(1000)),
   expression: Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(4096)),
@@ -52,10 +55,22 @@ const operations: ReadonlyMap<string, Operation> = new Map([
   ["max", { minimum: 1, maximum: 64, apply: (values) => Math.max(...values) }],
 ]);
 
-function evaluate(expression: string, inputs: Input["inputs"]) {
+const trigonometric = new Set(["sin", "cos", "tan"]);
+const inverseTrigonometric = new Set(["asin", "acos", "atan"]);
+const degrees = (unit: string) => /^(?:°|deg|degs|degree|degrees|decimal degrees)$/i.test(unit);
+
+/**
+ * Trigonometric functions work in radians and units are never converted, so a degree input in a
+ * sin, cos or tan argument, or an inverse result labelled in degrees, must convert with pi.
+ */
+function evaluate(expression: string, inputs: Input["inputs"], unit: string) {
   let position = 0;
   let depth = 0;
   let error: string | null = null;
+  // Names referenced inside each open sin, cos or tan argument list.
+  const angles: Array<Set<string>> = [];
+  let inverse = false;
+  let usesPi = false;
 
   const fail = (message: string) => {
     error ??= message;
@@ -101,6 +116,10 @@ function evaluate(expression: string, inputs: Input["inputs"]) {
 
           if (!operation) return fail(`Unsupported calculation function: ${identifier}.`);
           const values: number[] = [];
+          const angle = trigonometric.has(identifier) ? new Set<string>() : undefined;
+          inverse ||= inverseTrigonometric.has(identifier);
+
+          if (angle !== undefined) angles.push(angle);
 
           if (!consume(")")) {
             do {
@@ -113,12 +132,27 @@ function evaluate(expression: string, inputs: Input["inputs"]) {
             if (!consume(")")) return fail(`The ${identifier} arguments are not closed.`);
           }
 
+          if (angle !== undefined) {
+            angles.pop();
+            const named = [...angle].find((name) => degrees(inputs[name]?.unit ?? ""));
+
+            if (named !== undefined && !angle.has("pi"))
+              return fail(
+                `${identifier} takes radians, but ${named} is in degrees. Convert it with ${named} * pi / 180.`,
+              );
+          }
+
           if (values.length < operation.minimum)
             return fail(`Too few arguments for ${identifier}.`);
           value = operation.apply(values);
-        } else if (Object.hasOwn(inputs, identifier)) value = inputs[identifier]?.value ?? NaN;
-        else if (identifier === "pi") value = Math.PI;
-        else if (identifier === "e") value = Math.E;
+        } else if (Object.hasOwn(inputs, identifier)) {
+          for (const angle of angles) angle.add(identifier);
+          value = inputs[identifier]?.value ?? NaN;
+        } else if (identifier === "pi") {
+          for (const angle of angles) angle.add("pi");
+          usesPi = true;
+          value = Math.PI;
+        } else if (identifier === "e") value = Math.E;
         else return fail(`Unknown calculation variable: ${identifier}.`);
       }
     }
@@ -186,6 +220,9 @@ function evaluate(expression: string, inputs: Input["inputs"]) {
   if (!Number.isFinite(result) && error === null)
     error = "The calculation did not produce a finite result.";
 
+  if (error === null && inverse && !usesPi && degrees(unit))
+    error = "asin, acos and atan return radians. Multiply by 180 / pi for a result in degrees.";
+
   return { result, error };
 }
 
@@ -199,7 +236,7 @@ export const calculate = Effect.fn("PacketReview.calculate")(function* (input: I
     ),
   );
 
-  const evaluated = evaluate(request.expression, request.inputs);
+  const evaluated = evaluate(request.expression, request.inputs, request.unit);
 
   if (evaluated.error !== null)
     return yield* new ExecutionError({ reason: "input", message: evaluated.error });

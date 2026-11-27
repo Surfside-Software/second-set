@@ -6,6 +6,7 @@ import { isIP } from "node:net";
 import type { DocumentError, ReviewStorageError } from "#lib/review/contracts.ts";
 import { ExecutionError } from "#lib/review/execution.ts";
 import { PacketSource } from "#lib/review/packet.ts";
+import { DocumentsLimits } from "../documents/config.ts";
 
 const maximumBytes = 2 * 1024 * 1024;
 
@@ -347,6 +348,8 @@ function readableText(html: string) {
   const pieces: string[] = [];
   let position = 0;
   let blocked: string | null = null;
+  // Quote characters with no later occurrence, so each is searched for at most once.
+  const unclosed = new Set<string>();
 
   // A forward-only scan keeps malformed/unclosed markup from causing repeated regex searches.
   while (position < html.length) {
@@ -375,16 +378,31 @@ function readableText(html: string) {
       continue;
     }
 
+    // Prose such as "width < 36 in." is text; only "<" before a name, "/", "!" or "?" opens a tag.
+    if (!/[A-Za-z/!?]/.test(html[start + 1] ?? "")) {
+      pieces.push("<");
+      position = start + 1;
+      continue;
+    }
+
     let end = start + 1;
-    let quote: string | null = null;
+    let value = false;
 
+    // Quotes delimit only attribute values, so the apostrophe in `<a title=John's>` is literal.
+    // A quote that never closes is literal too, so it cannot swallow the rest of the document.
     for (; end < html.length; end++) {
-      const character = html[end];
+      const character = html[end] ?? "";
 
-      if (quote !== null) {
-        if (character === quote) quote = null;
-      } else if (character === '"' || character === "'") quote = character;
-      else if (character === ">") break;
+      if (character === ">") break;
+
+      if (character === "=") value = true;
+      else if (value && (character === '"' || character === "'")) {
+        value = false;
+        const close = unclosed.has(character) ? -1 : html.indexOf(character, end + 1);
+
+        if (close < 0) unclosed.add(character);
+        else end = close;
+      } else if (value && !/\s/.test(character)) value = false;
     }
 
     if (end >= html.length) break;
@@ -425,11 +443,14 @@ const parseUrl = (url: string) =>
     ),
   );
 
-/** A `#page=N` fragment starts PDF text at that page, as PDF viewers do. */
+/**
+ * A `#page=N` fragment starts PDF text at that page, as PDF viewers do. Any page above 1 stays
+ * distinct, so an out-of-range page is reported rather than read and cached as page 1.
+ */
 const pdfFirstPage = (url: URL) => {
   const page = Number.parseInt(/(?:^|&)page=(\d+)/.exec(url.hash.slice(1))?.[1] ?? "1", 10);
 
-  return Number.isSafeInteger(page) && page >= 1 && page <= 200 ? page : 1;
+  return Number.isSafeInteger(page) && page >= 1 ? page : 1;
 };
 
 /**
@@ -462,6 +483,12 @@ const readPdfSource = Effect.fnUntraced(function* (
     );
 
   const firstPage = pdfFirstPage(requested);
+
+  // PDF text extraction reads documents of at most this many pages.
+  if (firstPage > DocumentsLimits.maxPages)
+    return unavailable(
+      `PDF sources are read up to page ${DocumentsLimits.maxPages}; page ${firstPage} cannot be read.`,
+    );
   const extracted = yield* options.pdfText(bytes, firstPage, maximumText - 200).pipe(Effect.result);
 
   if (Result.isFailure(extracted))
@@ -475,7 +502,14 @@ const readPdfSource = Effect.fnUntraced(function* (
     return unavailable(
       "The PDF has no embedded text on the requested pages; it may be scanned. Import it to inspect its pages visually.",
     );
-  const name = decodeURIComponent(requested.pathname.split("/").at(-1) ?? "") || requested.hostname;
+  const segment = requested.pathname.split("/").at(-1) ?? "";
+
+  // A stray "%" or a non-UTF-8 escape in the file name leaves it as written.
+  const name =
+    Result.getOrElse(
+      Result.try(() => decodeURIComponent(segment)),
+      () => segment,
+    ) || requested.hostname;
 
   return Schema.decodeUnknownSync(PacketSource)({
     ...base,
@@ -490,6 +524,45 @@ const readPdfSource = Effect.fnUntraced(function* (
       : pdf.text,
   });
 });
+
+const pdfSignature = (bytes: Uint8Array) =>
+  bytes.byteLength >= 5 && new TextDecoder("latin1").decode(bytes.subarray(0, 5)) === "%PDF-";
+
+const charsetLabel = (value: string) =>
+  /\bcharset\s*=\s*["']?([\w.:-]+)/i.exec(value)?.[1]?.toLowerCase();
+
+/**
+ * Decode response text by its byte-order mark, then its Content-Type charset, then an HTML meta
+ * or XML declaration. Undeclared text that is not valid UTF-8 is read as windows-1252, as browsers
+ * do. An unsupported declared charset leaves the source undecodable rather than corrupted.
+ */
+function decodeText(bytes: Uint8Array, contentType: string) {
+  const prefix = new TextDecoder("latin1").decode(bytes.subarray(0, 1024));
+  const [first, second, third] = bytes;
+
+  const bom =
+    first === 0xef && second === 0xbb && third === 0xbf
+      ? "utf-8"
+      : first === 0xfe && second === 0xff
+        ? "utf-16be"
+        : first === 0xff && second === 0xfe
+          ? "utf-16le"
+          : undefined;
+
+  const declared =
+    bom ??
+    charsetLabel(contentType) ??
+    /<meta\b[^>]*?charset\s*=\s*["']?([\w.:-]+)/i.exec(prefix)?.[1]?.toLowerCase() ??
+    /^\s*<\?xml\b[^>]*?\bencoding\s*=\s*["']([\w.:-]+)/i.exec(prefix)?.[1]?.toLowerCase();
+
+  if (declared !== undefined)
+    return Result.getOrUndefined(Result.try(() => new TextDecoder(declared).decode(bytes)));
+
+  return Result.getOrElse(
+    Result.try(() => new TextDecoder("utf-8", { fatal: true }).decode(bytes)),
+    () => new TextDecoder("windows-1252").decode(bytes),
+  );
+}
 
 /** Fetch public governing text with DNS-pinned TLS; access failures remain unverified source records. */
 export const readSource = Effect.fn("PacketReview.readSource")(function* (
@@ -517,7 +590,6 @@ export const readSource = Effect.fn("PacketReview.readSource")(function* (
       text: response.failure.message,
     });
   const { body: bytes, headers, status, url } = response.success;
-  const body = new TextDecoder().decode(bytes);
   const contentType = (headers["content-type"] ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
   const updated = { ...base, url: url.href, official: officialSource(url.hostname) };
 
@@ -528,12 +600,14 @@ export const readSource = Effect.fn("PacketReview.readSource")(function* (
       text: `Source returned HTTP ${status}. Its governing text was not retrieved.`,
     });
 
-  if (contentType === "application/pdf" || body.startsWith("%PDF-"))
+  if (contentType === "application/pdf" || pdfSignature(bytes))
     return yield* readPdfSource(updated, url, bytes, options);
+  const body = decodeText(bytes, headers["content-type"] ?? "");
 
   if (
     (contentType && !/^(?:text\/|application\/(?:xhtml\+xml|xml|json)$)/.test(contentType)) ||
-    (headers["content-encoding"] && headers["content-encoding"] !== "identity")
+    (headers["content-encoding"] && headers["content-encoding"] !== "identity") ||
+    body === undefined
   )
     return Schema.decodeUnknownSync(PacketSource)({
       ...updated,
@@ -558,7 +632,8 @@ export const readSource = Effect.fn("PacketReview.readSource")(function* (
     ...updated,
     title: title.slice(0, 1000),
     status: "available",
-    sha256: createHash("sha256").update(body).digest("hex"),
+    // The hash identifies the bytes served, not their decoded text.
+    sha256: createHash("sha256").update(bytes).digest("hex"),
     text:
       text.length > maximumText
         ? `${text.slice(0, maximumText - 70)}\n[Source text truncated; retrieve a more specific section URL.]`
