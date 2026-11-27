@@ -10,12 +10,30 @@ export interface SheetText {
   readonly y: number;
 }
 
+/**
+ * Where a PDF point appears on the displayed sheet, as fractions from its left and top edges.
+ * `/Rotate` turns the displayed page clockwise, as PDF.js viewports do.
+ */
+function viewedPosition(item: SheetText, box: Region, rotation: 0 | 90 | 180 | 270) {
+  const across = (item.x - box.x) / box.width;
+  const up = (item.y - box.y) / box.height;
+
+  if (rotation === 90) return { left: up, top: across };
+
+  if (rotation === 180) return { left: 1 - across, top: up };
+
+  if (rotation === 270) return { left: 1 - up, top: 1 - across };
+
+  return { left: across, top: 1 - up };
+}
+
 /** Prefer an embedded label or an unambiguous printed title-block identity; never confirms it. */
 export function suggestedSheetLabel(
   pageIndex: number,
   embeddedLabel: string | null,
   text: ReadonlyArray<SheetText>,
   box: Region,
+  rotation: 0 | 90 | 180 | 270 = 0,
 ): string {
   const page = `Page ${pageIndex + 1}`;
 
@@ -38,7 +56,9 @@ export function suggestedSheetLabel(
       continue;
     }
 
-    const inTitleBlock = item.x >= box.x + box.width * 0.75 && item.y <= box.y + box.height * 0.3;
+    // The title block is the bottom-right corner of the sheet as displayed.
+    const viewed = viewedPosition(item, box, rotation);
+    const inTitleBlock = viewed.left >= 0.75 && viewed.top >= 0.7;
 
     if (inTitleBlock && /^[A-Z]{1,3}(?:[-.]\d{1,3}|\d{2,3})(?:\.\d{1,2})?$/.test(value))
       candidates.set(value, candidates.get(value) ?? value);

@@ -1,5 +1,5 @@
 import { Effect, Schema, Struct } from "effect";
-import { mkdir, open, readFile, rm } from "node:fs/promises";
+import { mkdir, open, rm } from "node:fs/promises";
 import { renameReplacing } from "../rename.ts";
 import { dirname } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -117,8 +117,25 @@ export const cloudStateBytes = (jobs: ReadonlyArray<CloudReviewRecord>) =>
 
 /** Missing intent means local ownership; unreadable or malformed intent fails closed. */
 export const readCloudState = Effect.fn("readCloudState")(function* (path: string) {
+  const oversized = new CloudReviewError({
+    reason: "limit",
+    message: "Cloud ownership records exceed the supported limit.",
+  });
+
+  // Measure before reading, so a runaway file is refused without loading it into memory. Null
+  // marks an oversized file and undefined a missing one.
   const text = yield* Effect.tryPromise({
-    try: () => readFile(path, "utf8"),
+    try: async () => {
+      const file = await open(path, "r");
+
+      try {
+        return (await file.stat()).size > cloudStateRecoveryMaxBytes
+          ? null
+          : await file.readFile("utf8");
+      } finally {
+        await file.close();
+      }
+    },
     catch: (cause) =>
       Schema.is(Schema.Struct({ code: Schema.Literal("ENOENT") }))(cause)
         ? new CloudReviewError({ reason: "unavailable", message: "missing" })
@@ -129,17 +146,14 @@ export const readCloudState = Effect.fn("readCloudState")(function* (path: strin
           }),
   }).pipe(
     Effect.catch((error) =>
-      error.reason === "unavailable" ? Effect.succeed(null) : Effect.fail(error),
+      error.reason === "unavailable" ? Effect.succeed(undefined) : Effect.fail(error),
     ),
   );
 
-  if (text === null) return [];
-  const bytes = Buffer.byteLength(text);
+  if (text === undefined) return [];
 
-  const oversized = new CloudReviewError({
-    reason: "limit",
-    message: "Cloud ownership records exceed the supported limit.",
-  });
+  if (text === null) return yield* oversized;
+  const bytes = Buffer.byteLength(text);
 
   if (bytes > cloudStateRecoveryMaxBytes) return yield* oversized;
 

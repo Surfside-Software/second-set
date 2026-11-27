@@ -235,7 +235,7 @@ test.each([
         Effect.sync(() => {
           stopped = true;
         }),
-      seedCache: () => Effect.succeed([]),
+      seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
     };
 
     const sandbox = Layer.succeed(CloudSandbox, port);
@@ -675,7 +675,7 @@ test.each(["legacy", "whole_set", "selected_sheets", "discipline", "legacy_worke
         Effect.sync(() => {
           stopped = true;
         }),
-      seedCache: () => Effect.succeed([]),
+      seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
     };
 
     const config = new BackendConfig({

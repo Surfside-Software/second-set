@@ -38,7 +38,7 @@ export interface CloudSandboxPort {
   /** Commits verified files to the workspace cache and returns what it holds afterwards. */
   readonly seedCache: (
     request: CloudCacheSeed,
-  ) => Effect.Effect<ReadonlyArray<CloudCachedFile>, CloudReviewError>;
+  ) => Effect.Effect<CloudCacheSeeded, CloudReviewError>;
   /** This only succeeds once the original execution sandbox is confirmed terminated. */
   readonly stop: (record: CloudReviewRecord) => Effect.Effect<void, CloudReviewError>;
 }
@@ -62,4 +62,11 @@ export interface CloudCacheSeed {
   readonly keep: ReadonlyArray<string> | null;
   /** A cloud Send needs the uplink and owns the workspace, so local uploads and pruning stop. */
   readonly paused: Effect.Effect<boolean>;
+}
+
+/** The cache listing after a seed, and the snapshots it could not read this time. */
+export interface CloudCacheSeeded {
+  readonly cached: ReadonlyArray<CloudCachedFile>;
+  /** Snapshot image ids that failed to mount for a reason other than expiry; they stay pending. */
+  readonly deferred: ReadonlyArray<string>;
 }

@@ -154,6 +154,7 @@ async function inspectPdf(id: string, pdfPath: string) {
               : [],
           ),
           box,
+          rotate,
         );
       } catch {
         // Text extraction is advisory. Scanned or damaged text must not block source import.

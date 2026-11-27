@@ -105,7 +105,7 @@ const session = (directory: string) => {
       }),
     download: () => Effect.void,
     stop: () => Effect.void,
-    seedCache: () => Effect.succeed([]),
+    seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
   };
 
   const open = () =>

@@ -233,7 +233,7 @@ async function fixture() {
           ? Effect.void
           : confirmModalSandboxStopped(() => Promise.reject(stopMissing));
       }),
-    seedCache: () => Effect.succeed([]),
+    seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
   };
 
   const open = () =>
@@ -1127,7 +1127,7 @@ test("a non-canonical provider route fails cloud start before allocation or uplo
     progress: () => unused,
     download: () => unused,
     stop: () => unused,
-    seedCache: () => Effect.succeed([]),
+    seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
   };
 
   const slashed = Schema.decodeUnknownSync(CloudProvider)({
@@ -1195,7 +1195,7 @@ test("a one-minute cloud limit fails before any cloud work and longer limits kee
       progress: () => Effect.die("Not observed"),
       download: () => Effect.void,
       stop: () => Effect.void,
-      seedCache: () => Effect.succeed([]),
+      seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
     };
 
     const runtime = ManagedRuntime.make(

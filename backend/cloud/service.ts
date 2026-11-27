@@ -43,6 +43,7 @@ import type { CloudSandboxPort } from "./sandbox-port.ts";
 import {
   cloudCacheVolumeName,
   listLocalArtifacts,
+  newCloudCacheState,
   readCloudCacheState,
   writeCloudCacheState,
   type CloudCacheState,
@@ -182,10 +183,13 @@ export class CloudReviews extends Context.Service<
         // Workspace cache: originals, renders and closed journals stored in Modal by SHA-256.
         // Everything here is best-effort; a cache failure only means more bytes at Send.
         const cachePath = join(config.directory, "cache.json");
-        let cacheState = yield* readCloudCacheState(cachePath);
+        const recordedCache = yield* readCloudCacheState(cachePath);
+
+        // An unreadable record turns the cache off for this launch instead of replacing its id.
+        let cacheState = recordedCache ?? newCloudCacheState();
 
         const cacheVolume =
-          config.modal === undefined
+          config.modal === undefined || recordedCache === null
             ? undefined
             : cloudCacheVolumeName(config.modal.appName, cacheState.id);
 
@@ -250,7 +254,7 @@ export class CloudReviews extends Context.Service<
             return;
           }
 
-          const listing = yield* sandbox.seedCache({
+          const seeded = yield* sandbox.seedCache({
             volume: cacheVolume,
             snapshots: pending,
             local: missing,
@@ -258,18 +262,23 @@ export class CloudReviews extends Context.Service<
             paused: Effect.sync(cachePaused),
           });
 
-          const processed = new Set(pending.map((entry) => entry.imageId));
+          const deferred = new Set(seeded.deferred);
+
+          const processed = new Set(
+            pending.map((entry) => entry.imageId).filter((imageId) => !deferred.has(imageId)),
+          );
 
           yield* saveCache({
             ...cacheState,
-            cached: [...listing],
+            cached: [...seeded.cached],
             pending: cacheState.pending.filter(
               (entry) => entry.expiresAt > now && !processed.has(entry.imageId),
             ),
           });
           yield* Effect.logDebug("cloud_cache_seeded", {
-            files: listing.length,
-            retainedSnapshots: pending.length,
+            files: seeded.cached.length,
+            retainedSnapshots: processed.size,
+            deferredSnapshots: deferred.size,
             localCandidates: missing.length,
             pruned: prune,
           });

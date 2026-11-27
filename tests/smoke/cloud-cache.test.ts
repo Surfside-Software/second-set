@@ -224,7 +224,7 @@ async function cacheFixture() {
         seeds.push(request);
         waiting.splice(0).forEach((resolve) => resolve());
 
-        return [...volume].map(([sha256, bytes]) => ({ sha256, bytes }));
+        return { cached: [...volume].map(([sha256, bytes]) => ({ sha256, bytes })), deferred: [] };
       }),
   };
 
