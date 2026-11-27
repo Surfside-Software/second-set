@@ -156,6 +156,27 @@ const pixelBox = Effect.fn("readVisionPixelBox")(function* (
   );
 });
 
+function greatestCommonDivisor(a: number, b: number): number {
+  return b === 0 ? a : greatestCommonDivisor(b, a % b);
+}
+
+/**
+ * Whole-point snapping step for inspection frames: a multiple of 6 pt whose edges
+ * also land on whole device pixels at `dpi`, as pdftoppm accepts only integer offsets.
+ */
+function frameStep(dpi: number): number {
+  const pixelStep = 72 / greatestCommonDivisor(72, dpi);
+
+  return (6 * pixelStep) / greatestCommonDivisor(6, pixelStep);
+}
+
+/** Remove floating-point noise from coordinates that are mathematically whole pixels. */
+function snapNearInteger(value: number): number {
+  const nearest = Math.round(value);
+
+  return Math.abs(value - nearest) < 1e-6 ? nearest : value;
+}
+
 /** Run a bounded local evidence-seeking review through real Meta tool calls. */
 export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (options: {
   readonly fixtures: string;
@@ -221,6 +242,7 @@ export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (optio
   const inspections = new Map<string, Inspection>();
   const corrections = new Map<string, LocatedDevice>();
   const inspectionCounts = new Map<string, number>();
+  let inspectionAttempts = 0;
   const correspondences: Array<typeof Correspondence.Type> = [];
 
   const trace: Array<{
@@ -347,7 +369,9 @@ export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (optio
         box: object.box,
         samId: null,
         blindId: object.id,
-        status: corrections.has(object.id) ? "revised" : "unresolved",
+        // A corrected box that still matches no classified SAM receptacle is not agreement;
+        // its zoom observation remains in the assertions.
+        status: "unresolved",
         assertions: blindAssertions(object),
       });
     }
@@ -578,39 +602,43 @@ export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (optio
         return yield* new AdaptiveReviewError({
           message: "Two-inspection allowance exhausted for this target.",
         });
-      inspectionCounts.set(args.targetId, count + 1);
       const b = target.box;
       const scale = crop.pixel_to_pdf.scale;
+      const dpi = crop.dpi * 2;
+      // pdftoppm needs whole-pixel offsets, so snap to points that are also whole pixels.
+      const step = frameStep(dpi);
+      const pagePoints = (limit: number) => (Math.floor((limit * dpi) / 72) * 72) / dpi;
 
       const left = Math.max(
         0,
         Math.floor(
-          (crop.pixel_to_pdf.offset_points[0] + (b.left - args.marginPixels) * scale) / 6,
-        ) * 6,
+          (crop.pixel_to_pdf.offset_points[0] + (b.left - args.marginPixels) * scale) / step,
+        ) * step,
       );
 
       const top = Math.max(
         0,
-        Math.floor((crop.pixel_to_pdf.offset_points[1] + (b.top - args.marginPixels) * scale) / 6) *
-          6,
+        Math.floor(
+          (crop.pixel_to_pdf.offset_points[1] + (b.top - args.marginPixels) * scale) / step,
+        ) * step,
       );
 
       const right = Math.min(
-        options.scenario.pageWidthPoints,
+        pagePoints(options.scenario.pageWidthPoints),
         Math.ceil(
-          (crop.pixel_to_pdf.offset_points[0] + (b.right + args.marginPixels) * scale) / 6,
-        ) * 6,
+          (crop.pixel_to_pdf.offset_points[0] + (b.right + args.marginPixels) * scale) / step,
+        ) * step,
       );
 
       const bottom = Math.min(
-        options.scenario.pageHeightPoints,
+        pagePoints(options.scenario.pageHeightPoints),
         Math.ceil(
-          (crop.pixel_to_pdf.offset_points[1] + (b.bottom + args.marginPixels) * scale) / 6,
-        ) * 6,
+          (crop.pixel_to_pdf.offset_points[1] + (b.bottom + args.marginPixels) * scale) / step,
+        ) * step,
       );
 
-      const id = `inspection-${inspections.size + 1}`;
-      const dpi = crop.dpi * 2;
+      // A monotonic ID keeps a failed attempt's image from being overwritten or reused.
+      const id = `inspection-${++inspectionAttempts}`;
 
       const frame = yield* Schema.decodeUnknownEffect(DrawingCrop)({
         ...crop,
@@ -622,7 +650,11 @@ export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (optio
         height_px: Math.round(((bottom - top) * dpi) / 72),
         pixel_to_pdf: { scale: 72 / dpi, offset_points: [left, top] },
         purpose: args.purpose,
-      });
+      }).pipe(
+        Effect.mapError(
+          () => new AdaptiveReviewError({ message: "Inspection frame has no area on the page." }),
+        ),
+      );
 
       const renderedZoom = yield* renderCrop(
         options.fixtures,
@@ -637,8 +669,10 @@ export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (optio
         height: frame.height_px,
       };
 
-      images.set(id, image);
       const observed = yield* model.inventory(image, true);
+      // Only a completed inspection consumes the target's allowance or enters the gallery.
+      inspectionCounts.set(args.targetId, count + 1);
+      images.set(id, image);
 
       const inspection: Inspection = {
         id,
@@ -735,14 +769,16 @@ export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (optio
       const [mask] = result.parsed.objects;
 
       if (result.parsed.objects.length === 1 && mask) {
+        // Zoom pixels are finer than base pixels, so half-pixel edges are expected; only
+        // floating-point noise is removed so crop-edge masks are not rejected as outside.
+        const toBase = (points: number, offset: number) =>
+          snapNearInteger((points - offset) / crop.pixel_to_pdf.scale);
+
         const mapped = {
-          left:
-            (mask.pdfPoints.left - crop.pixel_to_pdf.offset_points[0]) / crop.pixel_to_pdf.scale,
-          top: (mask.pdfPoints.top - crop.pixel_to_pdf.offset_points[1]) / crop.pixel_to_pdf.scale,
-          right:
-            (mask.pdfPoints.right - crop.pixel_to_pdf.offset_points[0]) / crop.pixel_to_pdf.scale,
-          bottom:
-            (mask.pdfPoints.bottom - crop.pixel_to_pdf.offset_points[1]) / crop.pixel_to_pdf.scale,
+          left: toBase(mask.pdfPoints.left, crop.pixel_to_pdf.offset_points[0]),
+          top: toBase(mask.pdfPoints.top, crop.pixel_to_pdf.offset_points[1]),
+          right: toBase(mask.pdfPoints.right, crop.pixel_to_pdf.offset_points[0]),
+          bottom: toBase(mask.pdfPoints.bottom, crop.pixel_to_pdf.offset_points[1]),
         };
 
         if (
@@ -764,7 +800,11 @@ export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (optio
 
         corrections.set(args.targetId, {
           id: args.targetId,
-          box: yield* Schema.decodeUnknownEffect(PixelBox)(mapped),
+          box: yield* Schema.decodeUnknownEffect(PixelBox)(mapped).pipe(
+            Effect.mapError(
+              () => new AdaptiveReviewError({ message: "Mapped mask box has invalid area." }),
+            ),
+          ),
           observation: object,
           frame: inspection.frame,
           imageId: inspection.image.id,
@@ -881,9 +921,12 @@ export const runAdaptiveReview = Effect.fn("runAdaptiveReview")(function* (optio
       const outputs: Array<ReviewToolResult> = [];
 
       for (const action of turn.actions) {
+        // A failed render, provider call or geometry check fails only this action, so the
+        // model sees the error, can retry, and the paid evidence gathered so far is kept.
         const result = yield* perform(action.name, action.arguments).pipe(
-          Effect.catchTag("AdaptiveReviewError", (error) =>
-            Effect.succeed({ data: { error: error.message }, images: [] }),
+          Effect.catchTag(
+            ["AdaptiveReviewError", "DrawingInputError", "SegmentationError", "MetaReviewError"],
+            (error) => Effect.succeed({ data: { error: error.message }, images: [] }),
           ),
         );
 

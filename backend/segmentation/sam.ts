@@ -239,13 +239,23 @@ export const readSegmentation = Effect.fn("readSegmentation")(function* (
     });
   }
 
+  // Pairing is by (object, frame); a repeated key would pair several boxes with one mask.
+  const key = (record: { readonly objectId: string; readonly frame?: { frameIndex: number } }) =>
+    `${record.objectId}:${record.frame?.frameIndex ?? ""}`;
+
+  if (
+    new Set(boxes.map(key)).size !== boxes.length ||
+    new Set(masks.map(key)).size !== masks.length
+  ) {
+    return yield* new SegmentationError({
+      message: "SAM output repeats an object ID; boxes and masks cannot be paired.",
+    });
+  }
+
   const objects = [];
 
   for (const box of boxes) {
-    const mask = masks.find(
-      (record) =>
-        record.objectId === box.objectId && record.frame?.frameIndex === box.frame?.frameIndex,
-    );
+    const mask = masks.find((record) => key(record) === key(box));
 
     if (
       !mask ||

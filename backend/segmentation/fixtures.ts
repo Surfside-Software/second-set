@@ -119,7 +119,15 @@ export const renderCrop = Effect.fn("renderCrop")(function* (
 ) {
   const source = yield* fixturePath(directory, crop.pdf);
   const [left, top] = crop.pdf_rect_points;
-  const scale = 72 / crop.dpi;
+  // pdftoppm accepts only integer offsets; tolerate float noise but never a fractional pixel.
+  const x = (left * crop.dpi) / 72;
+  const y = (top * crop.dpi) / 72;
+
+  if (Math.abs(x - Math.round(x)) > 1e-6 || Math.abs(y - Math.round(y)) > 1e-6) {
+    return yield* new DrawingInputError({
+      message: `Crop offset is not on a whole device pixel: ${crop.id}.`,
+    });
+  }
 
   const bytes = yield* Effect.tryPromise({
     try: async (signal) => {
@@ -133,9 +141,9 @@ export const renderCrop = Effect.fn("renderCrop")(function* (
           "-r",
           String(crop.dpi),
           "-x",
-          String(left / scale),
+          String(Math.round(x)),
           "-y",
-          String(top / scale),
+          String(Math.round(y)),
           "-W",
           String(crop.width_px),
           "-H",
