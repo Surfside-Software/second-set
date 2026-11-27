@@ -34,12 +34,15 @@ export interface PacerClock {
   readonly random: () => number;
 }
 
+/** setTimeout fires at once for a delay above a signed 32-bit millisecond count. */
+const maxTimerMs = 2 ** 31 - 1;
+
 const systemClock: PacerClock = {
   // The WSL and Windows wall clocks have jumped backwards mid-run; pacing needs monotonic time.
   now: () => performance.now(),
   wall: () => Date.now(),
   schedule: (callback, ms) => {
-    const timer = setTimeout(callback, ms);
+    const timer = setTimeout(callback, Math.min(maxTimerMs, Math.max(0, ms)));
 
     return () => clearTimeout(timer);
   },
@@ -75,12 +78,34 @@ const burstFraction = 0.5;
 
 /**
  * Shared backoff after a refusal without Retry-After: 2 s doubling to 60 s, with jitter. The cap
- * applies only to this local backoff; a provider's own Retry-After is honoured in full.
+ * applies only to this local backoff; a provider's own Retry-After is honoured up to
+ * `maxCooldownMs`.
  */
 const cooldownBaseMs = 2_000;
 const cooldownMaxMs = 60_000;
 
+/**
+ * The longest shared cooldown one refusal can start: the provider adapter's ten-minute refusal
+ * budget. A longer Retry-After is an outage, so its request ends at once, and the key's other
+ * conversations try again after this cooldown instead of hanging until the provider's date.
+ */
+export const maxCooldownMs = 10 * 60_000;
+
 const RateHeader = Schema.FiniteFromString.check(Schema.isGreaterThanOrEqualTo(0));
+
+/**
+ * A reported per-minute limit. A fractional, sub-request or near-zero token limit would stall every
+ * conversation on the key, so such a value is ignored and the previous limit kept.
+ */
+const RequestLimitHeader = Schema.FiniteFromString.check(
+  Schema.isInt(),
+  Schema.isGreaterThanOrEqualTo(1),
+);
+
+const TokenLimitHeader = Schema.FiniteFromString.check(
+  Schema.isInt(),
+  Schema.isGreaterThanOrEqualTo(1000),
+);
 
 /**
  * Retry-After is delay-seconds or an HTTP-date (RFC 9110 section 10.2.3). Only the IMF-fixdate form
@@ -95,11 +120,11 @@ const RetryAfter = Schema.Union([
   ).pipe(Schema.decodeTo(Schema.DateFromString)),
 ]);
 
-/** Read one numeric rate-limit header; absent or malformed values are ignored. */
-function rateHeader(headers: Headers, name: string) {
+/** Read one numeric rate-limit header; absent, malformed or out-of-range values are ignored. */
+function rateHeader(headers: Headers, name: string, schema = RateHeader) {
   const value = headers.get(name);
 
-  return value === null ? Option.none() : Schema.decodeUnknownOption(RateHeader)(value);
+  return value === null ? Option.none() : Schema.decodeUnknownOption(schema)(value);
 }
 
 /**
@@ -206,18 +231,12 @@ export class RequestPacer {
   /** Learn the credential's limits and current allowance from a response's rate-limit headers. */
   observe(headers: Headers) {
     this.#refill();
-    const requests = rateHeader(headers, "x-ratelimit-limit-requests");
-    const tokens = rateHeader(headers, "x-ratelimit-limit-tokens");
+    const requests = rateHeader(headers, "x-ratelimit-limit-requests", RequestLimitHeader);
+    const tokens = rateHeader(headers, "x-ratelimit-limit-tokens", TokenLimitHeader);
 
     this.#limits = {
-      requestsPerMinute: Option.getOrElse(
-        Option.filter(requests, (value) => value > 0),
-        () => this.#limits.requestsPerMinute,
-      ),
-      tokensPerMinute: Option.getOrElse(
-        Option.filter(tokens, (value) => value > 0),
-        () => this.#limits.tokensPerMinute,
-      ),
+      requestsPerMinute: Option.getOrElse(requests, () => this.#limits.requestsPerMinute),
+      tokensPerMinute: Option.getOrElse(tokens, () => this.#limits.tokensPerMinute),
     };
 
     // A lower reported remainder means other traffic on the key, or another limiter shard, has
@@ -242,8 +261,9 @@ export class RequestPacer {
 
   /**
    * Hold every waiting request after a refusal. `retryAfterMs` comes from the provider when it
-   * sends one and is honoured in full; otherwise the shared backoff doubles only for refusals of
-   * requests dispatched after the previous cooldown began. Returns the remaining cooldown.
+   * sends one and is honoured up to `maxCooldownMs`; otherwise the shared backoff doubles only for
+   * refusals of requests dispatched after the previous cooldown began. Returns the remaining
+   * cooldown.
    */
   refused(refusal: Refusal, dispatchedAt: number, retryAfterMs?: number) {
     const now = this.#clock.now();
@@ -261,7 +281,7 @@ export class RequestPacer {
     const delay =
       retryAfterMs === undefined
         ? backoff / 2 + this.#clock.random() * (backoff / 2)
-        : retryAfterMs;
+        : Math.min(maxCooldownMs, retryAfterMs);
 
     this.#cooldownUntil = Math.max(this.#cooldownUntil, now + delay);
     this.#pump();

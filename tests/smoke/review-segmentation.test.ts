@@ -414,9 +414,15 @@ test.each(["correction", "cancel", "generation", "revision"])(
           )
           .get(),
       ).toMatchObject({ status: "completed", response_id: "sam-fixture-response", has_body: 1 });
-      expect(f.database.query("SELECT state FROM review_execution_runs").get()).toEqual({
-        state: change === "cancel" ? "cancelled" : "uncertain",
-      });
+
+      // A run cancelled, or taken by a newer owner, is not this call's to change.
+      const kept = new Map([
+        ["cancel", "cancelled"],
+        ["generation", "running"],
+      ]);
+
+      const state = kept.get(change) ?? "uncertain";
+      expect(f.database.query("SELECT state FROM review_execution_runs").get()).toEqual({ state });
       const replay = await f.result();
       expect(Result.isFailure(replay) && replay.failure.reason).toBe("conflict");
       expect(f.sends).toHaveLength(1);
@@ -619,27 +625,146 @@ test("out-of-bounds guidance fails before intent and fetch", async () => {
   }
 });
 
-test("revalidates the committed intent immediately before setting sent=1", async () => {
-  const f = await fixture();
+test.each(["correction", "pause"])(
+  "a %s after admission withdraws the unsent intent and refunds its call",
+  async (change) => {
+    const f = await fixture();
+
+    try {
+      f.database.exec(
+        change === "correction"
+          ? "CREATE TRIGGER change_at_admission AFTER INSERT ON review_sam_attempts BEGIN UPDATE review_projects SET payload=json_set(payload,'$.factVersion',1); END"
+          : "CREATE TRIGGER change_at_admission AFTER INSERT ON review_sam_attempts BEGIN UPDATE review_execution_runs SET state='paused'; END",
+      );
+      const result = await f.result();
+      expect(Result.isFailure(result) && result.failure.reason).toBe("conflict");
+      expect(f.sends).toHaveLength(0);
+      // Nothing reached SAM, so no unresolved outcome remains and the run keeps its state.
+      expect(f.database.query("SELECT count(*) AS n FROM review_sam_attempts").get()).toEqual({
+        n: 0,
+      });
+      expect(
+        f.database.query("SELECT state,version,admitted_calls FROM review_execution_runs").get(),
+      ).toEqual({
+        state: change === "correction" ? "running" : "paused",
+        version: 0,
+        admitted_calls: 0,
+      });
+      expect(f.database.query("SELECT count(*) AS n FROM review_execution_events").get()).toEqual({
+        n: 0,
+      });
+      await f.reopen();
+      const retry = await f.result();
+      expect(Result.isFailure(retry) && retry.failure.reason).toBe("conflict");
+      expect(f.sends).toHaveLength(0);
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+test.each(["generation", "paused"])(
+  "a failed call after a %s change leaves the run it no longer owns untouched",
+  async (change) => {
+    let alter = () => {};
+
+    const f = await fixture({
+      transport: async () => {
+        alter();
+
+        return new Response("private error", { status: 500 });
+      },
+    });
+
+    alter = () => {
+      if (change === "generation")
+        f.database.query("UPDATE review_execution_runs SET owner_generation=?").run(randomUUID());
+      else f.database.query("UPDATE review_execution_runs SET state='paused'").run();
+    };
+
+    try {
+      const result = await f.result();
+      expect(Result.isFailure(result) && result.failure.reason).toBe("uncertain");
+
+      if (change === "generation") {
+        // A newer owner holds the run; the stale call records its attempt and changes nothing else.
+        expect(f.database.query("SELECT state,version FROM review_execution_runs").get()).toEqual({
+          state: "running",
+          version: 0,
+        });
+        expect(f.database.query("SELECT count(*) AS n FROM review_execution_events").get()).toEqual(
+          { n: 0 },
+        );
+      } else {
+        // This owner's own run with an unresolved attempt becomes uncertain, as recovery would.
+        expect(f.database.query("SELECT state,version FROM review_execution_runs").get()).toEqual({
+          state: "uncertain",
+          version: 1,
+        });
+      }
+
+      expect(f.database.query("SELECT status,sent FROM review_sam_attempts").get()).toEqual({
+        status: "uncertain",
+        sent: 1,
+      });
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+test("a historical answer after a pause leaves the paused run unchanged", async () => {
+  let alter = () => {};
+
+  const f = await fixture({
+    transport: async () => {
+      alter();
+
+      return response();
+    },
+  });
+
+  alter = () => {
+    f.database.query("UPDATE review_execution_runs SET state='paused'").run();
+  };
 
   try {
-    f.database.exec(
-      "CREATE TRIGGER correction_at_admission AFTER INSERT ON review_sam_attempts BEGIN UPDATE review_projects SET payload=json_set(payload,'$.factVersion',1); END",
-    );
     const result = await f.result();
     expect(Result.isFailure(result) && result.failure.reason).toBe("conflict");
-    expect(f.sends).toHaveLength(0);
-    expect(f.database.query("SELECT status,sent FROM review_sam_attempts").get()).toEqual({
-      status: "uncertain",
-      sent: 0,
+    expect((await f.list())[0]?.recordedAs).toBe("historical");
+    expect(f.database.query("SELECT state,version FROM review_execution_runs").get()).toEqual({
+      state: "paused",
+      version: 0,
     });
-    expect(
-      f.database.query("SELECT state,admitted_calls FROM review_execution_runs").get(),
-    ).toEqual({ state: "uncertain", admitted_calls: 1 });
+    // A replay of the historical receipt appends no event either.
+    expect(Result.isFailure(await f.result())).toBe(true);
+    expect(f.database.query("SELECT count(*) AS n FROM review_execution_events").get()).toEqual({
+      n: 0,
+    });
+  } finally {
+    await f.close();
+  }
+});
+
+test("replaying an already uncertain run appends no duplicate event", async () => {
+  const f = await fixture({
+    transport: async () => {
+      throw new Error("private connection failure");
+    },
+  });
+
+  try {
+    await f.result();
     await f.reopen();
-    const retry = await f.result();
-    expect(Result.isFailure(retry) && retry.failure.reason).toBe("uncertain");
-    expect(f.sends).toHaveLength(0);
+    await f.result();
+    await f.result();
+    expect(f.database.query("SELECT state,version FROM review_execution_runs").get()).toEqual({
+      state: "uncertain",
+      version: 1,
+    });
+    expect(f.database.query("SELECT count(*) AS n FROM review_execution_events").get()).toEqual({
+      n: 1,
+    });
   } finally {
     await f.close();
   }
@@ -727,8 +852,16 @@ test("simultaneous delivery shares one intent and sends at most once", async () 
     await ready.promise;
     const duplicate = await f.result();
     expect(Result.isFailure(duplicate) && duplicate.failure.reason).toBe("uncertain");
+    // The duplicate leaves the run running, so the in-flight answer is still current.
+    expect(f.database.query("SELECT state FROM review_execution_runs").get()).toEqual({
+      state: "running",
+    });
     release.resolve();
-    await first;
+    const answered = await first;
+    expect(Result.isSuccess(answered) && answered.success.recordedAs).toBe("proposal");
+    expect(f.database.query("SELECT count(*) AS n FROM review_execution_events").get()).toEqual({
+      n: 0,
+    });
     expect(f.sends).toHaveLength(1);
     expect(f.database.query("SELECT count(*) AS n FROM review_sam_attempts").get()).toEqual({
       n: 1,

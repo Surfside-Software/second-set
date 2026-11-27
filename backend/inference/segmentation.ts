@@ -332,12 +332,29 @@ export class ReviewSegmentation extends Context.Service<
         };
       });
 
+      /** Operations whose SAM call this process admitted and has not yet settled. */
+      const inFlight = new Set<string>();
+
+      /**
+       * Mark the fenced run uncertain. Only the owner generation, journal and finding that admitted
+       * the call may change it, and only while the run still executes or, as startup recovery does,
+       * while one of its SAM attempts is unresolved. A stale owner changes nothing.
+       */
       const uncertain = Effect.fn("ReviewSegmentation.uncertain")(function* (
         fence: ExecutionFence,
       ) {
+        if (
+          config.owner.generation !== fence.ownerGeneration ||
+          Result.isFailure(yield* Effect.result(config.owner.assertHeld))
+        )
+          return;
         const sql = yield* SqlClient.SqlClient;
-        yield* sql`UPDATE review_execution_runs SET state='uncertain',version=version+1 WHERE run_id=${fence.runId} AND project_id=${fence.projectId} AND state NOT IN ('cancelled','uncertain')`;
-        yield* sql`INSERT INTO review_execution_events(run_id,project_id,state,version) SELECT run_id,project_id,state,version FROM review_execution_runs WHERE run_id=${fence.runId} AND project_id=${fence.projectId}`;
+
+        const changed =
+          yield* sql`UPDATE review_execution_runs SET state='uncertain',version=version+1 WHERE run_id=${fence.runId} AND project_id=${fence.projectId} AND finding_id=${fence.findingId} AND journal_id=${fence.journalId} AND owner_generation=${fence.ownerGeneration} AND (state IN ('running','pausing') OR (state NOT IN ('cancelled','uncertain') AND EXISTS(SELECT 1 FROM review_sam_attempts s WHERE s.run_id=${fence.runId} AND s.status='uncertain'))) RETURNING run_id`;
+
+        if (changed.length > 0)
+          yield* sql`INSERT INTO review_execution_events(run_id,project_id,state,version) SELECT run_id,project_id,state,version FROM review_execution_runs WHERE run_id=${fence.runId} AND project_id=${fence.projectId}`;
       });
 
       const replay = Effect.fn("ReviewSegmentation.replay")(function* (
@@ -352,7 +369,9 @@ export class ReviewSegmentation extends Context.Service<
           );
 
         if (saved.status !== "completed" || saved.result_json === null) {
-          yield* query(uncertain(fence));
+          // The original call may still await SAM in this process; only an abandoned intent
+          // marks the run, or that call's paid answer would be demoted to historical.
+          if (!inFlight.has(fence.commandId)) yield* query(uncertain(fence));
 
           return yield* failure(
             "uncertain",
@@ -474,6 +493,10 @@ export class ReviewSegmentation extends Context.Service<
 
         return yield* Effect.uninterruptibleMask((restore) =>
           Effect.gen(function* () {
+            let admitted = false;
+            // Set once the intent's deletion before dispatch commits, so nothing is unresolved.
+            let withdrawn = false;
+
             const raced = yield* query(
               Effect.gen(function* () {
                 const existing = yield* attempt(fence.commandId);
@@ -505,22 +528,61 @@ export class ReviewSegmentation extends Context.Service<
                   );
                 yield* sql`INSERT INTO review_sam_attempts(operation_id,run_id,project_id,finding_id,source_artifact_id,journal_id,owner_generation,source_version,fact_version,input_fingerprint,fingerprint,request_json,status,sent) VALUES (${fence.commandId},${fence.runId},${fence.projectId},${fence.findingId},${request.artifactId},${fence.journalId},${fence.ownerGeneration},${fence.sourceVersion},${fence.factVersion},${inputFingerprint},${fingerprint},${body},'uncertain',0)`;
                 yield* sql`UPDATE review_execution_runs SET admitted_calls=admitted_calls+1 WHERE run_id=${fence.runId}`;
+                // Marked while the SQL permit is held, so a duplicate cannot see the intent first.
+                inFlight.add(fence.commandId);
+                admitted = true;
 
                 return undefined;
               }),
+            ).pipe(
+              Effect.tapError(() =>
+                Effect.sync(() => {
+                  if (admitted) inFlight.delete(fence.commandId);
+                }),
+              ),
             );
 
             if (raced !== undefined) return yield* replay(raced, inputFingerprint, fence);
 
             return yield* restore(
               Effect.gen(function* () {
-                yield* query(
+                const stale = yield* query(
                   Effect.gen(function* () {
-                    yield* checkFence(fence, request.artifactId);
                     const sql = yield* SqlClient.SqlClient;
-                    yield* sql`UPDATE review_sam_attempts SET sent=1 WHERE operation_id=${fence.commandId} AND sent=0 AND status='uncertain'`;
+                    const current = yield* Effect.result(checkFence(fence, request.artifactId));
+
+                    if (Result.isSuccess(current)) {
+                      yield* sql`UPDATE review_sam_attempts SET sent=1 WHERE operation_id=${fence.commandId} AND sent=0 AND status='uncertain'`;
+
+                      return undefined;
+                    }
+
+                    // Nothing was sent, so the intent and its call are withdrawn in this fenced
+                    // transaction rather than left as an unresolved outcome. A process that lost
+                    // the data directory writes nothing.
+                    const deleted = Result.isSuccess(yield* Effect.result(config.owner.assertHeld))
+                      ? yield* sql`DELETE FROM review_sam_attempts WHERE operation_id=${fence.commandId} AND run_id=${fence.runId} AND owner_generation=${fence.ownerGeneration} AND sent=0 AND status='uncertain' RETURNING operation_id`
+                      : [];
+
+                    if (deleted.length > 0)
+                      yield* sql`UPDATE review_execution_runs SET admitted_calls=admitted_calls-1 WHERE run_id=${fence.runId} AND admitted_calls>0`;
+
+                    return {
+                      withdrawn: deleted.length > 0,
+                      error:
+                        current.failure instanceof ExecutionError
+                          ? current.failure
+                          : failure("storage", "SAM evidence could not be read or saved."),
+                    };
                   }),
                 );
+
+                if (stale !== undefined) {
+                  withdrawn = stale.withdrawn;
+
+                  return yield* stale.error;
+                }
+
                 const transport = config.transport ?? fetch;
 
                 const response = yield* Effect.tryPromise({
@@ -625,8 +687,9 @@ export class ReviewSegmentation extends Context.Service<
               }),
             ).pipe(
               Effect.onExit((exit) =>
-                Exit.isFailure(exit) ? query(uncertain(fence)) : Effect.void,
+                Exit.isFailure(exit) && !withdrawn ? query(uncertain(fence)) : Effect.void,
               ),
+              Effect.ensuring(Effect.sync(() => inFlight.delete(fence.commandId))),
             );
           }),
         );
