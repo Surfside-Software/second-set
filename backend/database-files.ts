@@ -11,6 +11,12 @@ import { DatabaseFileError } from "../src/lib/backend-rpc.ts";
 const MigrationRow = Schema.Struct({ name: Schema.String, sha256: Schema.String });
 const parseHistory = Schema.decodeUnknownSync(Schema.Array(MigrationRow));
 
+type Migration = {
+  readonly name: string;
+  readonly sql: string;
+  readonly sha256: string;
+};
+
 const io = <A>(action: () => Promise<A>, message: string) =>
   Effect.tryPromise({
     try: action,
@@ -59,11 +65,7 @@ const loadMigrations = Effect.fn("loadMigrations")(function* (directory: string)
   const names = entries.filter((name) => name.endsWith(".sql")).toSorted();
   const seen = new Set<string>();
 
-  const migrations: Array<{
-    readonly name: string;
-    readonly sql: string;
-    readonly sha256: string;
-  }> = [];
+  const migrations: Array<Migration> = [];
 
   for (const name of names) {
     const id = name.slice(0, 4);
@@ -119,19 +121,15 @@ const snapshot = Effect.fn("snapshot")(function* (
   return filename;
 });
 
-/** Apply immutable SQL migrations transactionally after a consistent SQLite backup. */
-export const migrateDatabase = Effect.fn("migrateDatabase")(function* (
-  filename: string,
-  migrationDirectory: string,
-  backupDirectory: string,
+/**
+ * Apply this build's pending migrations to an open database in one transaction.
+ * `beforeApply` runs only when migrations are pending. Returns whether any were applied.
+ */
+const applyMigrations = Effect.fn("applyMigrations")(function* (
+  database: DatabaseSync,
+  migrations: ReadonlyArray<Migration>,
+  beforeApply: Effect.Effect<unknown, DatabaseFileError>,
 ) {
-  const migrations = yield* loadMigrations(migrationDirectory);
-  const existing = existsSync(filename);
-  yield* io(
-    () => mkdir(dirname(filename), { recursive: true }),
-    "The application data directory could not be created.",
-  );
-  const database = yield* open(filename);
   yield* sqlite(
     () => database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;"),
     "The database could not be configured.",
@@ -161,9 +159,9 @@ export const migrateDatabase = Effect.fn("migrateDatabase")(function* (
 
   const pending = migrations.slice(history.length);
 
-  if (pending.length === 0) return;
+  if (pending.length === 0) return false;
 
-  if (existing) yield* snapshot(database, backupDirectory, "before-migration");
+  yield* beforeApply;
 
   yield* sqlite(() => {
     database.exec("BEGIN IMMEDIATE");
@@ -183,6 +181,11 @@ export const migrateDatabase = Effect.fn("migrateDatabase")(function* (
     }
   }, "Database migration failed. Existing data and the pre-migration backup were preserved.");
 
+  return true;
+});
+
+// Pruning is cleanup after a committed migration, so a locked old backup must not stop startup.
+const pruneBackups = Effect.fn("pruneBackups")(function* (backupDirectory: string) {
   const backups = (yield* io(
     () =>
       readdir(backupDirectory).catch((error) => {
@@ -196,8 +199,41 @@ export const migrateDatabase = Effect.fn("migrateDatabase")(function* (
     .reverse();
 
   for (const old of backups.slice(5)) {
-    yield* io(() => rm(join(backupDirectory, old)), "An old backup could not be removed.");
+    yield* io(() => rm(join(backupDirectory, old)), "An old backup could not be removed.").pipe(
+      Effect.catch((error) =>
+        Effect.logWarning("database_backup_prune_failed", { message: error.message }),
+      ),
+    );
   }
+});
+
+/** Apply immutable SQL migrations transactionally after a consistent SQLite backup. */
+export const migrateDatabase = Effect.fn("migrateDatabase")(function* (
+  filename: string,
+  migrationDirectory: string,
+  backupDirectory: string,
+) {
+  const migrations = yield* loadMigrations(migrationDirectory);
+  const existing = existsSync(filename);
+  yield* io(
+    () => mkdir(dirname(filename), { recursive: true }),
+    "The application data directory could not be created.",
+  );
+  const database = yield* open(filename);
+
+  const applied = yield* applyMigrations(
+    database,
+    migrations,
+    existing ? snapshot(database, backupDirectory, "before-migration") : Effect.void,
+  );
+
+  if (!applied) return;
+
+  yield* pruneBackups(backupDirectory).pipe(
+    Effect.catch((error) =>
+      Effect.logWarning("database_backup_prune_failed", { message: error.message }),
+    ),
+  );
 });
 
 /** Export a consistent database using SQLite's backup API, including WAL contents. */
@@ -241,6 +277,21 @@ export const restoreDatabase = Effect.fn("restoreDatabase")(function* (
   if (!valid)
     return yield* new DatabaseFileError({ message: "This backup uses incompatible migrations." });
 
+  const replacement = join(dirname(filename), `${basename(filename)}.${randomUUID()}.restore`);
+  yield* Effect.acquireRelease(
+    saveBackup(incoming, replacement, "The backup could not be prepared for restore."),
+    () => Effect.promise(() => rm(replacement, { force: true })),
+  );
+  // A backup from an earlier build gets this build's pending migrations before it replaces the
+  // live file, so the running backend never queries an older schema. Only the private copy is
+  // migrated; the selected backup file stays unchanged as its pre-migration copy.
+  yield* Effect.scoped(
+    Effect.gen(function* () {
+      const restored = yield* open(replacement);
+      yield* applyMigrations(restored, migrations, Effect.void);
+    }),
+  );
+
   if (existsSync(filename)) {
     yield* Effect.scoped(
       Effect.gen(function* () {
@@ -252,11 +303,6 @@ export const restoreDatabase = Effect.fn("restoreDatabase")(function* (
     );
   }
 
-  const replacement = join(dirname(filename), `${basename(filename)}.${randomUUID()}.restore`);
-  yield* Effect.acquireRelease(
-    saveBackup(incoming, replacement, "The backup could not be prepared for restore."),
-    () => Effect.promise(() => rm(replacement, { force: true })),
-  );
   yield* io(
     () => renameReplacing(replacement, filename),
     "The original database could not be replaced. It was preserved.",

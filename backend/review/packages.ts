@@ -311,6 +311,28 @@ const removeTree = (path: string) =>
     catch: () => fail("unavailable", "A temporary package directory could not be removed."),
   });
 
+/** Remove a directory tree only when it holds no files or links. */
+const removeEmptyTree = (path: string) =>
+  Effect.tryPromise({
+    try: async () => {
+      const holdsFile = async (directory: string): Promise<boolean> => {
+        const entries = await readdir(directory, { withFileTypes: true }).catch((cause) => {
+          if (Schema.is(Schema.Struct({ code: Schema.Literal("ENOENT") }))(cause)) return [];
+          throw cause;
+        });
+
+        for (const entry of entries) {
+          if (!entry.isDirectory() || (await holdsFile(join(directory, entry.name)))) return true;
+        }
+
+        return false;
+      };
+
+      if (!(await holdsFile(path))) await rm(path, { recursive: true, force: true });
+    },
+    catch: () => fail("unavailable", "A temporary restore directory could not be removed."),
+  });
+
 const hashFile = (path: string, maxBytes: number) =>
   Effect.tryPromise({
     try: async () => {
@@ -1542,6 +1564,90 @@ const readManifest = (packageDirectory: string) =>
     );
   });
 
+/**
+ * Check a package database and its journals against the manifest: migration history, runs,
+ * journal identities and referenced artifacts. Restore repeats this on the staged copies, so
+ * files changed after validation cannot be installed unchecked.
+ */
+const checkContents = (
+  databasePath: string,
+  journalPath: (journal: PackageJournalFile) => string | undefined,
+  manifest: PackageManifest,
+  migrationDirectory: string,
+) =>
+  Effect.gen(function* () {
+    const inspected = yield* inspectDatabase(databasePath);
+    const installed = yield* migrationIdentities(migrationDirectory);
+
+    if (
+      !sameHistory(manifest.migrations, inspected.migrations) ||
+      !historyMatches(inspected.migrations, installed)
+    ) {
+      return yield* fail(
+        "incompatible",
+        "The package migrations are not compatible with this build.",
+      );
+    }
+
+    const snapshot = yield* readDomain(databasePath);
+    const manifestRuns = new Map(manifest.runs.map((run) => [run.runId.toLowerCase(), run]));
+
+    if (manifestRuns.size !== manifest.runs.length || manifestRuns.size !== snapshot.runs.length) {
+      return yield* fail(
+        "incomplete",
+        "The manifest run list does not match the package database.",
+      );
+    }
+
+    for (const run of snapshot.runs) {
+      const recorded = manifestRuns.get(run.runId.toLowerCase());
+
+      if (
+        recorded === undefined ||
+        recorded.journalId.toLowerCase() !== run.journalId ||
+        recorded.state !== run.state ||
+        recorded.ownerGeneration.toLowerCase() !== run.ownerGeneration ||
+        recorded.uncertainAttempts !== run.uncertainAttempts
+      ) {
+        return yield* fail("incomplete", "The manifest runs do not match the package database.");
+      }
+
+      const journal = manifest.journals.find(
+        (item) => item.journalId.toLowerCase() === run.journalId,
+      );
+
+      if (journal === undefined) {
+        return yield* fail(
+          "incomplete",
+          "The package omits a Pi journal required by a review run.",
+        );
+      }
+
+      const path = journalPath(journal);
+
+      if (path === undefined)
+        return yield* fail("corrupt", "A manifest path escapes the package directory.");
+
+      const identity = yield* journalIdentity(path);
+
+      if (identity.journal_id.toLowerCase() !== run.journalId) {
+        return yield* fail("incomplete", "A packaged Pi journal does not match its run.");
+      }
+    }
+
+    const packagedArtifacts = new Set(manifest.artifacts.map((artifact) => artifact.path));
+
+    for (const artifact of snapshot.artifacts) {
+      const relativePath = artifactName(artifact.sha256, artifact.mediaType);
+
+      if (!packagedArtifacts.has(relativePath)) {
+        return yield* fail("incomplete", "The package omits a referenced original or render.");
+      }
+    }
+
+    return snapshot;
+  });
+
 const validatePackage = (
   packageDirectory: string,
   limits: typeof PackageLimits.Type,
@@ -1597,6 +1703,9 @@ const validatePackage = (
         return yield* fail("corrupt", "An artifact path is outside the package layout.");
       }
 
+      if (expected.has(artifact.path))
+        return yield* fail("corrupt", "The package manifest lists a file more than once.");
+
       expected.set(artifact.path, { sha256: artifact.sha256, bytes: artifact.bytes });
     }
 
@@ -1609,6 +1718,9 @@ const validatePackage = (
       ) {
         return yield* fail("corrupt", "A journal path is outside the package layout.");
       }
+
+      if (expected.has(journal.path))
+        return yield* fail("corrupt", "The package manifest lists a file more than once.");
 
       expected.set(journal.path, { sha256: journal.sha256, bytes: journal.bytes });
     }
@@ -1647,70 +1759,12 @@ const validatePackage = (
       }
     }
 
-    const databasePath = join(root, "app.sqlite");
-    const inspected = yield* inspectDatabase(databasePath);
-    const installed = yield* migrationIdentities(migrationDirectory);
-
-    if (
-      !sameHistory(manifest.migrations, inspected.migrations) ||
-      !historyMatches(inspected.migrations, installed)
-    ) {
-      return yield* fail(
-        "incompatible",
-        "The package migrations are not compatible with this build.",
-      );
-    }
-
-    const snapshot = yield* readDomain(databasePath);
-    const manifestRuns = new Map(manifest.runs.map((run) => [run.runId.toLowerCase(), run]));
-
-    if (manifestRuns.size !== manifest.runs.length || manifestRuns.size !== snapshot.runs.length) {
-      return yield* fail(
-        "incomplete",
-        "The manifest run list does not match the package database.",
-      );
-    }
-
-    for (const run of snapshot.runs) {
-      const recorded = manifestRuns.get(run.runId.toLowerCase());
-
-      if (
-        recorded === undefined ||
-        recorded.journalId.toLowerCase() !== run.journalId ||
-        recorded.state !== run.state ||
-        recorded.ownerGeneration.toLowerCase() !== run.ownerGeneration ||
-        recorded.uncertainAttempts !== run.uncertainAttempts
-      ) {
-        return yield* fail("incomplete", "The manifest runs do not match the package database.");
-      }
-
-      const journal = manifest.journals.find(
-        (item) => item.journalId.toLowerCase() === run.journalId,
-      );
-
-      if (journal === undefined) {
-        return yield* fail(
-          "incomplete",
-          "The package omits a Pi journal required by a review run.",
-        );
-      }
-
-      const identity = yield* journalIdentity(join(root, journal.path));
-
-      if (identity.journal_id.toLowerCase() !== run.journalId) {
-        return yield* fail("incomplete", "A packaged Pi journal does not match its run.");
-      }
-    }
-
-    const packagedArtifacts = new Set(manifest.artifacts.map((artifact) => artifact.path));
-
-    for (const artifact of snapshot.artifacts) {
-      const relativePath = artifactName(artifact.sha256, artifact.mediaType);
-
-      if (!packagedArtifacts.has(relativePath)) {
-        return yield* fail("incomplete", "The package omits a referenced original or render.");
-      }
-    }
+    const snapshot = yield* checkContents(
+      join(root, "app.sqlite"),
+      (journal) => safeJoin(root, journal.path),
+      manifest,
+      migrationDirectory,
+    );
 
     return { root, manifest, snapshot };
   });
@@ -1939,6 +1993,14 @@ const recoverJournal = (dataDirectory: string, journal: RestoreJournal) =>
     }
 
     yield* removeTree(join(dataDirectory, ".package-restore", "incoming"));
+    // Discarded files are staged package copies. Saved originals have all returned, so only
+    // empty directories remain there; a leftover file keeps the tree in place.
+    yield* removeTree(join(dataDirectory, ".package-restore", "discarded")).pipe(
+      Effect.andThen(removeEmptyTree(join(dataDirectory, ".package-restore", "saved"))),
+      Effect.catch((error) =>
+        Effect.logWarning("review_package_rollback_cleanup_failed", { message: error.message }),
+      ),
+    );
     yield* removeTree(journalFile(dataDirectory));
 
     return new PackageRecovery({ status: "rolled-back", preRestorePackagePath: retained });
@@ -1982,6 +2044,9 @@ const swapEntry = (dataDirectory: string, journal: RestoreJournal, index: number
     if (existed) {
       yield* makeDirectory(dirname(saved), "The restore save directory could not be created.");
       yield* io(() => renameReplacing(live, saved), "A live file could not be moved aside.");
+      // The journal may record the move only after both directory entries are durable.
+      yield* fsyncDirectory(dirname(live));
+      yield* fsyncDirectory(dirname(saved));
     }
 
     next = {
@@ -2003,6 +2068,8 @@ const swapEntry = (dataDirectory: string, journal: RestoreJournal, index: number
       () => renameReplacing(incoming, live),
       "A package file could not be moved into place.",
     );
+    yield* fsyncDirectory(dirname(incoming));
+    yield* fsyncDirectory(dirname(live));
     next = {
       ...next,
       entries: next.entries.map((entry, entryIndex) =>
@@ -2041,6 +2108,7 @@ const buildIncoming = (
   packageRoot: string,
   manifest: PackageManifest,
   limits: typeof PackageLimits.Type,
+  migrationDirectory: string,
 ) =>
   Effect.gen(function* () {
     const incoming = join(dataDirectory, ".package-restore", "incoming");
@@ -2049,21 +2117,36 @@ const buildIncoming = (
     yield* backupSqlite(join(packageRoot, "app.sqlite"), join(incoming, "app.sqlite"));
 
     for (const artifact of manifest.artifacts) {
-      yield* copyRegularFile(
-        join(packageRoot, artifact.path),
-        join(incoming, artifact.path),
-        limits.maxBytes,
-      );
+      const from = safeJoin(packageRoot, artifact.path);
+      const to = safeJoin(incoming, artifact.path);
+
+      if (from === undefined || to === undefined)
+        return yield* fail("corrupt", "A manifest path escapes the package directory.");
+
+      const copied = yield* copyRegularFile(from, to, limits.maxBytes);
+
+      if (copied.sha256 !== artifact.sha256 || copied.bytes !== artifact.bytes)
+        return yield* fail("corrupt", "A package file changed after it was validated.");
     }
 
     for (const journal of manifest.journals) {
-      yield* backupSqlite(
-        join(packageRoot, journal.path),
-        join(incoming, liveJournalName(journal.journalId.toLowerCase())),
-      );
+      const from = safeJoin(packageRoot, journal.path);
+
+      if (from === undefined)
+        return yield* fail("corrupt", "A manifest path escapes the package directory.");
+
+      yield* backupSqlite(from, join(incoming, liveJournalName(journal.journalId.toLowerCase())));
     }
 
-    return incoming;
+    // SQLite backups do not keep the packaged bytes, so check the staged copies' contents again.
+    const snapshot = yield* checkContents(
+      join(incoming, "app.sqlite"),
+      (journal) => safeJoin(incoming, liveJournalName(journal.journalId.toLowerCase())),
+      manifest,
+      migrationDirectory,
+    );
+
+    return { incoming, snapshot };
   });
 
 const replacementEntries = (dataDirectory: string, manifest: PackageManifest) =>
@@ -2090,6 +2173,16 @@ const replacementEntries = (dataDirectory: string, manifest: PackageManifest) =>
     }
 
     entries.push({ relativePath: "app.sqlite", hadOriginal: false, status: "pending" });
+
+    // Check the whole swap set before any journal is written, so a bad entry cannot stop a
+    // replacement halfway. A repeated path would also move a staged copy over a saved original.
+    const paths = new Set(entries.map((entry) => entry.relativePath));
+
+    if (
+      paths.size !== entries.length ||
+      entries.some((entry) => !liveRelativeAllowed(entry.relativePath))
+    )
+      return yield* fail("corrupt", "A replacement path is outside the allowed set.");
 
     return entries;
   });
@@ -2120,25 +2213,45 @@ const restorePrepared = (
 
     yield* conflictingArtifact(dataDirectory, validated.snapshot, limits.maxBytes);
     const entries = yield* replacementEntries(dataDirectory, validated.manifest);
+    const hasDatabase = existsSync(join(dataDirectory, "app.sqlite"));
 
-    yield* buildIncoming(dataDirectory, validated.root, validated.manifest, limits);
+    // Without app.sqlite there is no pre-restore package, so recovery could not complete after
+    // moving a live journal aside. Stop before staging instead of stranding the restore journal.
+    if (!hasDatabase) {
+      for (const entry of entries) {
+        const live = safeJoin(dataDirectory, entry.relativePath);
 
-    const before = yield* markHistorical(
-      join(dataDirectory, ".package-restore", "incoming", "app.sqlite"),
-    );
+        if (live === undefined || existsSync(live))
+          return yield* fail(
+            "conflict",
+            "The data directory has execution journals but no app.sqlite. Move the execution-journals folder out of the data directory, then restore again.",
+          );
+      }
+    }
 
-    yield* finalizeDelete(join(dataDirectory, ".package-restore", "incoming", "app.sqlite"));
-    const admission = admissionFrom(before.runs, ownerGeneration);
+    const incoming = join(dataDirectory, ".package-restore", "incoming");
 
-    let preRestoreRelative: string | null = null;
+    // Before the replacement journal exists, a failure leaves live files untouched and the
+    // staged copy is not needed for recovery.
+    const { before, preRestoreRelative } = yield* Effect.gen(function* () {
+      yield* buildIncoming(
+        dataDirectory,
+        validated.root,
+        validated.manifest,
+        limits,
+        config.migrationDirectory,
+      );
 
-    if (existsSync(join(dataDirectory, "app.sqlite"))) {
-      const retainedId = randomUUID();
+      const before = yield* markHistorical(join(incoming, "app.sqlite"));
 
-      preRestoreRelative = `.package-restore/retained/${retainedId}`;
-      const retained = safeJoin(dataDirectory, preRestoreRelative);
+      yield* finalizeDelete(join(incoming, "app.sqlite"));
 
-      if (retained === undefined || !retainedRelativeAllowed(preRestoreRelative)) {
+      if (!hasDatabase) return { before, preRestoreRelative: null };
+
+      const retainedRelative = `.package-restore/retained/${randomUUID()}`;
+      const retained = safeJoin(dataDirectory, retainedRelative);
+
+      if (retained === undefined || !retainedRelativeAllowed(retainedRelative)) {
         return yield* fail("unavailable", "The pre-restore package path could not be created.");
       }
 
@@ -2147,7 +2260,11 @@ const restorePrepared = (
         "The pre-restore directory could not be created.",
       );
       yield* writeApplicationPackage(config, retained, limits, "retained");
-    }
+
+      return { before, preRestoreRelative: retainedRelative };
+    }).pipe(Effect.tapError(() => removeTree(incoming).pipe(Effect.ignore)));
+
+    const admission = admissionFrom(before.runs, ownerGeneration);
 
     let journal: RestoreJournal = {
       version: 1,
@@ -2184,7 +2301,12 @@ const restorePrepared = (
 
     if (Exit.isFailure(checkpoint)) {
       yield* removeTree(journalFile(dataDirectory)).pipe(Effect.ignore);
-      yield* removeTree(join(dataDirectory, ".package-restore", "incoming")).pipe(Effect.ignore);
+      yield* removeTree(incoming).pipe(Effect.ignore);
+      // Live files were not changed, so the snapshot written for this attempt is not needed.
+      const retained = absoluteRetained(dataDirectory, preRestoreRelative);
+
+      if (retained !== null && retained !== undefined)
+        yield* removeTree(retained).pipe(Effect.ignore);
 
       return yield* Effect.failCause(checkpoint.cause);
     }
@@ -2211,7 +2333,15 @@ const restorePrepared = (
 
     journal = { ...journal, phase: "complete" };
     yield* writeJournal(dataDirectory, journal);
-    yield* recoverJournal(dataDirectory, journal).pipe(Effect.ignore);
+    // Every file is in place. A cleanup failure leaves the journal for startup recovery.
+    yield* recoverJournal(dataDirectory, journal).pipe(
+      Effect.catch((error) =>
+        Effect.logWarning("review_package_restore_completion_failed", {
+          reason: error.reason,
+          message: error.message,
+        }),
+      ),
+    );
     const retained = absoluteRetained(dataDirectory, preRestoreRelative);
 
     return new PackageRestoreResult({
