@@ -304,7 +304,7 @@ test("the finding preview survives refresh and restart and is dropped once resul
       ),
     download: () => Effect.void,
     stop: () => Effect.void,
-    seedCache: () => Effect.succeed([]),
+    seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
   };
 
   const open = () =>

@@ -27,8 +27,8 @@ import {
   type CloudReviewRecord,
 } from "./contracts.ts";
 import { CloudSandbox } from "./service.ts";
-import { downloadCloudPackage, uploadCloudPackage } from "./transfer.ts";
-import { parseCloudWorkerProgress } from "./progress.ts";
+import { cloudPackageLimits, downloadCloudPackage, uploadCloudPackage } from "./transfer.ts";
+import { parseCloudWorkerProgress, stoppedCloudWorkerProgress } from "./progress.ts";
 
 const ModalFileChange = Schema.Struct({
   eventType: Schema.Literals(["Access", "Create", "Modify", "Remove", "Unknown"]),
@@ -65,6 +65,46 @@ export const pollWarmSandbox = (poll: () => Promise<number | null>) =>
     Effect.map((exit) => exit === null),
     Effect.catchTag("MissingModalSandbox", () => Effect.succeed(false)),
   );
+
+/**
+ * Mount a review snapshot for an in-cloud cache copy. Only a snapshot the provider reports missing
+ * has expired; any other failure leaves it for a later seed, so its files never cross the uplink again.
+ */
+export const mountCacheSnapshot = (mount: () => Promise<void>) =>
+  sandboxResult(mount).pipe(
+    Effect.as("mounted" as const),
+    Effect.catchTag("MissingModalSandbox", () => Effect.succeed("expired" as const)),
+    Effect.catch(() =>
+      Effect.logWarning("cloud_cache_snapshot_deferred").pipe(Effect.as("deferred" as const)),
+    ),
+  );
+
+/** Progress reads take seconds; the recovery sandbox is terminated as soon as they finish. */
+export const modalRecoveryReadTimeoutMs = 120_000;
+
+/**
+ * Result downloads read every package file through the recovery sandbox, up to the package size
+ * limit. Allow that at 900 KiB/s plus five minutes of per-file round trips; the sandbox is still
+ * terminated as soon as the download ends.
+ */
+export const modalResultDownloadTimeoutMs =
+  300_000 + Math.ceil(cloudPackageLimits.maxBytes / (900 * 1024)) * 1000;
+
+/**
+ * Uploader sandbox and script deadlines for one cache seed, between 5 and 60 minutes. The desktop
+ * uplink is allowed half its measured ~1.8 MiB/s and in-cloud copies 10 MiB/s. The retain and
+ * commit scripts copy and hash every retained byte, so their deadline grows with the copy.
+ */
+export const modalCacheSeedTimeouts = (uploadedBytes: number, copiedBytes: number) => {
+  const copyMs = Math.ceil(copiedBytes / (10 * 1024 * 1024)) * 1000;
+
+  const sandboxMs = Math.min(
+    3_600_000,
+    300_000 + Math.ceil(uploadedBytes / (900 * 1024)) * 1000 + copyMs,
+  );
+
+  return { sandboxMs, scriptMs: Math.min(sandboxMs, 300_000 + copyMs) };
+};
 
 /** Explicit provider absence confirms stop; unreachable or unauthorized resources remain fenced. */
 export const confirmModalSandboxStopped = (stopAndPoll: () => Promise<number | null>) =>
@@ -365,7 +405,10 @@ export const modalSandboxLayer = (
       });
 
       // Recovery sandboxes never run the entrypoint or admit inference; only package files are read.
-      const readable = Effect.fn("Modal.readable")(function* (record: CloudReviewRecord) {
+      const readable = Effect.fn("Modal.readable")(function* (
+        record: CloudReviewRecord,
+        timeoutMs: number,
+      ) {
         if (record.resultSnapshotId !== null) {
           const app = yield* modalCall(() =>
             client.apps.fromName(record.appName, { environment: record.environment }),
@@ -382,7 +425,7 @@ export const modalSandboxLayer = (
           const recovery = yield* modalCall(() =>
             client.sandboxes.create(app, base, {
               command: ["sleep", "infinity"],
-              timeoutMs: 120_000,
+              timeoutMs,
               blockNetwork: true,
               cpu: 0.25,
               memoryMiB: 512,
@@ -412,7 +455,7 @@ export const modalSandboxLayer = (
         const recovery = yield* modalCall(() =>
           client.sandboxes.create(app, image, {
             command: ["sleep", "infinity"],
-            timeoutMs: 120_000,
+            timeoutMs,
             blockNetwork: true,
             cpu: 0.25,
             memoryMiB: 512,
@@ -424,11 +467,12 @@ export const modalSandboxLayer = (
 
       const reading = <A>(
         record: CloudReviewRecord,
+        timeoutMs: number,
         use: (sandbox: Sandbox, sourceStopped: boolean) => Effect.Effect<A, CloudReviewError>,
       ) =>
         Effect.scoped(
           Effect.gen(function* () {
-            const handle = yield* Effect.acquireRelease(readable(record), (handle) =>
+            const handle = yield* Effect.acquireRelease(readable(record, timeoutMs), (handle) =>
               handle.recovery
                 ? modalCall(() => handle.sandbox.terminate()).pipe(Effect.ignore)
                 : Effect.sync(() => handle.sandbox.detach()),
@@ -474,8 +518,12 @@ export const modalSandboxLayer = (
             }
 
             if (compatibleImageId !== image.imageId) {
+              // Like allocation, which preflight must not block, a first Send creates the App.
               const app = yield* modalCall(() =>
-                client.apps.fromName(config.appName, { environment: config.environment }),
+                client.apps.fromName(config.appName, {
+                  createIfMissing: true,
+                  environment: config.environment,
+                }),
               );
 
               yield* Effect.scoped(
@@ -666,7 +714,7 @@ export const modalSandboxLayer = (
             });
           }),
         progress: (record) =>
-          reading(record, (sandbox, sourceStopped) =>
+          reading(record, modalRecoveryReadTimeoutMs, (sandbox, sourceStopped) =>
             Effect.gen(function* () {
               const text = yield* Effect.tryPromise({
                 try: async () => {
@@ -676,13 +724,7 @@ export const modalSandboxLayer = (
                     );
                   } catch (error) {
                     if (sourceStopped && error instanceof SandboxFilesystemNotFoundError)
-                      return JSON.stringify({
-                        id: record.id,
-                        identity: cloudEngineIdentity,
-                        phase: "failed",
-                        execution: null,
-                        message: "The cloud worker stopped before acknowledging the review.",
-                      });
+                      return null;
                     throw error;
                   }
                 },
@@ -696,7 +738,11 @@ export const modalSandboxLayer = (
                     : unavailable(),
               });
 
-              const progress = yield* parseCloudWorkerProgress(record, text);
+              // A stopped source that never wrote progress failed, whatever protocol it ran.
+              const progress =
+                text === null
+                  ? stoppedCloudWorkerProgress(record)
+                  : yield* parseCloudWorkerProgress(record, text);
 
               const checkpoint =
                 progress.phase === "ready"
@@ -711,7 +757,7 @@ export const modalSandboxLayer = (
             }),
           ),
         download: (record, destination, report, reuse) =>
-          reading(record, (sandbox) =>
+          reading(record, modalResultDownloadTimeoutMs, (sandbox) =>
             Effect.gen(function* () {
               const text = yield* modalCall(() =>
                 sandbox.filesystem.readText(`${cloudWorkerRoot(record)}/output/manifest.json`),
@@ -765,26 +811,19 @@ export const modalSandboxLayer = (
                 }),
               );
 
-              // Allow the measured ~1.8 MiB/s uplink at half speed and in-cloud copies at
-              // 10 MiB/s, between 5 and 60 minutes.
               const uploaded = request.local.reduce((total, file) => total + file.bytes, 0);
 
               const copied = request.snapshots
                 .flatMap((snapshot) => snapshot.files)
                 .reduce((total, file) => total + file.bytes, 0);
 
-              const timeoutMs = Math.min(
-                3_600_000,
-                300_000 +
-                  Math.ceil(uploaded / (900 * 1024)) * 1000 +
-                  Math.ceil(copied / (10 * 1024 * 1024)) * 1000,
-              );
+              const timeouts = modalCacheSeedTimeouts(uploaded, copied);
 
               const uploader = yield* Effect.acquireRelease(
                 modalCall(() =>
                   client.sandboxes.create(app, image, {
                     command: ["sleep", "infinity"],
-                    timeoutMs,
+                    timeoutMs: timeouts.sandboxMs,
                     blockNetwork: true,
                     cpu: 0.25,
                     memoryMiB: 512,
@@ -800,7 +839,7 @@ export const modalSandboxLayer = (
                   const process = await uploader.exec(["sh", "-c", text], {
                     stdout: "ignore",
                     stderr: "ignore",
-                    timeoutMs: 300_000,
+                    timeoutMs: timeouts.scriptMs,
                   });
 
                   if ((await process.wait()) !== 0) throw new Error("Cache command failed");
@@ -811,17 +850,19 @@ export const modalSandboxLayer = (
                 readonly files: (typeof request.snapshots)[number]["files"];
               }> = [];
 
+              const deferred: Array<string> = [];
+
               // An expired or deleted snapshot only means its files are uploaded on a later Send.
+              // Any other mount failure keeps the snapshot pending for the next seed.
               for (const [index, snapshot] of request.snapshots.entries()) {
-                const mounted = yield* modalCall(async () => {
+                const mounted = yield* mountCacheSnapshot(async () => {
                   const source = await client.images.fromId(snapshot.imageId);
                   await uploader.mountImage(`/mnt/source-${index}`, source);
-                }).pipe(
-                  Effect.as(true),
-                  Effect.catch(() => Effect.succeed(false)),
-                );
+                });
 
-                if (mounted) mounts.push({ root: `/mnt/source-${index}`, files: snapshot.files });
+                if (mounted === "mounted")
+                  mounts.push({ root: `/mnt/source-${index}`, files: snapshot.files });
+                else if (mounted === "deferred") deferred.push(snapshot.imageId);
               }
 
               if (mounts.length > 0) yield* script(retainScript(mounts));
@@ -856,7 +897,7 @@ export const modalSandboxLayer = (
                 yield* script(pruneCacheScript);
               }
 
-              return yield* listCache(uploader);
+              return { cached: yield* listCache(uploader), deferred };
             }),
           ),
         stop: (record) =>

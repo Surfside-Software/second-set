@@ -91,6 +91,20 @@ const RecoverableCloudWorkerProgress = Schema.Union([
 /** Recovery retains the worker's actual protocol without relaxing new worker admission. */
 export type CloudRecoveredWorkerProgress = typeof RecoverableCloudWorkerProgress.Type;
 
+/**
+ * Terminal progress for a source sandbox confirmed stopped before it wrote any progress. It is
+ * built here rather than parsed, so receipts for earlier worker protocols also reach `failed`.
+ */
+export const stoppedCloudWorkerProgress = (
+  record: Pick<CloudReviewRecord, "id">,
+): CloudRecoveredWorkerProgress => ({
+  id: record.id,
+  identity: cloudEngineIdentity,
+  phase: "failed",
+  execution: null,
+  message: "The cloud worker stopped before acknowledging the review.",
+});
+
 /** Well above a full finding preview and execution status; anything larger is not a progress record. */
 export const cloudWorkerProgressMaxBytes = 256 * 1024;
 

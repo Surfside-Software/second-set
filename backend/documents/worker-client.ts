@@ -23,6 +23,45 @@ export interface PdfWorkerSession {
   readonly nextId: () => string;
 }
 
+/**
+ * Variables the worker inherits. It parses untrusted PDFs, so provider keys and other backend
+ * secrets stay out of its environment. Executable lookup and the home, temporary and system
+ * directories pass through. The test hooks pass only when a test sets them.
+ */
+const inheritedWorkerVariables = [
+  "PATH",
+  "Path",
+  "HOME",
+  "USERPROFILE",
+  "SystemRoot",
+  "SYSTEMROOT",
+  "windir",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+  "SECOND_SET_PDF_WORKER_STARTED_DIRECTORY",
+  "SECOND_SET_PDF_WORKER_DELAY_MS",
+] as const;
+
+/** The minimal environment of one PDF worker process. */
+export const pdfWorkerEnvironment = (config: DocumentsConfig) => {
+  const environment: Record<string, string> = {};
+
+  for (const name of inheritedWorkerVariables) {
+    const value = process.env[name];
+
+    if (value !== undefined) environment[name] = value;
+  }
+
+  return {
+    ...environment,
+    SECOND_SET_PDFJS_ASSETS: config.assetsDirectory,
+    NAPI_RS_NATIVE_LIBRARY_PATH: config.nativeLibraryPath,
+    NODE_PATH: join(config.assetsDirectory, "..", "modules"),
+    BUN_OPTIONS: "",
+  };
+};
+
 /** Open one process for a bounded PDF job, with explicit lifetime and exit cleanup. */
 export const openPdfWorker = Effect.fn("openPdfWorker")(function* (config: DocumentsConfig) {
   const child = yield* Effect.acquireRelease(
@@ -33,13 +72,7 @@ export const openPdfWorker = Effect.fn("openPdfWorker")(function* (config: Docum
           stdin: "pipe",
           stdout: "pipe",
           stderr: "inherit",
-          env: {
-            ...process.env,
-            SECOND_SET_PDFJS_ASSETS: config.assetsDirectory,
-            NAPI_RS_NATIVE_LIBRARY_PATH: config.nativeLibraryPath,
-            NODE_PATH: join(config.assetsDirectory, "..", "modules"),
-            BUN_OPTIONS: "",
-          },
+          env: pdfWorkerEnvironment(config),
         }),
       catch: () =>
         new DocumentError({
@@ -55,7 +88,10 @@ export const openPdfWorker = Effect.fn("openPdfWorker")(function* (config: Docum
   );
 
   let counter = 0;
-  let buffered = "";
+  // Output after the last complete line, as decoded parts joined once a newline arrives, so a
+  // large render's single line is copied once rather than rescanned on every pipe chunk.
+  let parts: Array<string> = [];
+  let partLength = 0;
   const decoder = new TextDecoder();
   const reader = child.stdout.getReader();
   yield* Effect.addFinalizer(() => Effect.sync(() => reader.releaseLock()));
@@ -73,11 +109,14 @@ export const openPdfWorker = Effect.fn("openPdfWorker")(function* (config: Docum
             await child.stdin.flush();
 
             for (;;) {
-              const newline = buffered.indexOf("\n");
+              const last = parts.at(-1) ?? "";
+              const newline = last.indexOf("\n");
 
               if (newline >= 0) {
-                const line = buffered.slice(0, newline);
-                buffered = buffered.slice(newline + 1);
+                const line = parts.slice(0, -1).join("") + last.slice(0, newline);
+                const rest = last.slice(newline + 1);
+                parts = rest === "" ? [] : [rest];
+                partLength = rest.length;
 
                 const response = Schema.decodeUnknownSync(Schema.fromJsonString(WorkerResponse))(
                   line,
@@ -95,9 +134,11 @@ export const openPdfWorker = Effect.fn("openPdfWorker")(function* (config: Docum
               const chunk = await reader.read();
 
               if (chunk.done) throw new Error("Worker stopped without a result");
-              buffered += decoder.decode(chunk.value, { stream: true });
+              const decoded = decoder.decode(chunk.value, { stream: true });
+              parts.push(decoded);
+              partLength += decoded.length;
 
-              if (buffered.length > 96 * 1024 * 1024) throw new Error("Worker output limit");
+              if (partLength > 96 * 1024 * 1024) throw new Error("Worker output limit");
             }
           } finally {
             signal.removeEventListener("abort", abort);

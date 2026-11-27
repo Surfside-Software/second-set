@@ -66,7 +66,7 @@ test("the cloud estimate names projects whose local reviews must finish first", 
     progress: () => unused,
     download: () => unused,
     stop: () => unused,
-    seedCache: () => Effect.succeed([]),
+    seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
   };
 
   let callbacks: ApplicationEntry | undefined;

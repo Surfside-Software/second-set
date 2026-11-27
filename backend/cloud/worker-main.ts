@@ -29,10 +29,6 @@ const main = Effect.scoped(
 
     const job = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(CloudWorkerRequest))(text);
 
-    const [provider, ...alternatives] = yield* Schema.decodeUnknownEffect(
-      Schema.fromJsonString(CloudProviders),
-    )(process.env.SECOND_SET_CLOUD_PROVIDERS);
-
     // This exclusive marker fences even two exec requests with an ambiguous delivery outcome.
     yield* Effect.tryPromise({
       try: async () => {
@@ -58,6 +54,18 @@ const main = Effect.scoped(
     let failure = failed().message;
 
     const work = Effect.gen(function* () {
+      // Decoded after the dispatch lock, so a malformed route still records a failed review.
+      const [provider, ...alternatives] = yield* Schema.decodeUnknownEffect(
+        Schema.fromJsonString(CloudProviders),
+      )(process.env.SECOND_SET_CLOUD_PROVIDERS).pipe(
+        Effect.tapError(() =>
+          Effect.sync(() => {
+            failure =
+              "The cloud worker received unreadable model connections. No model calls were made.";
+          }),
+        ),
+      );
+
       yield* progress({
         phase: "accepted",
         execution: null,

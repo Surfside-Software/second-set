@@ -92,6 +92,15 @@ export const runCloudReview = Effect.fn("CloudWorker.runReview")(function* (
   destination: string,
   publish: (progress: Progress) => Effect.Effect<void, CloudReviewError>,
 ) {
+  // Interim progress is advisory: a failed write must not discard the review and its paid calls.
+  // Only the final ready record, which acknowledges the exported package, has to be saved.
+  const advise = (progress: Progress) =>
+    publish(progress).pipe(
+      Effect.catch((error) =>
+        Effect.logWarning("cloud_worker_progress_unsaved", { reason: error.reason }),
+      ),
+    );
+
   if ("kind" in request) {
     const started = yield* application.packets.start(request);
 
@@ -137,7 +146,7 @@ export const runCloudReview = Effect.fn("CloudWorker.runReview")(function* (
       review: typeof started,
       stage: "reviewing" | "preparing-results" = "reviewing",
     ) =>
-      publish({
+      advise({
         phase: "running",
         execution: null,
         packet: packetProgress(review, stage),
@@ -179,7 +188,7 @@ export const runCloudReview = Effect.fn("CloudWorker.runReview")(function* (
   }
 
   const started = yield* application.execution.start(request);
-  yield* publish({
+  yield* advise({
     phase: "running",
     execution: started,
     message: "Review running in the cloud. You can close the desktop and reconnect later.",
@@ -200,7 +209,7 @@ export const runCloudReview = Effect.fn("CloudWorker.runReview")(function* (
     Stream.runForEach(() =>
       Effect.gen(function* () {
         const status = yield* application.execution.status(request.projectId, started.runId);
-        yield* publish({
+        yield* advise({
           phase: "running",
           execution: status,
           message: `Cloud inspection ${status.state}; ${status.admittedCalls} review calls admitted.`,
@@ -210,7 +219,7 @@ export const runCloudReview = Effect.fn("CloudWorker.runReview")(function* (
     Effect.timeout(timeoutMs),
     Effect.catchTag("TimeoutError", () => application.execution.quiesce),
   );
-  yield* publish({
+  yield* advise({
     phase: "running",
     execution: yield* application.execution.status(request.projectId, started.runId),
     message: "Saving the result package before download.",

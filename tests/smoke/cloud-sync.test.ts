@@ -55,7 +55,7 @@ async function fixture(dropSignals = false) {
       Effect.sync(() => {
         operations.push("stop");
       }),
-    seedCache: () => Effect.succeed([]),
+    seedCache: () => Effect.succeed({ cached: [], deferred: [] }),
   };
 
   const modal = Schema.decodeUnknownSync(ModalConfiguration)({
