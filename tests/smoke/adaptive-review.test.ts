@@ -867,3 +867,259 @@ test.skipIf(Bun.which("pdftoppm") === null).each([false, true])(
     }
   },
 );
+
+test.skipIf(Bun.which("pdftoppm") === null)(
+  "a failed inspection returns a tool error, keeps the target's allowance and never reuses its ID",
+  async () => {
+    const options = { ...(await prepare()), maximumTurns: 4 };
+    let inspections = 0;
+
+    const model = reviewer({
+      inventory: (image, inspect) => {
+        if (inspect && inspections++ === 0)
+          return Effect.fail(new MetaReviewError({ message: "Synthetic observer timeout" }));
+
+        return Effect.succeed({
+          objects: [
+            inspect
+              ? device({ left: 125, top: 200, right: 200, bottom: 240 })
+              : device({ left: 660, top: 684, right: 846, bottom: 763 }),
+          ],
+        });
+      },
+      classify: () =>
+        Effect.succeed({
+          decisions: [{ id: "sam-7", kind: "receptacle", labels, rationale: "Visible symbol" }],
+        }),
+      turn: (input) =>
+        Effect.sync(() => {
+          const inspect = action("inspect_region", {
+            targetId: "sam-7",
+            marginPixels: 160,
+            purpose: "Inspect the SAM-side source symbol",
+          });
+
+          if (!input.continuation) return turn(baselines);
+          const previous = input.results[0];
+
+          if (previous?.actionId === "survey_room") return turn([inspect]);
+
+          if (input.results.length === 1) {
+            expect(previous?.data).toEqual({ error: "Synthetic observer timeout" });
+
+            return turn([inspect, { ...inspect, id: "second-inspection" }]);
+          }
+
+          return turn([action("finish_review", { summary: "Inspection retried after failure." })]);
+        }),
+    });
+
+    const result = await Effect.runPromise(
+      runAdaptiveReview(options).pipe(
+        Effect.provideService(MetaReviewClient, model),
+        Effect.provideService(SamClient, { segment: () => Effect.succeed(maskResponse()) }),
+      ),
+    );
+
+    expect(result.status).toBe("finished");
+
+    const Outcome = Schema.Union([
+      Schema.Struct({ error: Schema.String }),
+      Schema.Struct({ observation: Schema.Struct({ inspectionId: Schema.String }) }),
+    ]);
+
+    const inspected = result.trace
+      .filter((entry) => entry.action === "inspect_region")
+      .map((entry) => Schema.decodeUnknownSync(Outcome)(entry.result))
+      .map((outcome) => ("error" in outcome ? outcome.error : outcome.observation.inspectionId));
+
+    expect(inspected).toEqual(["Synthetic observer timeout", "inspection-2", "inspection-3"]);
+
+    const report = await Bun.file(join(options.output, "report.html")).text();
+    expect(report).not.toContain('alt="inspection-1"');
+    expect(report).toContain('alt="inspection-3"');
+  },
+);
+
+test.skipIf(Bun.which("pdftoppm") === null)(
+  "inspection frames stay on whole device pixels for base DPIs that are not multiples of 6",
+  async () => {
+    const options = { ...(await prepare()), maximumTurns: 4 };
+
+    const lowDpi = Schema.decodeUnknownSync(DrawingCrop)({
+      ...crop,
+      pdf_rect_points: [18, 36, 133.2, 156.24],
+      dpi: 200,
+      pixel_to_pdf: { scale: 0.36, offset_points: [18, 36] },
+    });
+
+    const model = reviewer({
+      inventory: (image, inspect) =>
+        Effect.sync(() => {
+          expect(image.id).toBe(inspect ? "inspection-1" : "base");
+
+          return {
+            objects: [
+              inspect
+                ? device(
+                    { left: 330, top: 250, right: 540, bottom: 400 },
+                    { positive: { x: 430, y: 320 }, negative: null },
+                  )
+                : device({ left: 625, top: 674, right: 720, bottom: 716 }),
+            ],
+          };
+        }),
+      classify: () =>
+        Effect.succeed({
+          decisions: [{ id: "sam-7", kind: "receptacle", labels, rationale: "Visible symbol" }],
+        }),
+      turn: (input) =>
+        Effect.sync(() => {
+          if (!input.continuation) return turn(baselines);
+          const previous = input.results[0];
+
+          if (previous?.actionId === "survey_room") {
+            return turn([
+              action("inspect_region", {
+                targetId: "sam-7",
+                marginPixels: 24,
+                purpose: "Resolve unmatched source geometry",
+              }),
+            ]);
+          }
+
+          if (previous?.actionId === "inspect_region") {
+            expect(previous.data).not.toHaveProperty("error");
+
+            return turn([
+              action("segment_candidate", {
+                targetId: "sam-7",
+                inspectionId: "inspection-1",
+                objectIndex: 0,
+                mode: "points",
+              }),
+            ]);
+          }
+
+          return turn([action("finish_review", { summary: "Fresh geometry at 400 DPI." })]);
+        }),
+    });
+
+    const result = await Effect.runPromise(
+      runAdaptiveReview({ ...options, crop: lowDpi }).pipe(
+        Effect.provideService(MetaReviewClient, model),
+        Effect.provideService(SamClient, {
+          segment: (prompt, image) =>
+            prompt === "circle"
+              ? Effect.succeed(maskResponse())
+              : pngSize(image).pipe(
+                  Effect.map((size) => {
+                    expect(size).toEqual({ width: 300, height: 200 });
+
+                    // An odd zoom pixel maps to a half base pixel.
+                    return maskResponse(size.width, size.height, 101, 51);
+                  }),
+                  Effect.orDie,
+                ),
+        }),
+      ),
+    );
+
+    expect(result.status).toBe("finished");
+
+    const inspection = Schema.decodeUnknownSync(
+      Schema.fromJsonString(Schema.Struct({ frame: DrawingCrop })),
+    )(await Bun.file(join(options.output, "inspections/inspection-1.json")).text());
+
+    expect(inspection.frame).toMatchObject({
+      dpi: 400,
+      pdf_rect_points: [72, 108, 126, 144],
+      width_px: 300,
+      height_px: 200,
+    });
+    expect(result.counts).toMatchObject({ corrections: 1, unresolved: 0, samCalls: 2 });
+    expect(result.rows[0]?.status).toBe("revised");
+    expect(result.rows[0]?.box.left).toBeCloseTo(200.5);
+    expect(result.rows[0]?.box.top).toBeCloseTo(225.5);
+    expect(result.rows[0]?.box.right).toBeCloseTo(230.5);
+    expect(result.rows[0]?.box.bottom).toBeCloseTo(239);
+  },
+);
+
+test.skipIf(Bun.which("pdftoppm") === null)(
+  "a corrected blind proposal that still matches no SAM receptacle stays unresolved",
+  async () => {
+    const options = { ...(await prepare()), maximumTurns: 4 };
+
+    const model = reviewer({
+      inventory: (_image, inspect) =>
+        Effect.succeed({
+          objects: [
+            inspect
+              ? device(
+                  { left: 746, top: 794, right: 917, bottom: 872 },
+                  { positive: { x: 830, y: 830 }, negative: null },
+                )
+              : device({ left: 312, top: 374, right: 407, bottom: 415 }),
+          ],
+        }),
+      classify: () =>
+        Effect.succeed({
+          decisions: [{ id: "sam-7", kind: "receptacle", labels, rationale: "Distant symbol" }],
+        }),
+      turn: (input) =>
+        Effect.sync(() => {
+          if (!input.continuation) return turn(baselines);
+          const previous = input.results[0];
+
+          if (previous?.actionId === "survey_room") {
+            return turn([
+              action("inspect_region", {
+                targetId: "blind-0",
+                marginPixels: 160,
+                purpose: "Correct blind geometry with a fresh source inspection",
+              }),
+            ]);
+          }
+
+          if (previous?.actionId === "inspect_region") {
+            return turn([
+              action("segment_candidate", {
+                targetId: "blind-0",
+                inspectionId: "inspection-1",
+                objectIndex: 0,
+                mode: "points",
+              }),
+            ]);
+          }
+
+          return turn([action("finish_review", { summary: "Blind proposal still unmatched." })]);
+        }),
+    });
+
+    const result = await Effect.runPromise(
+      runAdaptiveReview(options).pipe(
+        Effect.provideService(MetaReviewClient, model),
+        Effect.provideService(SamClient, {
+          segment: (prompt, image) =>
+            prompt === "circle"
+              ? Effect.succeed(maskResponse(320, 334, 10, 10))
+              : pngSize(image).pipe(
+                  Effect.map((size) => maskResponse(size.width, size.height, 522, 556, 2)),
+                  Effect.orDie,
+                ),
+        }),
+      ),
+    );
+
+    expect(result.status).toBe("finished");
+    expect(result.counts).toMatchObject({ proposedRows: 2, unresolved: 2, corrections: 1 });
+    const blindRow = result.rows.find((row) => row.blindId === "blind-0");
+    expect(blindRow?.status).toBe("unresolved");
+    expect(blindRow?.samId).toBeNull();
+    expect(blindRow?.assertions.map((assertion) => assertion.method)).toEqual([
+      "blind-inventory",
+      "zoom-observation",
+    ]);
+  },
+);

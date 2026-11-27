@@ -123,24 +123,30 @@ export const compareInventories = Effect.fn("compareInventories")(function* (
     }),
   );
 
+  const leftDegree = new Map<string, number>();
+  const rightDegree = new Map<string, number>();
+
+  for (const edge of edges) {
+    leftDegree.set(edge.leftId, (leftDegree.get(edge.leftId) ?? 0) + 1);
+    rightDegree.set(edge.rightId, (rightDegree.get(edge.rightId) ?? 0) + 1);
+  }
+
   const matches = edges.filter(
-    (edge) =>
-      edges.filter((candidate) => candidate.leftId === edge.leftId).length === 1 &&
-      edges.filter((candidate) => candidate.rightId === edge.rightId).length === 1,
+    (edge) => leftDegree.get(edge.leftId) === 1 && rightDegree.get(edge.rightId) === 1,
   );
 
+  const matched = new Set(matches);
+  const matchedLeft = new Set(matches.map((match) => match.leftId));
+  const matchedRight = new Set(matches.map((match) => match.rightId));
+
   const ambiguous = edges
-    .filter((edge) => !matches.includes(edge))
+    .filter((edge) => !matched.has(edge))
     .flatMap((edge) => [`left:${edge.leftId}`, `right:${edge.rightId}`]);
 
   return {
     matches,
-    leftOnly: leftBoxes
-      .filter((box) => !matches.some((match) => match.leftId === box.id))
-      .map((box) => box.id),
-    rightOnly: rightBoxes
-      .filter((box) => !matches.some((match) => match.rightId === box.id))
-      .map((box) => box.id),
+    leftOnly: leftBoxes.filter((box) => !matchedLeft.has(box.id)).map((box) => box.id),
+    rightOnly: rightBoxes.filter((box) => !matchedRight.has(box.id)).map((box) => box.id),
     ambiguous: Array.from(new Set(ambiguous)),
   };
 });
