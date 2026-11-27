@@ -61,8 +61,10 @@ function sectionEvidence(text: string, section: string) {
 
     const explicit = /^(?:section\b|sec\.?\s|article\b|table\b|§)/u.test(value);
 
+    // sectionText joins "101.2. Scope" and "R301.2 - Title" into "101.2.scope" and "r301.2-title",
+    // so the id may also end at a "." or "-" that runs into the heading's title.
     const matched = value.match(
-      /^(?:(section|sec\.?|article|table|§)\s*)?([a-z]?\d+(?:[.-]\d+)*(?:\([a-z0-9]+\))*)\.?(?:\s+|$)/u,
+      /^(?:(section|sec\.?|article|table|§)\s*)?([a-z]?\d+(?:[.-]\d+)*(?:\([a-z0-9]+\))*)(?:\.?(?:\s+|$)|[.-](?=\p{L}))/u,
     );
 
     const id = matched?.[2];

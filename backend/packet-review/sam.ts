@@ -122,16 +122,30 @@ export const decodePacketSamResponse = Effect.fn("PacketReview.decodeSam")(funct
   return { responseId, parserVersion, instances };
 });
 
-/** Keep compact mask payloads for a finding's zoomed view; outlines are decoded for display. */
+const focusMaskPayload = 65536;
+const focusSegments = 8;
+
+/**
+ * Keep compact mask payloads for a finding's zoomed view; outlines are decoded for display.
+ * The most confident embeddable masks are kept, and `detected` and `oversized` record how many
+ * SAM returned and how many were too large to embed, so a display never presents a subset as the
+ * whole result.
+ */
 export const decodePacketSamFocus = Effect.fn("PacketReview.decodeSamFocus")(function* (
   raw: string,
   input: ExecutionImage,
 ) {
   const { responseId, parsed } = yield* receipt(raw, input);
+  const embeddable = parsed.filter(({ mask }) => mask.payload.length <= focusMaskPayload);
+  const rank = (confidence: number | null) => confidence ?? Number.NEGATIVE_INFINITY;
 
-  const segments = parsed
-    .filter(({ mask }) => mask.payload.length <= 65536)
-    .slice(0, 8)
+  const segments = embeddable
+    .toSorted(
+      (left, right) =>
+        rank(right.mask.confidence ?? right.confidence) -
+        rank(left.mask.confidence ?? left.confidence),
+    )
+    .slice(0, focusSegments)
     .map(({ mask }) => ({
       confidence: mask.confidence,
       bounds: mask.bounds,
@@ -143,5 +157,10 @@ export const decodePacketSamFocus = Effect.fn("PacketReview.decodeSamFocus")(fun
       },
     }));
 
-  return { responseId, segments };
+  return {
+    responseId,
+    segments,
+    detected: parsed.length,
+    oversized: parsed.length - embeddable.length,
+  };
 });

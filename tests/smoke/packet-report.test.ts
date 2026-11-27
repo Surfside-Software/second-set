@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
 import { Schema } from "effect";
 import { renderPacketReport } from "../../backend/packet-review/report.ts";
-import { citationDisplayNote, PacketReview, PacketScope } from "#lib/review/packet.ts";
+import {
+  citationDisplayNote,
+  PacketFindingFocus,
+  PacketReview,
+  PacketScope,
+} from "#lib/review/packet.ts";
 import { initializePacketCoverage } from "#lib/review/packet-coverage.ts";
 
 const identifiers = {
@@ -682,4 +687,103 @@ test("citation display notes remove only browser access clauses and preserve pro
     expect(citationDisplayNote({ ...citation, note })).toBe(note);
     expect(citationDisplayNote({ ...citation, reference, status: "verified", note })).toBe(note);
   }
+});
+
+const focusArtifact = "10000000-0000-4000-8000-000000000013";
+
+const segment = {
+  confidence: 0.9,
+  bounds: { left: 1, top: 1, right: 2, bottom: 2 },
+  mask: { encoding: "one_bit", payload: "!!!!!&O.lVP", width: 1, height: 1 },
+} as const;
+
+const focused = (
+  focus: { readonly detected?: number; readonly oversized?: number },
+  changes: Partial<PacketReview["findings"][number]> = {},
+) => {
+  const [finding] = review().findings;
+
+  if (finding === undefined) throw new Error("Missing finding fixture");
+
+  const decoded = Schema.decodeUnknownSync(PacketFindingFocus)({
+    artifactId: focusArtifact,
+    sheetId: identifiers.sheet,
+    region: { x: 10, y: 20, width: 30, height: 40 },
+    width: 4,
+    height: 4,
+    box: { left: 1, top: 1, right: 3, bottom: 3 },
+    model: "sam-3.1",
+    responseId: "sam-focus",
+    segments: [segment, segment],
+    ...focus,
+  });
+
+  return review({ findings: [{ ...finding, ...changes, focus: decoded }] });
+};
+
+test("a SAM focus that kept a subset of SAM's objects says how many it shows", () => {
+  const html = renderPacketReport(
+    focused({ detected: 13, oversized: 1 }),
+    new Map([
+      [identifiers.evidence, pixel],
+      [focusArtifact, pixel],
+    ]),
+  );
+
+  expect(html).toContain(
+    "2 of 13 segmented objects shown (1 too large to embed) in the finding region",
+  );
+  expect(html).toContain("SAM: 2 of 13 segmented objects shown (1 too large to embed)");
+
+  // Zooms stored before the counts existed still read as the objects they hold.
+  const legacy = renderPacketReport(focused({}), new Map([[focusArtifact, pixel]]));
+  expect(legacy).toContain("2 segmented objects in the finding region");
+  expect(legacy).not.toContain("segmented objects shown");
+});
+
+test("a SAM focus image missing from the report is reported, and a focus counts as image evidence", () => {
+  const missing = renderPacketReport(focused({}), new Map([[identifiers.evidence, pixel]]));
+  expect(missing).toContain(`SAM focus ${focusArtifact} of E-101 is unavailable in this report.`);
+  expect(missing).not.toContain('<svg class="sam-focus"');
+
+  const focusOnly = renderPacketReport(
+    focused({}, { evidenceIds: [], evidenceNote: "" }),
+    new Map([[focusArtifact, pixel]]),
+  );
+
+  expect(focusOnly).toContain('<svg class="sam-focus"');
+  expect(focusOnly).not.toContain("No image evidence or explanation was recorded.");
+  expect(focusOnly).not.toContain("No image attached");
+});
+
+test("coverage rendering of a large whole-set review stays fast and keeps every row", () => {
+  const base = review();
+  const [sheet] = base.sheets;
+
+  if (sheet === undefined) throw new Error("Missing sheet fixture");
+
+  const sheets = Schema.decodeUnknownSync(PacketReview.fields.sheets)(
+    Array.from({ length: 500 }, (_, index) => ({
+      ...sheet,
+      id: `20000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      label: `S-${index}`,
+    })),
+  );
+
+  const input = review({
+    scope: PacketScope.members[0].make({}),
+    sheets,
+    inspectedSheetIds: sheets.slice(0, 250).map((entry) => entry.id),
+    coverage: [],
+    findings: [],
+  });
+
+  const started = performance.now();
+  const html = renderPacketReport(input, new Map());
+  const elapsed = performance.now() - started;
+
+  expect(html).toContain("S-499");
+  expect(html.match(/No coverage entry recorded\./g)?.length).toBe(500 * 11 * 4);
+  expect(html.match(/Source image not opened/g)).toHaveLength(250);
+  expect(elapsed).toBeLessThan(5000);
 });

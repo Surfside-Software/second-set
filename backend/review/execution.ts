@@ -652,6 +652,8 @@ export class ReviewExecution extends Context.Service<
               port.segmentation === undefined ? selectedTools : { ...selectedTools, segment },
             );
 
+            const prompt = selectedReviewPrompt(await runPromise(reviewContext(run)));
+
             const storage = await openReviewJournal(
               owner.canonicalDirectory,
               run.journal_id,
@@ -682,18 +684,35 @@ export class ReviewExecution extends Context.Service<
               throw error;
             }
 
-            const root = await harness.root(BACKGROUND_CONTEXT, {
-              agent: { model: admitted.model },
-            });
+            let root: Conversation;
+            let submission: Awaited<ReturnType<Conversation["submit"]>>;
 
-            const submission = await root.submit(
-              {
-                type: "input",
-                requestId: run.run_id,
-                content: selectedReviewPrompt(await runPromise(reviewContext(run))),
-              },
-              BACKGROUND_CONTEXT,
-            );
+            // Nothing below is registered yet, so close() and quiesce() cannot drain this journal.
+            try {
+              root = await harness.root(BACKGROUND_CONTEXT, {
+                agent: { model: admitted.model },
+              });
+
+              submission = await root.submit(
+                { type: "input", requestId: run.run_id, content: prompt },
+                BACKGROUND_CONTEXT,
+              );
+            } catch (error) {
+              await harness.close(BACKGROUND_CONTEXT).catch(() => undefined);
+              throw error;
+            }
+
+            const runtime: Runtime = { harness, root };
+
+            // A settled run no longer needs its journal. During close, close() drains it instead.
+            const retire = () => {
+              if (closing || runtimes.get(run.run_id) !== runtime) return;
+              runtimes.delete(run.run_id);
+              toolAborters.delete(run.run_id);
+              const closed = harness.close(BACKGROUND_CONTEXT).catch(() => undefined);
+              launchDrained.add(closed);
+              void closed.finally(() => launchDrained.delete(closed));
+            };
 
             void submission
               .wait(BACKGROUND_CONTEXT)
@@ -747,29 +766,41 @@ export class ReviewExecution extends Context.Service<
                   }
                 }
 
-                await runPromise(
-                  store.query(
-                    Effect.gen(function* () {
-                      const current = yield* store.load(run.run_id, run.project_id);
+                // A run that settles while paused finishes when it is resumed. This runtime stays
+                // registered until then, so resume admits no second launch.
+                for (;;) {
+                  const signal = changed.promise;
 
-                      if (
-                        closing ||
-                        current.owner_generation !== owner.generation ||
-                        (current.state !== "running" && current.state !== "pausing")
-                      )
-                        return;
-                      const status = yield* store.status(current);
-                      yield* store.transition(
-                        current,
-                        status.unresolvedAttempts > 0
-                          ? "uncertain"
-                          : result.status === "done"
-                            ? "completed"
-                            : "failed",
-                      );
-                    }),
-                  ),
-                );
+                  const settled = await runPromise(
+                    store.query(
+                      Effect.gen(function* () {
+                        const current = yield* store.load(run.run_id, run.project_id);
+
+                        if (closing || current.owner_generation !== owner.generation) return true;
+
+                        if (current.state === "paused") return false;
+
+                        if (current.state !== "running" && current.state !== "pausing") return true;
+                        const status = yield* store.status(current);
+                        yield* store.transition(
+                          current,
+                          status.unresolvedAttempts > 0
+                            ? "uncertain"
+                            : result.status === "done"
+                              ? "completed"
+                              : "failed",
+                        );
+
+                        return true;
+                      }),
+                    ),
+                  );
+
+                  if (settled) break;
+                  await signal;
+                }
+
+                retire();
                 wake();
               })
               .catch(async () => {
@@ -788,10 +819,11 @@ export class ReviewExecution extends Context.Service<
                     }),
                   ),
                 ).catch(() => undefined);
+                retire();
                 wake();
               });
 
-            runtimes.set(run.run_id, { harness, root });
+            runtimes.set(run.run_id, runtime);
           } catch (error) {
             await runPromise(
               store.query(
@@ -855,14 +887,23 @@ export class ReviewExecution extends Context.Service<
           // only OpenCode Go, its selection means "the default", not a request to refuse the check.
           const requestedRoute = reviewModels.find((entry) => entry.id === request.model);
 
+          // The default comes from a provider that can run count checks, with that provider's model.
+          const countDefault =
+            configuration.provider ??
+            providers.find(
+              (entry) => (entry.provider ?? "meta") === "meta" || entry.provider === "baseten",
+            );
+
           const model =
             (requestedRoute?.provider === "opencode-go" ||
             requestedRoute?.provider === "openai-compatible"
               ? undefined
               : request.model) ??
             defaultModel(
-              configuration.provider?.provider ?? providers[0]?.provider ?? "meta",
-              configuration.provider?.model,
+              countDefault === undefined
+                ? (providers[0]?.provider ?? "meta")
+                : (countDefault.provider ?? "meta"),
+              countDefault?.model,
             );
 
           const modelRoute = reviewModels.find((entry) => entry.id === model);
@@ -1056,7 +1097,7 @@ export class ReviewExecution extends Context.Service<
 
                   if (
                     current.state !== "paused" ||
-                    configuration.provider === undefined ||
+                    !providers.some((entry) => (entry.provider ?? "meta") === current.provider) ||
                     current.route === "offline"
                   )
                     return yield* failure("conflict", "This execution cannot be resumed.");

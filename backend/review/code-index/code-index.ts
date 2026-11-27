@@ -39,10 +39,12 @@ const linkPattern = /\[([^\]]*)Link\]\((https:\/\/[^)\s]+)\)/g;
 const sectionPattern =
   /\b(?:\d{2}[A-Z]\d{0,2}-\d{1,3}(?:\.\d{3,4})?|[A-Z]{0,2}\d{3,4}(?:\.\d+)*)\b/g;
 
+/** The host itself or one of its subdomains, such as www.flrules.org. */
+const onHost = (url: URL, host: string) =>
+  url.hostname === host || url.hostname.endsWith(`.${host}`);
+
 const accessFor = (url: URL): typeof CodeTextAccess.Type =>
-  url.hostname.endsWith("iccsafe.org") || url.hostname.endsWith("flrules.org")
-    ? "open_in_browser"
-    : "read_source";
+  onHost(url, "iccsafe.org") || onHost(url, "flrules.org") ? "open_in_browser" : "read_source";
 
 /** Parse one reference file: `## Document - Edition`, `### Topic`, then bold-titled link entries. */
 export function parseCodeReferences(markdown: string): ReadonlyArray<CodeReference> {
@@ -239,7 +241,7 @@ const linkedSection = (entry: CodeReference) => {
   if (url.hostname === "codes.iccsafe.org")
     return /_Sec([A-Z]{0,2}\d+(?:\.\d+)*)$/i.exec(url.hash)?.[1]?.toLowerCase();
 
-  if (url.hostname === "flrules.org") return url.searchParams.get("id")?.toLowerCase();
+  if (onHost(url, "flrules.org")) return url.searchParams.get("id")?.toLowerCase();
 
   return /\/Sections\/0*(\d+(?:\.\d+)*)\.html$/i
     .exec(url.searchParams.get("URL") ?? url.pathname)?.[1]
